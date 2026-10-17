@@ -100,7 +100,23 @@ function Pill() {
   const todayAmount=state&&core?money(dayFees(state,core,pricedDay)):'—';
   useEffect(()=>{if(tauri&&setting)void getCurrentWindow().setAlwaysOnTop(setting.pill_always_on_top).catch(()=>setError('Unable to set pill position.'));},[setting?.pill_always_on_top]);
   useEffect(()=>{if(tauri&&state)void invoke('set_watch_enabled',{enabled:!paused}).catch(()=>setError('Unable to apply file-switch pause.'));},[!!state,paused,active?.id]);
-  useEffect(()=>{if(tauri)void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice)}).catch(()=>setError('Unable to resize the pill.'));},[expanded,notice,recent,showQuestionNotice]);
+  useEffect(()=>{
+    if(!tauri)return;
+    const content=[...document.querySelectorAll<HTMLElement>('.pill-panel,.pill-notice')];
+    let frame=0;
+    const resize=()=>{
+      window.cancelAnimationFrame(frame);
+      frame=window.requestAnimationFrame(()=>{
+        const contentHeight=Math.max(58,...content.map(element=>Math.ceil(element.offsetTop+element.offsetHeight+8)));
+        void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice),contentHeight})
+          .catch(()=>setError('Unable to resize the pill.'));
+      });
+    };
+    const observer=new ResizeObserver(resize);
+    content.forEach(element=>observer.observe(element));
+    resize();
+    return()=>{observer.disconnect();window.cancelAnimationFrame(frame);};
+  },[expanded,notice,recent,showQuestionNotice]);
   const showSwitch=useCallback(async(windowTitle:string,appName:string)=>{
     if(!coreRef.current?.activeSession||!windowTitle.trim()||!appName.trim()||previous.current===appName+':'+windowTitle)return;
     previous.current=appName+':'+windowTitle;

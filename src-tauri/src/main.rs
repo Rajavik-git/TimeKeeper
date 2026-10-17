@@ -21,6 +21,7 @@ use tauri_plugin_shell::{
     ShellExt,
 };
 
+mod window_filter;
 #[cfg(windows)]
 mod window_watch;
 
@@ -60,17 +61,19 @@ fn set_pill_expanded(
     window: tauri::WebviewWindow,
     expanded: bool,
     notification: bool,
+    content_height: Option<u32>,
 ) -> Result<(), String> {
     if window.label() != "pill" {
         return Err("Pill window required".into());
     }
-    let height = if expanded {
+    let fallback_height = if expanded {
         PANEL_HEIGHT
     } else if notification {
         NOTICE_HEIGHT
     } else {
         PILL_HEIGHT
     };
+    let height = content_height.unwrap_or(fallback_height).max(PILL_HEIGHT);
     position_pill(&window, height).map_err(|error| error.to_string())
 }
 
@@ -211,6 +214,9 @@ fn main() {
             let pill = app
                 .get_webview_window("pill")
                 .expect("pill window configured");
+            let _ = pill.set_shadow(false);
+            #[cfg(windows)]
+            window_watch::disable_native_frame(&pill);
             position_pill(&pill, PILL_HEIGHT)?;
             pill.show()?;
             let open = MenuItem::with_id(app, "open", "Open TimeKeeper", true, None::<&str>)?;

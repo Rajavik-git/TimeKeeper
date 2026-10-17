@@ -36,7 +36,7 @@
 html,body,#root { margin:0;width:100%;height:100%;overflow:hidden;background:transparent }
 button,select { font:inherit }
 button:focus-visible,select:focus-visible { outline:2px solid var(--act);outline-offset:2px }
-.pill-root { position:relative;width:100%;height:100%;padding:14px 8px;color:var(--ink) }
+.pill-root { position:relative;width:100%;height:100%;padding:10px 8px;color:var(--ink) }
 .pill-bar { display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;height:38px;margin:auto;padding:0 6px 0 12px;border:0;border-radius:19px;background:var(--pill);color:var(--pill-ink);box-shadow:var(--shadow);white-space:nowrap;cursor:pointer;font-size:14px;font-weight:500 }
 .pill-bar:hover { box-shadow:0 0 0 1px var(--pill-line),var(--shadow) }
 .pill-bar.offline { background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--line-2),var(--shadow) }

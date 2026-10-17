@@ -16,7 +16,7 @@ The [TimeKeeper online demo](https://timekeeper-demo.vercel.app) uses fictional 
 
 For Tauri development, run `npm run dev:server` separately, then `npm run desktop:dev`. On Windows, `npm run desktop:build` creates the Node API sidecar, checks its first-run demo database and `/api/state`, and builds an NSIS installer containing the backend. An installed Windows user does not need Node or npm: launching TimeKeeper starts the API, shows the floating pill, and leaves the main window accessible from the tray. The pill's Billing view and file-switch prompt use the local API; Settings > Desk pill preview can simulate a switch between fictional documents in a browser. See [desktop installation](docs/implementation/desktop.md). Native Windows and macOS acceptance, Screenpipe capture and event delivery, and installed-app behavior remain unverified.
 
-The Windows shell also provides a local active-window change event for the pill and a separate watcher pause command. This does not control Screenpipe recording; see the [desktop implementation](docs/implementation/desktop.md).
+The Windows shell also provides a filtered active-window change event for document and work apps, plus a separate watcher pause command. The pill window follows its visible content and has no native border or shadow. Pausing the watcher does not control Screenpipe recording; see the [desktop implementation](docs/implementation/desktop.md).
 
 ## MVP behavior and retained demo extensions
 
