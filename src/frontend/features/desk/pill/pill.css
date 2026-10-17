@@ -69,7 +69,8 @@ button:focus-visible,select:focus-visible { outline:2px solid var(--act);outline
 .pill-button:hover { background:var(--hover) }
 .pill-button.action { background:var(--act);border-color:var(--act);color:var(--act-ink);font-weight:600 }
 .pill-button.action:hover { filter:brightness(1.12) }
-.pill-button:disabled,select:disabled { opacity:.48;cursor:not-allowed }
+.pill-button:disabled { opacity:1;background:var(--subtle);border-color:var(--line);color:var(--muted);cursor:not-allowed }
+select:disabled { opacity:.48;cursor:not-allowed }
 .pill-button.text { border-color:transparent;color:var(--muted);padding:0;align-self:flex-start }
 .pill-panel footer { display:flex;justify-content:space-between;gap:6px;padding:10px 16px;background:var(--subtle) }
 .pill-panel select,.pill-notice select,.pill-simulate select,.pill-question select { min-width:0;height:30px;padding:0 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);color:var(--ink);font-size:13px }
@@ -80,6 +81,10 @@ button:focus-visible,select:focus-visible { outline:2px solid var(--act);outline
 .pill-note-icon { display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:8px;background:var(--hover);color:var(--warn-dot);font-weight:700 }
 .pill-note-body { min-width:0;display:flex;flex-direction:column;gap:8px }
 .pill-note-body>strong { font-size:14px;font-weight:600;line-height:1.3;overflow-wrap:anywhere }
+.pill-note-body>strong { padding-right:18px }
+.pill-dismiss { position:absolute;top:6px;right:7px;display:grid;place-items:center;width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:20px;line-height:1;cursor:pointer }
+.pill-dismiss:hover { background:var(--hover);color:var(--ink) }
+.pill-dismiss:focus-visible { outline:2px solid var(--act);outline-offset:1px }
 .pill-note-actions { display:flex;align-items:center;gap:6px;flex-wrap:wrap }
 .pill-note-actions select { flex:1;max-width:150px }
 .pill-simulate { position:absolute;top:64px;left:8px;right:8px;z-index:1;display:flex;align-items:center;gap:7px;color:var(--muted);font-size:11px }
