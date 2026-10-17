@@ -49,3 +49,4 @@ test-results/
 *.db-shm
 *.db-journal
 .env.local
+captures/

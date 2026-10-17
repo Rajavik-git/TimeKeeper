@@ -4,7 +4,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 base = f"http://127.0.0.1:{os.environ.get('UI_PORT', '5173')}"
-captures = Path('/home/agent/ops/hackathon-timekeepr/emulator')
+captures = Path(os.environ.get('CAPTURE_DIR', 'captures'))
 captures.mkdir(parents=True, exist_ok=True)
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
