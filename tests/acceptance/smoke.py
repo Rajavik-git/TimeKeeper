@@ -25,7 +25,8 @@ with sync_playwright() as p:
     page.goto(url)
     page.wait_for_load_state('networkidle')
     assert page.locator('.brand-wordmark').inner_text() == 'TimeKeeper'
-    assert page.locator('.shell-side .user').count() == 0
+    assert page.locator('.floating-nav').is_visible()
+    assert page.locator('.shell-side').count() == 0
     for width, height in [(1440, 900), (1280, 800)]:
         page.set_viewport_size({'width': width, 'height': height})
         for theme in ['light', 'dark']:
@@ -36,6 +37,15 @@ with sync_playwright() as p:
                 assert not page.locator('.toast').is_visible(), (tab, page.locator('.toast').inner_text())
                 size = page.evaluate('({scroll:document.scrollingElement.scrollHeight, height:innerHeight})')
                 assert size['scroll'] <= size['height'], (width, height, theme, tab, size)
+                too_small = page.evaluate("""() => [...document.querySelectorAll('body *')]
+                    .filter(el => el.children.length === 0 && el.textContent?.trim() && el.getClientRects().length
+                        && getComputedStyle(el).visibility !== 'hidden'
+                        && parseFloat(getComputedStyle(el).fontSize) > 0
+                        && parseFloat(getComputedStyle(el).fontSize) < 12.5)
+                    .map(el => [el.className, el.textContent.trim().slice(0, 30)])""")
+                assert not too_small, (width, height, theme, tab, too_small)
+                if tab == 'My day':
+                    assert page.locator('.day-table').evaluate('(el) => el.scrollWidth <= el.clientWidth'), (width, height, theme, 'horizontal day table overflow')
                 if capture_dir and width == 1440:
                     page.screenshot(path=f'{capture_dir}/{filename}-{theme}.png')
             page.get_by_role('navigation', name='Screens').get_by_role('button', name='Cases', exact=False).click()
@@ -51,13 +61,19 @@ with sync_playwright() as p:
             page.get_by_role('navigation', name='Case breadcrumb').get_by_role('button', name='Cases').click()
     page.get_by_role('group', name='Theme').get_by_role('button', name='Auto').click()
     page.get_by_role('navigation', name='Screens').get_by_role('button', name='My day', exact=False).click()
-    page.get_by_text('Which case does this period belong to?').wait_for()
+    page.get_by_role('heading', name='Which case was this?').wait_for()
+    page.get_by_role('heading', name='Your day is ready.').wait_for()
     page.get_by_text('4h 27m', exact=True).wait_for()
     page.get_by_text('€912.50', exact=True).wait_for()
     page.get_by_text('11:24–12:05', exact=False).first.wait_for()
     page.get_by_role('group', name='Work periods filter').get_by_role('button', name='Left out').click()
     page.get_by_role('button', name='Count as work').first.wait_for()
     page.get_by_role('group', name='Work periods filter').get_by_role('button', name='All').click()
+    page.get_by_role('button', name='More actions for Drafting response submissions on termination of exclusivity').click()
+    page.get_by_role('button', name='Correct duration').wait_for()
+    page.get_by_role('button', name='More actions for Drafting response submissions on termination of exclusivity').click()
+    page.get_by_role('button', name='Validate the 4 recognized periods').click()
+    page.wait_for_function("document.querySelectorAll('.grid4 .kpi .v')[3]?.textContent === '1'")
     page.keyboard.press('4')
     page.get_by_role('heading', name='Source', exact=True).wait_for()
     page.locator('.timeline-track button').first.hover()
