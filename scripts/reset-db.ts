@@ -1,4 +1,5 @@
 import { refreshDemoRecognition } from "../src/backend/adapters/sqlite/recognition.js";
+import { seedCanonicalDemo } from "../src/backend/adapters/sqlite/demo-core.js";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -10,6 +11,7 @@ try {
   db.exec(readFileSync("src/backend/adapters/sqlite/schema.sql", "utf8"));
   db.exec(readFileSync("src/backend/adapters/sqlite/seed.sql", "utf8"));
   refreshDemoRecognition(db);
+  seedCanonicalDemo(db);
   console.log(`Database created: ${path}`);
 } finally {
   db.close();
