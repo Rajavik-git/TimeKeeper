@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { api, shortDate, type ScreenProps, type State } from "../../api/client";
 import { ActivitySourcePackDialog } from "./ActivitySourcePackDialog";
 import { effectiveMs, formatPreciseDuration } from "../../calculations/billing";
@@ -9,18 +9,29 @@ const clock = (value: string) =>
   Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
 const dollars = (cents: number) =>
   `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const dayLabel = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
 export function Source({ s, core, selected, action }: Props) {
   const [clientId, setClientId] = useState("");
   const [caseId, setCaseId] = useState("");
   const [activity, setActivity] = useState<State>(s);
   const [picked, setPicked] = useState<number | null>(null);
   const [pack, setPack] = useState(false);
+  const detailRef = useRef<HTMLElement>(null);
   const [preview, setPreview] = useState<{
     x: number;
     y: number;
     time: string;
     excerpt: string;
     kind: string;
+    caseName: string;
+    duration: string;
+    status: string;
   } | null>(null);
   useEffect(() => {
     let live = true;
@@ -81,6 +92,15 @@ export function Source({ s, core, selected, action }: Props) {
       </>
     ) : null;
   const days = Math.max(1, byDate.length);
+  const recordedMs = entries.reduce((sum, entry) => {
+    const recorded = activity.block.find((item) => item.id === entry.block_id);
+    return sum + (recorded?.minutes ?? 0) * 60000;
+  }, 0);
+  const toValidate = entries.filter((entry) => {
+    const canonical = core.periods.find((item) => item.id === String(entry.id));
+    return entry.billable && !canonical?.timeValidated && entry.review_status !== "approved";
+  }).length;
+  const today = new Date().toLocaleDateString("sv-SE");
   const time =
     selectedEntry && block
       ? formatPreciseDuration(
@@ -113,7 +133,6 @@ export function Source({ s, core, selected, action }: Props) {
             onChange={(event) => {
               setClientId(event.target.value);
               setCaseId("");
-              setPicked(null);
             }}
           >
             <option value="">All clients</option>
@@ -130,7 +149,6 @@ export function Source({ s, core, selected, action }: Props) {
             value={caseId}
             onChange={(event) => {
               setCaseId(event.target.value);
-              setPicked(null);
             }}
           >
             <option value="">
@@ -189,9 +207,20 @@ export function Source({ s, core, selected, action }: Props) {
           </div>
         </div>
         <div className="activity-timeline-body">
+          <div className="activity-timeline-count" aria-live="polite">
+            {byDate.length} {byDate.length === 1 ? "day" : "days"} · {formatPreciseDuration(recordedMs)} recorded · {toValidate} to validate
+          </div>
+          {entries.length === 0 ? (
+            <div className="activity-empty">
+              <p>No recorded activity matches these filters.</p>
+              <button className="btn sm" onClick={() => { setClientId(""); setCaseId(""); }}>
+                Clear filters
+              </button>
+            </div>
+          ) : (
           <div
             className="activity-grid"
-            style={{ gridTemplateRows: `16px repeat(${days}, minmax(0,1fr))` }}
+            style={{ gridTemplateRows: `16px repeat(${days}, minmax(22px,1fr))` }}
           >
             <span />
             <div className="activity-axis">
@@ -206,8 +235,8 @@ export function Source({ s, core, selected, action }: Props) {
             </div>
             {byDate.map(([date, rows]) => (
               <Fragment key={date}>
-                <span className="activity-date" key={`${date}-date`}>
-                  {shortDate(date)}
+                <span className={`activity-date ${date === today ? "today" : ""}`} key={`${date}-date`}>
+                  {dayLabel(date)}{date === today && <em>Today</em>}
                 </span>
                 <div className="activity-track" key={`${date}-track`}>
                   {rows.map((entry) => {
@@ -228,7 +257,7 @@ export function Source({ s, core, selected, action }: Props) {
                         clock(recorded.start_time)) /
                         660) *
                         100,
-                      0.9,
+                      0.48,
                     );
                     const short =
                       client?.name
@@ -259,15 +288,18 @@ export function Source({ s, core, selected, action }: Props) {
                       setPreview({
                         x: Math.max(
                           8,
-                          Math.min(window.innerWidth - 300, x - 140),
+                          Math.min(window.innerWidth - 320, x - 140),
                         ),
-                        y: Math.max(8, y - 150),
+                        y: Math.max(8, y - 188),
                         time: `${recorded.start_time}–${recorded.end_time}`,
                         excerpt: first?.excerpt ?? recorded.window_title,
                         kind:
                           first?.type === "audio"
                             ? "Call transcript"
                             : "Screen capture",
+                        caseName: caseItem ? `${client?.name ?? ""} · ${caseItem.title}` : "No case",
+                        duration: formatPreciseDuration(recorded.minutes * 60000),
+                        status: !entry.matter_id ? "No case" : !entry.billable ? "Not billable" : canonical?.timeValidated || entry.review_status === "approved" ? "Validated" : "To validate",
                       });
                     };
                     return (
@@ -276,7 +308,7 @@ export function Source({ s, core, selected, action }: Props) {
                         className={`activity-segment ${!entry.matter_id ? "unassigned" : !entry.billable ? "nonbill" : canonical?.timeValidated || entry.review_status === "approved" ? "ok" : "pending"} ${recorded.overlaps_block_id ? "overlap" : ""}`}
                         style={{ left: `${start}%`, width: `${width}%` }}
                         aria-pressed={entry.id === selectedEntry?.id}
-                        title={`${client?.name ?? "No case"} · ${caseItem?.title ?? ""} · ${recorded.start_time}–${recorded.end_time}`}
+                        aria-label={`${client?.name ?? "No case"} · ${caseItem?.title ?? "Unassigned"}, ${recorded.start_time} to ${recorded.end_time}. Click to inspect`}
                         onMouseMove={(event) =>
                           show(event.clientX, event.clientY)
                         }
@@ -290,6 +322,7 @@ export function Source({ s, core, selected, action }: Props) {
                         onClick={() => {
                           setPicked(entry.id);
                           setPreview(null);
+                          detailRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
                         }}
                       >
                         {label}
@@ -300,6 +333,7 @@ export function Source({ s, core, selected, action }: Props) {
               </Fragment>
             ))}
           </div>
+          )}
         </div>
       </section>
       {preview && (
@@ -308,14 +342,16 @@ export function Source({ s, core, selected, action }: Props) {
           style={{ left: preview.x, top: preview.y }}
           aria-hidden="true"
         >
+          <strong>{preview.caseName}</strong>
           <b>
-            {preview.time} · {preview.kind}
+            {preview.time} · {preview.duration} · {preview.status}
           </b>
-          <p>{preview.excerpt}</p>
+          <p>{preview.kind}: {preview.excerpt}</p>
+          <small>Click to inspect</small>
         </div>
       )}
       <div className="activity-lower">
-        <section className="activity-detail">
+        <section className="activity-detail" ref={detailRef}>
           <div className="card-h">
             <div className="t">
               <h2>{selectedEntry?.label ?? "No activity recorded"}</h2>
