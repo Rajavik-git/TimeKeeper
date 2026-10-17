@@ -94,7 +94,7 @@ function App() {
   const props = s && core
     ? { s, core, refresh, action, navigate, source, selectedCase }
     : undefined;
-  const lawyer = s?.firm[0]?.lawyer_name ?? "TimeKeepr";
+  const lawyer = s?.firm[0]?.lawyer_name ?? "TimeKeeper";
   const initials = lawyer
     .split(/\s+/)
     .map((part) => part[0])
@@ -116,7 +116,7 @@ function App() {
             T
           </span>
           <span className="t">
-            <b>TimeKeepr</b>
+            <b>TimeKeeper</b>
             <span>{lawyer}</span>
           </span>
         </div>
@@ -154,7 +154,7 @@ function App() {
               <span className="live" aria-hidden="true" />
               {core?.activeSession ? 'Session active' : 'No active session'}
             </div>
-            <p>{core?.activeSession ? `Started from Screenpipe at ${core.activeSession.startedAt.slice(11,16)}. Closing TimeKeepr keeps it open.` : 'Start from Screenpipe to begin a session.'}</p>
+            <p>{core?.activeSession ? `Started from Screenpipe at ${core.activeSession.startedAt.slice(11,16)}. Closing TimeKeeper keeps it open.` : 'Start from Screenpipe to begin a session.'}</p>
             {core?.activeSession&&<p className="num tiny">session {core.activeSession.id} · revision {core.activeSession.revision}{currentCase?` · ${currentCase.reference}`:''}</p>}
             <button
               className="btn sm"

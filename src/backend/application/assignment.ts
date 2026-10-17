@@ -30,7 +30,7 @@ export function updateTimeEntry(port: AssignmentPort, id: number, body: Record<s
           String(marker.value).toLocaleLowerCase() === value.toLocaleLowerCase()
         )) {
           port.addMarker({ matter_id: after.matter_id, type, value, weight: defaultWeights[type], learned: true });
-          port.audit("Marker learned", "", value, id, blockId, "TimeKeepr");
+          port.audit("Marker learned", "", value, id, blockId, "TimeKeeper");
         }
       }
     }

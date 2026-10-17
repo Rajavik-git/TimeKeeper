@@ -69,7 +69,7 @@ fn main() {
                 .expect("pill window configured");
             position_pill(&pill, PILL_HEIGHT)?;
             pill.show()?;
-            let open = MenuItem::with_id(app, "open", "Open TimeKeepr", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open TimeKeeper", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &quit])?;
             TrayIconBuilder::new()
@@ -90,5 +90,5 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("TimeKeepr failed to start");
+        .expect("TimeKeeper failed to start");
 }

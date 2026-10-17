@@ -255,7 +255,7 @@ export function Cases({ s, core, action, navigate, source }: ScreenProps) {
             ) : (
               <>
                 <div className="card-b muted marker-intro">
-                  TimeKeepr looks for these markers in window titles, on screen
+                  TimeKeeper looks for these markers in window titles, on screen
                   and in calls. Each one found adds to the match score. From{" "}
                   {Math.round(s.setting[0].confidence_threshold * 100)}%, work
                   is assigned automatically.

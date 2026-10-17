@@ -11,6 +11,6 @@ All names, companies, cases, and facts are invented. Placeholders in brackets, s
 | `2026-012 Articles of association - SAS Lumen` | `2026-012-LUMEN` | Flat-fee case. |
 | `2026-015 Shareholders agreement - SAS Lumen` | `2026-015-LUMEN` | Hourly case for the same company. |
 | `2026-004 Divorce - Bernard` | `2026-004-BERNARD` | Family law case with a court petition and hearing notes. |
-| `Unsorted` | none | No reference and no known marker: TimeKeepr cannot recognize the case and asks the lawyer. |
+| `Unsorted` | none | No reference and no known marker: TimeKeeper cannot recognize the case and asks the lawyer. |
 
 File types match a lawyer's daily work: drafts in Word (`.docx`), documents received or signed in PDF, and emails (`.eml`, open them in any mail client).

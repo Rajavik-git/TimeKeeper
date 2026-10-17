@@ -40,7 +40,7 @@ const bools = new Set([
   "vat",
 ]);
 export function openDb(
-  path = resolve(projectRoot, process.env.TIMEKEEPR_DB ?? "data/timekeepr.db"),
+  path = resolve(projectRoot, process.env.TIMEKEEPER_DB ?? "data/timekeeper.db"),
 ) {
   const db = new DatabaseSync(path);
   seedCanonicalDemo(db);

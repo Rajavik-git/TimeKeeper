@@ -12,7 +12,7 @@ export default defineConfig({
     host: process.env.UI_HOST ?? "127.0.0.1",
     port: Number(process.env.UI_PORT ?? 5173),
     strictPort: true,
-    proxy: { "^/api/(?!client\\.ts)": `http://127.0.0.1:${process.env.TIMEKEEPR_PORT ?? 8787}` },
+    proxy: { "^/api/(?!client\\.ts)": `http://127.0.0.1:${process.env.TIMEKEEPER_PORT ?? 8787}` },
   },
   build: {
     outDir: resolve(root, "../../dist/frontend"),

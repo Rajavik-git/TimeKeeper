@@ -9,7 +9,7 @@ expected = [
     ('Pre-invoices', 'Pre-invoices'),
     ('Source', 'Source'),
     ('Settings', 'Settings'),
-    ('Desk pill', 'The TimeKeepr pill'),
+    ('Desk pill', 'The TimeKeeper pill'),
 ]
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -57,9 +57,9 @@ with sync_playwright() as p:
     pill.on('pageerror', lambda error: errors.append(str(error)))
     pill.on('console', lambda message: errors.append(message.text) if message.type == 'error' else None)
     pill.goto(f'{url}pill.html')
-    pill.get_by_role('button', name='TimeKeepr, toggle panel').wait_for()
+    pill.get_by_role('button', name='TimeKeeper, toggle panel').wait_for()
     pill.get_by_text('Session active').wait_for()
-    pill.get_by_role('button', name='TimeKeepr, toggle panel').click()
+    pill.get_by_role('button', name='TimeKeeper, toggle panel').click()
     pill.get_by_text('Session since', exact=False).wait_for()
     pill.get_by_text('No current case').wait_for()
     assert pill.get_by_role('button', name='Pause', exact=True).is_disabled()

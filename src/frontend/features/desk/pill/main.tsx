@@ -38,7 +38,7 @@ function Pill() {
     if(tauri) try {await invoke('set_pill_expanded',{expanded:next,notification:Boolean(notice&&!next)});} catch {setError('Unable to resize the pill');return;}
     setExpanded(next);
   };
-  const openDay=()=>{if(tauri) void invoke('open_my_day').catch(()=>setError('Unable to open TimeKeepr'));else window.open('/','_blank');};
+  const openDay=()=>{if(tauri) void invoke('open_my_day').catch(()=>setError('Unable to open TimeKeeper'));else window.open('/','_blank');};
   const assign=async(caseId:string)=>{
     if(!current)return;
     const targetQuestion=core?.questions.find(q=>q.periodId===current.id&&q.status==='pending');
@@ -49,7 +49,7 @@ function Pill() {
     if(response.error) setError(JSON.stringify(response.error));else await refresh();
   };
   return <main className="pill-root">
-    <button className="pill-bar" onClick={()=>void toggle()} aria-expanded={expanded} aria-label="TimeKeepr, toggle panel">
+    <button className="pill-bar" onClick={()=>void toggle()} aria-expanded={expanded} aria-label="TimeKeeper, toggle panel">
       <span className="pill-logo">T</span><span className={`status-dot ${active?'':'paused'}`}/>
       <span className="pill-client">{offline?'Server not running':active?owner?.name??'Session active':'No active session'}</span>
       <strong className="pill-amount">{offline?'—':current?formatPreciseDuration(effectiveMs(current)):'—'}</strong>

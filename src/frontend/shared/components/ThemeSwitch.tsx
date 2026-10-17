@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Icon } from "./Icon";
 
 type Theme = "auto" | "light" | "dark";
-const key = "timekeepr-theme";
+const key = "timekeeper-theme";
 function savedTheme(): Theme {
   const value = localStorage.getItem(key);
   return value === "light" || value === "dark" ? value : "auto";

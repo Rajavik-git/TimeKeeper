@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "TimeKeepr local API",
+    "title": "TimeKeeper local API",
     "version": "0.1.0",
     "description": "The single contract between the local UI and API. Fictional demo data."
   },

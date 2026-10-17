@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "TimeKeepr",
+  "productName": "TimeKeeper",
   "version": "0.1.0",
-  "identifier": "com.timekeepr.desktop",
+  "identifier": "com.timekeeper.desktop",
   "build": {
     "beforeDevCommand": "npm run dev:ui",
     "devUrl": "http://127.0.0.1:5173",
@@ -17,7 +17,7 @@
       {
         "label": "pill",
         "url": "pill.html",
-        "title": "TimeKeepr",
+        "title": "TimeKeeper",
         "width": 340,
         "height": 58,
         "resizable": false,
@@ -31,7 +31,7 @@
       {
         "label": "main",
         "url": "index.html",
-        "title": "TimeKeepr",
+        "title": "TimeKeeper",
         "width": 1250,
         "height": 850,
         "minWidth": 900,

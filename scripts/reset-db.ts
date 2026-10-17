@@ -3,7 +3,7 @@ import { seedCanonicalDemo } from "../src/backend/adapters/sqlite/demo-core.js";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-const path = resolve(process.env.TIMEKEEPR_DB ?? "data/timekeepr.db");
+const path = resolve(process.env.TIMEKEEPER_DB ?? "data/timekeeper.db");
 mkdirSync(dirname(path), { recursive: true });
 rmSync(path, { force: true });
 const db = new DatabaseSync(path);

@@ -20,7 +20,7 @@ export function Desk({s,core,action,navigate}:ScreenProps) {
   const currentAmount=period && rate && rate.origin!=='flat_fee' && effectiveMs(period)!==null
     ? Math.round(effectiveMs(period)!*rate.rateCents/3600000) : null;
   return <>
-    <div className="row between"><div><span className="eyebrow">Lawyer desk · fictional demo</span><h1>The TimeKeepr pill</h1></div>
+    <div className="row between"><div><span className="eyebrow">Lawyer desk · fictional demo</span><h1>The TimeKeeper pill</h1></div>
       <span className="small muted">Session and period state come from the application API.</span></div>
     <div className="desk"><div className="docwin"><div className="row between dochead"><span>{period?.demoWindowTitle ?? 'No active period'}</span>
       <span className="num">{session?.startedAt.slice(11,16) ?? '—'}</span></div><div className="docpage"><h2>{period?.label ?? 'Waiting for a work period'}</h2>

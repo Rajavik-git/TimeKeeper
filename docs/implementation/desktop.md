@@ -1,6 +1,6 @@
 # Windows desktop app
 
-TimeKeepr's desktop shell is a Tauri 2 application. The Rust shell lives in `src-tauri/` and is driven by the single root npm package. It loads `src/frontend/pill.html` in a floating window and `src/frontend/index.html` in the main window. Both pages are built by Vite from `src/frontend/`. The Node API remains a separately started process; the installer does not bundle it.
+TimeKeeper's desktop shell is a Tauri 2 application. The Rust shell lives in `src-tauri/` and is driven by the single root npm package. It loads `src/frontend/pill.html` in a floating window and `src/frontend/index.html` in the main window. Both pages are built by Vite from `src/frontend/`. The Node API remains a separately started process; the installer does not bundle it.
 
 ## Install and run
 
@@ -8,7 +8,7 @@ TimeKeepr's desktop shell is a Tauri 2 application. The Rust shell lives in `src
 - Node.js 22.13 or newer. The local Node API is **not** included in the installer.
 - For local development or building on Windows: Rust with the MSVC toolchain and Microsoft C++ Build Tools.
 
-Clone the repository, run `npm ci`, then run `npm run dev:server` in one terminal. Keep it running. Run `npm run desktop:dev` in another terminal. For an installer, run `npm run desktop:build` on Windows, or start the **Windows desktop installer** GitHub Actions workflow manually (or push a `v*` tag). Download the NSIS `.exe` from the workflow artifacts and run it. Start the API with `npm run dev:server` before launching TimeKeepr from the Start menu. The unsigned installer can trigger a Windows SmartScreen warning.
+Clone the repository, run `npm ci`, then run `npm run dev:server` in one terminal. Keep it running. Run `npm run desktop:dev` in another terminal. For an installer, run `npm run desktop:build` on Windows, or start the **Windows desktop installer** GitHub Actions workflow manually (or push a `v*` tag). Download the NSIS `.exe` from the workflow artifacts and run it. Start the API with `npm run dev:server` before launching TimeKeeper from the Start menu. The unsigned installer can trigger a Windows SmartScreen warning.
 
 The API binds only to `127.0.0.1:8787`. The desktop WebView can access it from the Tauri origins. Development uses the local Vite server on port 5173. If the API is absent, the pill shows **Server not running** and retries every five seconds.
 
