@@ -62,7 +62,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
       return invoiceId;
     },
     markPeriodBilled(id,invoiceId,rateCents,at) {
-      db.prepare(`UPDATE work_periods SET billing_status='billed',billed_at=?,applied_hourly_rate_cents=?,applied_currency='EUR',invoice_id=?,revision=revision+1,updated_at=? WHERE id=?`).run(at,rateCents,invoiceId,at,id);
+      db.prepare(`UPDATE work_periods SET billing_status='billed',billed_at=?,applied_hourly_rate_cents=?,applied_currency='USD',invoice_id=?,revision=revision+1,updated_at=? WHERE id=?`).run(at,rateCents,invoiceId,at,id);
       if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='time_entry'").get()) {
         const entry=db.prepare(`SELECT e.id FROM time_entry e LEFT JOIN demo_block_periods link ON link.block_id=e.block_id
           WHERE link.period_id=? OR (e.block_id IS NULL AND CAST(e.id AS TEXT)=?) LIMIT 1`).get(id,id) as {id:number}|undefined;

@@ -14,7 +14,7 @@ export interface PeriodView {
   id: Id; sessionId: Id; caseId: Id | null; startedAt: string; endedAt: string | null;
   detectedDurationMs: number | null; durationOverrideMs: number | null;
   assignmentRevision: Revision; effectiveRevision: Revision;
-  validatedEffectiveRevision: Revision | null; timeValidated: boolean;
+  validatedEffectiveRevision: Revision | null; timeValidated: boolean; timeValidatedAt: string | null;
   billingStatus: 'unbilled' | 'billed';
   appliedHourlyRateCents?: number | null; appliedCurrency?: string | null;
   taskTypeId?: number | null; label?: string; billable?: boolean; nonbillableReason?: string | null;

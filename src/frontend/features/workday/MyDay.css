@@ -1,0 +1,48 @@
+.day-prompts { align-items:stretch; }
+.page .day-prompts > .card { justify-content:space-between; padding:16px; gap:12px; }
+.day-prompts .card > div:first-child { display:flex; flex-direction:column; gap:7px; }
+.page .day-prompts h2 { font-size:var(--fs-h2); }
+.page .day-prompts p { font-size:var(--fs-md); }
+.day-periods { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
+.day-periods > .tbl { min-height:0; flex:1 1 auto; overflow:auto; }
+.day-periods .day-table th:nth-child(1) { width:110px; }
+.day-periods .day-table th:nth-child(2) { width:190px; }
+.day-periods .day-table th:nth-child(3) { width:auto; }
+.day-periods .day-table th:nth-child(4) { width:135px; }
+.day-periods .day-table th:nth-child(5) { width:135px; }
+.day-periods .day-table th:nth-child(6) { width:168px; }
+.day-periods .day-table table { min-width:0; }
+.day-table td:nth-child(4) { white-space:normal; }
+.day-table .day-actions { justify-content:flex-end; }
+.day-sort { display:block; width:100%; border:0; padding:0; background:none; text-align:inherit; color:inherit; font:inherit; font-weight:inherit; cursor:pointer; }
+.day-table th.r .day-sort, .day-periods th.r .day-sort { text-align:right; }
+.day-duration { border:0; background:none; font:inherit; color:inherit; padding:0; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; }
+.day-duration[disabled] { cursor:default; text-decoration:none; }
+.day-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:100; background:var(--primary); color:var(--on-primary); padding:10px 16px; border-radius:var(--r-md); box-shadow:var(--shadow); font-size:var(--fs-md); cursor:pointer; }
+.day-load-error { color:var(--warn); font-size:var(--fs-sm); }
+.daypick .calwrap { position:relative; }
+.daypick { display:inline-flex;align-items:center;gap:6px; }
+.datebtn { position:relative;display:inline-flex;align-items:center;gap:8px;height:var(--h-md);padding:0 12px;border:1px solid var(--line-2);border-radius:var(--r-md);background:var(--surface);color:var(--ink);font-size:var(--fs-md);font-weight:500;cursor:pointer;white-space:nowrap; }
+.cal { position:absolute;top:calc(100% + 6px);right:0;z-index:20;width:320px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:12px;display:flex;flex-direction:column;gap:10px; }
+.calhd { display:flex;gap:6px;align-items:center; }
+.calhd .select { flex:1;min-width:0; }
+.calgrid { display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px; }
+.calgrid .dow { font-size:var(--fs-xs);color:var(--muted);text-align:center;padding:2px 0; }
+.cday { position:relative;height:36px;border:0;border-radius:var(--r-md);background:none;color:var(--ink);font-size:var(--fs-sm);font-variant-numeric:tabular-nums;cursor:pointer; }
+.cday:hover:not([disabled]) { background:var(--hover); }
+.cday.today { box-shadow:inset 0 0 0 1px var(--line-2); }
+.cday.sel,.cday.off.sel { background:var(--primary);color:var(--on-primary); }
+.cday[disabled] { color:var(--faint);cursor:not-allowed; }
+.cday.off:not(.sel) { color:var(--faint);background:repeating-linear-gradient(135deg,transparent 0 4px,color-mix(in srgb,var(--line) 70%,transparent) 4px 5px); }
+.cday i { position:absolute;left:50%;bottom:4px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--ok-dot); }
+.cday i.p { width:7px;height:7px;margin-left:-3.5px;bottom:3px;background:var(--warn-dot); }
+.cday.sel i { box-shadow:0 0 0 1.5px var(--primary); }
+.datebadge { min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--warn-dot);color:var(--warn-dot-ink);font-size:var(--fs-xs);font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums; }
+.daypick .iconbtn { border:1px solid var(--line-2); color:var(--ink); font-size:var(--fs-xl); }
+.daypick .iconbtn[disabled] { opacity:.45; cursor:not-allowed; }
+.calft { display:flex; justify-content:space-between; align-items:center; font-size:var(--fs-sm); }
+.calkey { display:flex;flex-wrap:wrap;gap:4px 10px;font-size:var(--fs-xs);color:var(--muted); }
+.calkey > span { display:inline-flex;align-items:center;gap:5px;white-space:nowrap; }
+.dotk { display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ok-dot); }
+.dotk.p { width:7px;height:7px;background:var(--warn-dot); }
+@media (max-width:1100px) { .day-periods .day-table th:nth-child(2) { width:175px; } .day-periods .day-table th:nth-child(4) { width:105px; } .day-periods .day-table th:nth-child(5) { width:120px; } .day-periods .day-table th:nth-child(6) { width:158px; } }

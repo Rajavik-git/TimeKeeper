@@ -4,9 +4,20 @@ import { configuredRate, effectiveMs } from '../../calculations/billing';
 import { Card } from "../../shared/components/Card";
 import { Pill } from "../../shared/components/Pill";
 import { MatterReference } from "../../shared/components/MatterReference";
-type Tab = "clients" | "matters" | "base" | "tasks" | "rules" | "preferences";
-const euroInput = (s: string) => Math.round(Number(s.replace(",", ".")) * 100);
-export function Settings({ s, core, action }: ScreenProps) {
+type Tab = "clients" | "matters" | "base" | "tasks" | "rules" | "preferences" | "pill";
+type SortState={column:number;direction:1|-1};
+let rememberedSorts:Record<string,SortState>={};
+function ordered<T>(rows:T[], sort:SortState|undefined, values:(row:T)=>Array<string|number|boolean|null|undefined>):T[] {
+  if(!sort)return rows;
+  return [...rows].sort((a,b)=>{
+    const left=values(a)[sort.column],right=values(b)[sort.column];
+    if(left===null||left===undefined||left==='—')return right===null||right===undefined||right==='—'?0:1;
+    if(right===null||right===undefined||right==='—')return -1;
+    return sort.direction*(typeof left==='number'&&typeof right==='number'?left-right:String(left).localeCompare(String(right),'en-US'));
+  });
+}
+const dollarInput = (s: string) => Math.round(Number(s.replaceAll(",", "")) * 100);
+export function Settings({ s, core, action, navigate }: ScreenProps) {
   const [tab, setTab] = useState<Tab>("clients"),
     [name, setName] = useState(""),
     [clientCode, setClientCode] = useState(""),
@@ -14,9 +25,14 @@ export function Settings({ s, core, action }: ScreenProps) {
     [taskCode, setTaskCode] = useState(""),
     [taskName, setTaskName] = useState(""),
     [ruleClient, setRuleClient] = useState(s.client[0]?.id ?? 0),
+    [sorts,setSorts]=useState(rememberedSorts),
     [ruleType, setRuleType] = useState<
       "daily_research_cap" | "nonbillable_travel"
     >("daily_research_cap");
+  const header=(table:string,column:number,label:string,numeric=false)=><th scope="col" aria-sort={sorts[table]?.column===column?sorts[table].direction===1?'ascending':'descending':undefined}><button className="sort-button" onClick={()=>setSorts(old=>{
+    const current=old[table],next={...old,[table]:{column,direction:current?.column===column ? current.direction===1?-1:1 : numeric?-1:1} as SortState};
+    rememberedSorts=next;return next;
+  })}>{label}{sorts[table]?.column===column?(sorts[table].direction===1?' ↑':' ↓'):''}</button></th>;
   type PatchPath =
     | "/api/client/{id}"
     | "/api/matter/{id}"
@@ -80,6 +96,7 @@ export function Settings({ s, core, action }: ScreenProps) {
             ["tasks", "Tasks"],
             ["rules", "Client rules"],
             ["preferences", "Capture and invoices"],
+            ["pill", "Desk pill"],
           ] as [Tab, string][]
         ).map(([id, text]) => (
           <button
@@ -97,20 +114,20 @@ export function Settings({ s, core, action }: ScreenProps) {
             <table className="dt">
               <thead>
                 <tr>
-                  <th>Client</th>
-                  <th>Type</th>
-                  <th>Mode</th>
-                  <th>Rate excluding VAT</th>
-                  <th>VAT</th>
-                  <th>Cases</th>
+                  {header("clients",0,"Client")}
+                  {header("clients",1,"Type")}
+                  {header("clients",2,"Mode")}
+                  {header("clients",3,"Hourly rate",true)}
+                  {header("clients",4,"Sales tax")}
+                  {header("clients",5,"Cases",true)}
                 </tr>
               </thead>
               <tbody>
-                {s.client.map((c) => (
+                {ordered(s.client,sorts.clients,c=>[c.name,c.type,c.mode,c.rate_cents,c.vat_applicable,s.matter.filter(m=>m.client_id===c.id).length]).map((c) => (
                   <tr key={c.id}>
                     <td>
                       {c.name}{" "}
-                      <span className="matter-reference">{c.code}</span>
+
                     </td>
                     <td>{c.type}</td>
                     <td>
@@ -134,11 +151,11 @@ export function Settings({ s, core, action }: ScreenProps) {
                         defaultValue={c.rate_cents / 100}
                         onBlur={(e) =>
                           patch("/api/client/{id}", c.id, {
-                            rate_cents: euroInput(e.target.value),
+                            rate_cents: dollarInput(e.target.value),
                           })
                         }
                       />{" "}
-                      €/h
+                      $/h
                     </td>
                     <td>
                       <input
@@ -168,7 +185,7 @@ export function Settings({ s, core, action }: ScreenProps) {
                   body: {
                     name: name,
                     code: clientCode,
-                    rate_cents: euroInput(amount),
+                    rate_cents: dollarInput(amount),
                   },
                 }),
               );
@@ -195,7 +212,7 @@ export function Settings({ s, core, action }: ScreenProps) {
             />
             <input
               className="field short"
-              placeholder="Rate €/h"
+              placeholder="Rate $/h"
               required
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
@@ -210,25 +227,25 @@ export function Settings({ s, core, action }: ScreenProps) {
             <table className="dt">
               <thead>
                 <tr>
-                  <th>Client</th>
-                  <th>Case</th>
-                  <th>Mode</th>
-                  <th>Own rate</th>
-                  <th>Amount</th>
-                  <th>Flat fee excluding VAT</th>
-                  <th>Budget excluding VAT</th>
-                  <th>Applied rate</th>
+                  {header("matters",0,"Client")}
+                  {header("matters",1,"Case")}
+                  {header("matters",2,"Mode")}
+                  {header("matters",3,"Own rate",true)}
+                  {header("matters",4,"Amount",true)}
+                  {header("matters",5,"Flat fee",true)}
+                  {header("matters",6,"Budget",true)}
+                  {header("matters",7,"Applied rate")}
                 </tr>
               </thead>
               <tbody>
-                {s.matter.map((d) => {
+                {ordered(s.matter,sorts.matters,d=>[s.client.find(c=>c.id===d.client_id)?.name,d.title,d.mode,d.own_rate_cents!==null,d.own_rate_cents,d.flat_fee_cents,d.budget_cents,originLabel(configuredRate(s,d.id).origin)]).map((d) => {
                   const c = s.client.find((x) => x.id === d.client_id)!;
                   const p = s.time_entry.find((l) => l.matter_id === d.id);
                   return (
                     <tr key={d.id}>
                       <td>
                         {c.name}{" "}
-                        <span className="matter-reference">{c.code}</span>
+
                       </td>
                       <td>
                         <MatterReference value={d.reference} /> {d.title}
@@ -276,7 +293,7 @@ export function Settings({ s, core, action }: ScreenProps) {
                           }
                           onBlur={(e) =>
                             patch("/api/matter/{id}", d.id, {
-                              own_rate_cents: euroInput(e.target.value),
+                              own_rate_cents: dollarInput(e.target.value),
                             })
                           }
                         />
@@ -293,7 +310,7 @@ export function Settings({ s, core, action }: ScreenProps) {
                           onBlur={(e) =>
                             patch("/api/matter/{id}", d.id, {
                               flat_fee_cents: e.target.value
-                                ? euroInput(e.target.value)
+                                ? dollarInput(e.target.value)
                                 : null,
                             })
                           }
@@ -309,7 +326,7 @@ export function Settings({ s, core, action }: ScreenProps) {
                           onBlur={(e) =>
                             patch("/api/matter/{id}", d.id, {
                               budget_cents: e.target.value
-                                ? euroInput(e.target.value)
+                                ? dollarInput(e.target.value)
                                 : null,
                             })
                           }
@@ -336,14 +353,14 @@ export function Settings({ s, core, action }: ScreenProps) {
               For work not yet assigned to a client or case.
             </span>
             <label>
-              Amount € ex VAT{" "}
+              Amount $/h{" "}
               <input
                 className="field short"
                 key={s.firm[0].base_rate_cents}
                 defaultValue={s.firm[0].base_rate_cents / 100}
                 onBlur={(e) =>
                   patch("/api/firm/{id}", s.firm[0].id, {
-                    base_rate_cents: euroInput(e.target.value),
+                    base_rate_cents: dollarInput(e.target.value),
                   })
                 }
               />
@@ -364,7 +381,7 @@ export function Settings({ s, core, action }: ScreenProps) {
               </select>
             </label>
             <label>
-              VAT rate{" "}
+              Sales tax rate{" "}
               <input
                 className="field short"
                 key={s.firm[0].vat_rate}
@@ -380,7 +397,7 @@ export function Settings({ s, core, action }: ScreenProps) {
           <Card className="side">
             <h3>At base rate today</h3>
             {core.periods.filter(period=>!period.caseId && !period.excluded).map(period=>(
-              <p key={period.id}>{period.label} · {effectiveMs(period)===null?'Unknown duration':money(Math.round(effectiveMs(period)!*(s.firm[0]?.base_rate_cents??0)/3600000))} excluding VAT, estimated</p>
+              <p key={period.id}>{period.label} · {effectiveMs(period)===null?'Unknown duration':money(Math.round(effectiveMs(period)!*(s.firm[0]?.base_rate_cents??0)/3600000))} before expenses, estimated</p>
             ))}
           </Card>
         </div>
@@ -391,17 +408,15 @@ export function Settings({ s, core, action }: ScreenProps) {
             <table className="dt">
               <thead>
                 <tr>
-                  <th>Code</th>
-                  <th>Label</th>
-                  <th>Billable by default</th>
-                  <th>Off-screen</th>
-                  <th>Entries</th>
+                  {header("tasks",0,"Label")}
+                  {header("tasks",1,"Billable by default")}
+                  {header("tasks",2,"Off-screen")}
+                  {header("tasks",3,"Entries",true)}
                 </tr>
               </thead>
               <tbody>
-                {s.task.map((t) => (
+                {ordered(s.task,sorts.tasks,t=>[t.label,t.billable_by_default,t.off_screen,s.time_entry.filter(e=>e.task_id===t.id).length]).map((t) => (
                   <tr key={t.id}>
-                    <td>{t.code}</td>
                     <td>{t.label}</td>
                     <td>
                       <input
@@ -470,13 +485,13 @@ export function Settings({ s, core, action }: ScreenProps) {
             <table className="dt">
               <thead>
                 <tr>
-                  <th>Client</th>
-                  <th>Rule</th>
+                  {header("rules",0,"Client")}
+                  {header("rules",1,"Rule")}
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {s.client_rule.map((r) => (
+                {ordered(s.client_rule,sorts.rules,r=>[s.client.find(c=>c.id===r.client_id)?.name,r.label]).map((r) => (
                   <tr key={r.id}>
                     <td>{s.client.find((c) => c.id === r.client_id)?.name}</td>
                     <td>{r.label}</td>
@@ -517,7 +532,7 @@ export function Settings({ s, core, action }: ScreenProps) {
               onChange={(e) => setRuleType(e.target.value as typeof ruleType)}
             >
               <option value="daily_research_cap">
-                Daily research cap (0.5 h)
+                Daily research cap (30m)
               </option>
               <option value="nonbillable_travel">Non-billable travel</option>
             </select>
@@ -536,24 +551,15 @@ export function Settings({ s, core, action }: ScreenProps) {
           </div>
         </Card>
       )}
+      {tab === "pill" && <Card className="settings-pill"><h2>Desk pill</h2><p>Keep the current case close while you work.</p>
+        <label className="row"><input type="checkbox" checked={s.setting[0].pill_always_on_top} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{pill_always_on_top:e.target.checked})}/>Show the pill above other windows</label>
+        <label className="col">What it shows <select className="field" value={s.setting[0].pill_display} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{pill_display:e.target.value})}><option value="fees">Fees for the current case</option><option value="time">Time on the current case</option><option value="case">Case name only</option></select></label>
+        <label className="row"><input type="checkbox" checked={s.setting[0].notifications} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{notifications:e.target.checked})}/>Notify me when a period needs an answer</label>
+        <label className="row"><input type="checkbox" checked={s.setting[0].pill_withhold_calls} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{pill_withhold_calls:e.target.checked})}/>Hold notifications during calls</label>
+        <div className="solid pad col"><h3>See how it looks</h3><p>Preview the pill on a sample legal document.</p><button className="btn" onClick={()=>navigate('desk')}>Open preview</button></div>
+      </Card>}
       {tab === "preferences" && (
         <Card className="settings">
-          <label>
-            Confidence threshold ·{" "}
-            {Math.round(s.setting[0].confidence_threshold * 100)} %{" "}
-            <input
-              type="range"
-              min="50"
-              max="95"
-              step="5"
-              value={s.setting[0].confidence_threshold * 100}
-              onChange={(e) =>
-                patch("/api/setting/{id}", s.setting[0].id, {
-                  confidence_threshold: Number(e.target.value) / 100,
-                })
-              }
-            />
-          </label>
           {(
             [
               ["excluded_apps", "Apps excluded from capture"],

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "pill-preferences",
+  "description": "Allow the pill to follow its always-on-top preference",
+  "windows": ["pill"],
+  "permissions": ["core:window:allow-set-always-on-top"]
+}

@@ -1,121 +1,189 @@
 import { useEffect, useState } from 'react';
 import { api, client, money, shortDate, today, type ScreenProps } from '../../api/client';
-import { draftInvoice, effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
+import { configuredRate, draftInvoice, effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
+import { previousBillingMetrics } from '../../calculations/cases';
 import { Card } from '../../shared/components/Card';
 import { Kpi } from '../../shared/components/Kpi';
-import { MatterSelect } from '../../shared/components/MatterSelect';
 import { MatterReference } from '../../shared/components/MatterReference';
 import { Pill } from '../../shared/components/Pill';
+import { rate as rateLabel } from '../../shared/format';
 
-export function PreInvoices({s,core,action,source,selectedCase,refresh}:ScreenProps) {
-  const [selected,setSelected]=useState(selectedCase ?? s.matter[0]?.id ?? 0);
-  useEffect(()=>{if(selectedCase) setSelected(selectedCase);},[selectedCase]);
-  const [tab,setTab]=useState<'all'|'bill'|'non'>('all');
-  const [type,setType]=useState<'final'|'deposit'>('final');
+type InvoiceRow = {id:string;date:string;label:string;durationMs:number|null;amountCents:number|null;kind:'period'|'expense'|'disbursement'|'flat_fee';pending:boolean};
+type SortKey = 'date'|'label'|'duration'|'amount';
+type SortState = {key:SortKey;direction:'ascending'|'descending'};
+let billingSort:SortState={key:'date',direction:'ascending'};
+
+function sortRows(rows: InvoiceRow[], key: SortKey, direction:'ascending'|'descending') {
+  const value=(row:InvoiceRow):string|number|null => key==='date'?row.date:key==='label'?row.label:key==='duration'?row.durationMs:row.amountCents;
+  return [...rows].sort((a,b)=>{
+    const left=value(a),right=value(b);
+    if(left===null) return right===null?0:1;
+    if(right===null) return -1;
+    const comparison=typeof left==='number'&&typeof right==='number'?left-right:String(left).localeCompare(String(right),'en-US');
+    return direction==='ascending'?comparison:-comparison;
+  });
+}
+
+function delta(current:number,previous:number,previousDay:string,increaseGood:boolean) {
+  if (!previous) return null;
+  const change=Math.round((current-previous)*100/previous);
+  return <span className={`case-kpi-delta ${change===0?'flat':(change>0)===increaseGood?'up':'down'}`} title={`vs ${new Date(`${previousDay}T12:00:00Z`).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}`}>{change>0?'+':change<0?'−':''}{Math.abs(change)}%</span>;
+}
+
+export function PreInvoices({s,core,action,selectedCase,refresh}:ScreenProps) {
+  const [selected,setSelected]=useState<number|null>(selectedCase??null);
+  const [type,setType]=useState<'final'|'deposit'>(selectedCase && s.matter.find(m=>m.id===selectedCase)?.mode==='flat_fee'?'final':'deposit');
+  const [expenseOpen,setExpenseOpen]=useState(false);
   const [expenseLabel,setExpenseLabel]=useState('');
   const [expenseType,setExpenseType]=useState<'expense'|'disbursement'>('expense');
   const [expenseAmount,setExpenseAmount]=useState('');
-  const [csv,setCsv]=useState('');
-  const item=s.matter.find(m=>m.id===selected) ?? s.matter[0];
-  if(!item) return null;
+  const [sort,setSort]=useState<SortState>(billingSort);
+  const [notice,setNotice]=useState('');
+  const [editing,setEditing]=useState<string|null>(null);
+  const [correctedMinutes,setCorrectedMinutes]=useState('');
+  useEffect(()=>{setSelected(selectedCase??null);if(selectedCase) setType(s.matter.find(m=>m.id===selectedCase)?.mode==='flat_fee'?'final':'deposit');},[selectedCase]);
+  useEffect(()=>{if(!notice)return;const timer=window.setTimeout(()=>setNotice(''),3500);return()=>window.clearTimeout(timer);},[notice]);
+
+  const openCases=s.matter.filter(item=>item.status==='open').map(item=>{
+    const owner=client(s,item.id);
+    const periods=core.periods.filter(period=>period.caseId===String(item.id)&&!period.excluded&&period.billable&&period.billingStatus==='unbilled');
+    const preview=draftInvoice(s,core,item.id,'final');
+    const invoices=core.billing.invoices.filter(invoice=>invoice.caseId===String(item.id)).sort((a,b)=>b.date.localeCompare(a.date));
+    return {item,owner,periods,preview,lastInvoice:invoices[0]};
+  }).filter(row=>row.owner&&(row.periods.length||row.preview.feesCents>0))
+    .sort((a,b)=>b.preview.feesCents-a.preview.feesCents);
+
+  const validate=async(ids:string[])=>{
+    let done=0;
+    for(const id of ids) {
+      const result=await api.POST('/api/work-periods/{id}/validate-time',{params:{path:{id}},body:{}});
+      if(result.error) {setNotice(`${done} period${done===1?'':'s'} validated; a later validation failed.`);await refresh();return;}
+      done++;
+    }
+    await refresh();
+    setNotice(`${done} period${done===1?'':'s'} validated`);
+  };
+
+  const item=s.matter.find(matter=>matter.id===selected);
+  if(!item) {
+    const prior=previousBillingMetrics(s,core,today);
+    const note=`Changes in % compare with the same period last month (${new Date(`${prior.previousDay.slice(0,7)}-01T12:00:00Z`).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}–${prior.previousDay.slice(-2)}).`;
+    const ready=openCases.filter(row=>row.preview.pendingPeriods===0&&row.preview.complete);
+    const waiting=openCases.filter(row=>row.preview.pendingPeriods>0);
+    const readyCents=ready.reduce((sum,row)=>sum+row.preview.feesCents,0);
+    const allCents=openCases.reduce((sum,row)=>sum+row.preview.feesCents,0);
+    return <>
+      <div className="page-head"><div><h1>Billing</h1><p>Choose a case to prepare its invoice. {note}</p></div></div>
+      <div className="billing-summary stats">
+        <Kpi title="Ready to invoice" value={<>{money(readyCents)}{delta(readyCents,prior.readyCents,prior.previousDay,true)}</>} detail={`${ready.length} case${ready.length===1?'':'s'}, all validated`}/>
+        <Kpi title="Waiting for validation" value={<>{waiting.length}{delta(waiting.length,prior.waitingCases,prior.previousDay,false)}</>} detail={`case${waiting.length===1?'':'s'} with periods to validate`}/>
+        <Kpi title="To bill in total" value={<>{money(allCents)}{delta(allCents,prior.toBillCents,prior.previousDay,false)}</>} detail="Open cases"/>
+      </div>
+      <div className="billing-overview"><div className="billing-cards">
+        {openCases.map(({item:caseItem,owner,preview,lastInvoice})=><button className="billing-card" key={caseItem.id} onClick={()=>{setSelected(caseItem.id);setType(caseItem.mode==='flat_fee'?'final':'deposit')}}>
+          <span className="billing-card-head"><strong>{owner!.name}</strong><span>{caseItem.title}</span><MatterReference value={caseItem.reference}/></span>
+          <span className="billing-card-value"><strong>{money(preview.feesCents)}</strong><span>{formatRoundedMinutes(preview.billedMinutes)}</span></span>
+          <span className="billing-card-foot"><Pill kind={preview.pendingPeriods?'warn':caseItem.mode==='flat_fee'?'out':'ok'}>{preview.pendingPeriods?`${preview.pendingPeriods} to validate`:caseItem.mode==='flat_fee'?'Flat fee':'Ready to invoice'}</Pill>{lastInvoice&&<small>{`Last: ${lastInvoice.number}, ${shortDate(lastInvoice.date)}`}</small>}</span>
+        </button>)}
+        {!openCases.length&&<Card><h2>Nothing to invoice</h2><p>New billable work will appear here.</p></Card>}
+      </div></div>
+      {notice&&<div className="toast" role="status" onClick={()=>setNotice('')}>{notice} ×</div>}
+    </>;
+  }
+
   const owner=client(s,item.id)!;
-  const periods=core.periods.filter(p=>p.caseId===String(item.id) && !p.excluded).sort((a,b)=>a.startedAt.localeCompare(b.startedAt));
-  const billed=periods.filter(p=>p.billable&&p.billingStatus==='billed');
-  const billable=periods.filter(p=>p.billable&&p.billingStatus==='unbilled');
-  const non=periods.filter(p=>!p.billable);
+  const periods=core.periods.filter(period=>period.caseId===String(item.id)&&!period.excluded).sort((a,b)=>a.startedAt.localeCompare(b.startedAt));
+  const billed=periods.filter(period=>period.billable&&period.billingStatus==='billed');
+  const billable=periods.filter(period=>period.billable&&period.billingStatus==='unbilled');
+  const non=periods.filter(period=>!period.billable);
   const preview=draftInvoice(s,core,item.id,type);
-  const invoices=core.billing.invoices.filter(i=>i.caseId===String(item.id));
-  const expenses=core.billing.expenses.filter(e=>e.caseId===String(item.id)&&e.invoiceId===null);
-  const billedSummary=summarizeWork(billed,core.sources);
-  const allSummary=summarizeWork(periods,core.sources);
-  const nonSummary=summarizeWork(non,core.sources);
+  const pending=billable.filter(period=>!period.timeValidated);
+  const expenses=core.billing.expenses.filter(expense=>expense.caseId===String(item.id)&&expense.invoiceId===null);
+  const invoices=core.billing.invoices.filter(invoice=>invoice.caseId===String(item.id));
+  const invoiceIds=new Set(invoices.map(invoice=>invoice.id));
+  const alreadyBilledCents=core.billing.lines.filter(line=>invoiceIds.has(line.invoiceId)&&(line.origin==='work_period'||line.origin==='flat_fee'))
+    .reduce((sum,line)=>sum+line.amountCents,0);
+  const nextNumber=`${s.setting[0].invoice_prefix}${String(s.setting[0].next_number).padStart(4,'0')}`;
+  const rate=configuredRate(s,item.id);
   const alerts:string[]=[];
-  for(const rule of s.client_rule.filter(r=>r.client_id===owner.id)) {
+  for(const rule of s.client_rule.filter(rule=>rule.client_id===owner.id)) {
     if(rule.type==='daily_research_cap') {
-      const selected=new Set(billable.map(p=>p.id));
-      const research=core.periods.filter(p=>p.billable&&!p.excluded&&
-        (p.billingStatus==='billed'||selected.has(p.id))&&
-        s.matter.find(m=>String(m.id)===p.caseId)?.client_id===owner.id&&
-        s.task.find(t=>t.id===p.taskTypeId)?.code==='RECH');
+      const selectedIds=new Set(billable.map(period=>period.id));
+      const research=core.periods.filter(period=>period.billable&&!period.excluded&&
+        (period.billingStatus==='billed'||selectedIds.has(period.id))&&
+        s.matter.find(matter=>String(matter.id)===period.caseId)?.client_id===owner.id&&
+        s.task.find(task=>task.id===period.taskTypeId)?.code==='RECH');
       const byDate=new Map<string,typeof research>();
       for(const period of research) {const date=period.startedAt.slice(0,10);byDate.set(date,[...(byDate.get(date)??[]),period]);}
-      for(const [date,day] of byDate) if(summarizeWork(day,core.sources).preciseDurationMs>rule.value*6*60000)
-        alerts.push(`${rule.label}: ${date}`);
+      for(const [date,day] of byDate) {
+        const ms=summarizeWork(day,core.sources).preciseDurationMs;
+        if(ms>rule.value*6*60000) alerts.push(`${owner.name} asked for at most ${formatRoundedMinutes(rule.value*6)} of research per day. On ${shortDate(date)} you recorded ${formatPreciseDuration(ms)}. Check this line before you bill.`);
+      }
     }
-    if(rule.type==='nonbillable_travel' && billable.some(p=>s.task.find(t=>t.id===p.taskTypeId)?.code==='DEPL'))
-      alerts.push(rule.label);
+    if(rule.type==='nonbillable_travel' && billable.some(period=>s.task.find(task=>task.id===period.taskTypeId)?.code==='DEPL')) alerts.push(rule.label);
   }
   if(item.budget_cents && preview.feesCents>=item.budget_cents*0.85) alerts.push('Case budget has reached 85%.');
+
+  // Allocate the combined, once-rounded fee across rows so displayed amounts reconcile.
+  const knownBillable=billable.filter(period=>effectiveMs(period)!==null);
+  const totalMs=knownBillable.reduce((sum,period)=>sum+(effectiveMs(period)??0),0);
+  let allocatedCents=0;
+  const flatFeeLine=preview.lines.find(line=>line.origin==='flat_fee');
+  const rows:InvoiceRow[]=[...(flatFeeLine?[{id:'flat-fee',date:today,label:flatFeeLine.label,durationMs:null,amountCents:flatFeeLine.amountCents,kind:'flat_fee' as const,pending:false}]:[]),...billable.map(period=>{
+    const durationMs=effectiveMs(period);
+    let amountCents:number|null=null;
+    if(item.mode!=='flat_fee'&&durationMs!==null&&totalMs>0) {
+      amountCents=period.id===knownBillable.at(-1)?.id ? preview.feesCents-allocatedCents : Math.round(preview.feesCents*durationMs/totalMs);
+      allocatedCents+=amountCents;
+    }
+    return {id:period.id,date:period.startedAt.slice(0,10),label:period.label,durationMs,amountCents,kind:'period' as const,pending:!period.timeValidated};
+  }),...expenses.map(expense=>({
+    id:String(expense.id),date:expense.date,label:expense.label,durationMs:null,amountCents:expense.amountCents,
+    kind:expense.type as InvoiceRow['kind'],pending:false,
+  }))];
+  const sorted=sortRows(rows,sort.key,sort.direction);
+  const sortHeader=(key:SortKey,title:string)=><th scope="col" aria-sort={sort.key===key?sort.direction:undefined}><button type="button" className="sort-button" onClick={()=>setSort(previous=>{
+    billingSort={key,direction:previous.key===key?(previous.direction==='ascending'?'descending':'ascending'):(key==='date'||key==='duration'||key==='amount'?'descending':'ascending')};
+    return billingSort;
+  })}>{title}<span aria-hidden="true"> {sort.key===key?(sort.direction==='ascending'?'↑':'↓'):'↕'}</span></button></th>;
   const issue=async()=>{
     const {pendingPeriods,complete,...snapshot}=preview;
-    await action(api.POST('/api/invoices',{body:{...snapshot,type}}));
+    const result=await action(api.POST('/api/invoices',{body:{...snapshot,type}}));
+    if(result) setNotice(`Invoice ${nextNumber} created`);
   };
-  const line=(period:(typeof periods)[number])=><div className="line" key={period.id}>
-    <span className="num small muted">{shortDate(period.startedAt.slice(0,10))}</span>
-    <span><b>{period.label}</b><small><button className="link" disabled={period.billingStatus==='billed'} onClick={()=>action(api.PATCH('/api/work-periods/{id}/details',{params:{path:{id:period.id}},body:{billable:!period.billable,nonbillableReason:period.billable?'offered':null}}))}>{period.billable?'Do not bill':'Bill'}</button>
-      {' · '}{core.sources.some(e=>e.workPeriodId===period.id)?<button className="link" onClick={()=>source(period.id)}>source</button>:'added manually'}</small></span>
-    <span className="num">{formatPreciseDuration(effectiveMs(period))}</span>
-    <span className="num hide-s">{period.billable?item.mode==='flat_fee'?'Flat fee':'Included in grouped fee':'Not billable'}</span>
-    <span className="hide-s">{period.timeValidated?'Time validated':'Needs time validation'} · {period.billingStatus}</span>
-  </div>;
-  const exportCsv=(invoiceId:number)=>{
-    const invoice=invoices.find(i=>i.id===invoiceId)!;
-    const escape=(value:unknown)=>`"${String(value).replaceAll('"','""')}"`;
-    const lines=['number;date;client;case;label;minutes;rate_ex_vat;amount_ex_vat;vat'];
-    for(const row of core.billing.lines.filter(l=>l.invoiceId===invoiceId)) lines.push([
-      invoice.number,invoice.date,owner.name,item.title,row.label,row.billedMinutes,
-      (row.rateCents/100).toFixed(2),(row.amountCents/100).toFixed(2),row.vat?'yes':'no',
-    ].map(escape).join(';'));
-    setCsv(lines.join('\n'));
+  const downloadCsv=async()=>{
+    const esc=(value:string)=>`"${value.replaceAll('"','""')}"`;
+    const csv=['date;work;minutes;amount_usd',...rows.map(row=>[row.date,row.label,
+      row.durationMs===null?'':String(Math.ceil(row.durationMs/60000)),
+      row.amountCents===null?'':(row.amountCents/100).toFixed(2)].map(esc).join(';'))].join('\n');
+    const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    const link=document.createElement('a');link.href=url;link.download=`${nextNumber}-draft.csv`;link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),0);
   };
+
   return <>
-    <div className="row between"><div><span className="eyebrow">Pre-invoice · {s.setting[0].invoice_prefix}{String(s.setting[0].next_number).padStart(4,'0')} (next number)</span><h1>Pre-invoices</h1></div>
-      <label className="col">Case <MatterSelect s={s} value={item.id} onChange={id=>{if(id)setSelected(id)}}/></label></div>
-    <div className="grid4">
-      <Kpi title="Already billed" value={formatRoundedMinutes(billedSummary.roundedMinutes)} detail={`${billed.length} periods`}/>
-      <Kpi title="To bill" value={money(preview.feesCents)} detail={`${formatRoundedMinutes(preview.billedMinutes)} · excl. VAT`}/>
-      <Kpi title="Not billable" value={formatRoundedMinutes(nonSummary.roundedMinutes)} detail={`${non.length} periods`}/>
-      <Kpi title="To review" value={preview.pendingPeriods} detail={preview.pendingPeriods?'Validate time before issuing':'Ready to issue'}/>
-    </div>
-    <Card className="pre-progress"><h3>Time worked: {formatRoundedMinutes(allSummary.roundedMinutes)}</h3>
-      <p className="small muted">Totals use precise effective milliseconds and round once for the selected group. {allSummary.complete?'Coverage complete.':'Coverage incomplete.'}</p>
-      <div className="row small"><span>Billed {formatRoundedMinutes(billedSummary.roundedMinutes)}</span><span>To bill {formatRoundedMinutes(preview.billedMinutes)}</span><span>Non-billable {formatRoundedMinutes(nonSummary.roundedMinutes)}</span></div>
-    </Card>
+    <div className="page-head"><div><div className="eyebrow"><button className="link" onClick={()=>setSelected(null)}>Billing</button> › {owner.name} · {item.title}</div><h1>{owner.name} · {item.title}</h1><p>Check what will be billed, then create the invoice.</p></div><button className="btn" onClick={()=>setSelected(null)}>All cases</button></div>
+    <Card className="billing-hero"><div><h2>{item.mode==='flat_fee'?`This case is billed at a flat fee of ${money(item.flat_fee_cents??0)}.`:`You can bill ${owner.name} ${money(preview.feesCents)} for ${formatRoundedMinutes(preview.billedMinutes)} of work.`}</h2><p>{item.title} · {item.mode==='flat_fee'?'flat fee':rateLabel(rate.rateCents)}{alreadyBilledCents?` · ${money(alreadyBilledCents)} already billed`:''}</p></div>{pending.length?<div className="row"><Pill kind="warn">{pending.length} period{pending.length===1?'':'s'} to validate first</Pill><button className="btn attn" onClick={()=>validate(pending.map(period=>period.id))}>Validate them</button></div>:<Pill kind="ok">Everything is validated</Pill>}</Card>
     {alerts.map(alert=><div className="card-l warn" key={alert}><b>Client rule</b> {alert}</div>)}
-    <div className="pre-layout"><div className="stack">
-      <div className="tabs">{([['all','All'],['bill','Billable'],['non','Non-billable']] as const).map(([key,title])=><button key={key} aria-selected={tab===key} onClick={()=>setTab(key)}>{title}</button>)}</div>
-      {tab!=='non'&&<Card><div className="row between"><h3>Billable work</h3><button className="btn small" onClick={async()=>{
-        for(const period of billable.filter(p=>!p.timeValidated)) await api.POST('/api/work-periods/{id}/validate-time',{params:{path:{id:period.id}},body:{}});
-        await refresh();
-      }}>Validate all time</button></div>
-        <div className="line line-head"><span>Date</span><span>Work performed</span><span>Duration</span><span className="hide-s">Amount excluding VAT</span><span className="hide-s">Status</span></div>
-        {periods.filter(p=>p.billable).map(line)}
-        {item.mode==='flat_fee'&&<div className="line"><span/><b>Agreed flat fee {preview.lines.some(l=>l.origin==='flat_fee')?'to bill':'already billed'}</b><span/><span>{money(item.flat_fee_cents??0)}</span></div>}
-      </Card>}
-      {tab!=='bill'&&<Card><h3>Non-billable</h3>{non.length?non.map(line):<span className="muted">All time on this case is billable.</span>}</Card>}
-      <Card><div className="row between"><h3>Expenses and disbursements</h3><span className="tiny muted">Disbursements are charged without VAT</span></div>
-        {expenses.map(expense=><div className="row between line-row" key={expense.id}><span>{shortDate(expense.date)} · {expense.label} <Pill>{expense.type}</Pill></span><span>{money(expense.amountCents)} <button className="btn small" onClick={()=>action(api.DELETE('/api/billing/expenses/{id}',{params:{path:{id:expense.id}}}))}>×</button></span></div>)}
-        <form className="row" onSubmit={async event=>{event.preventDefault();await action(api.POST('/api/billing/expenses',{body:{caseId:String(item.id),date:today,label:expenseLabel,type:expenseType,amountCents:Math.round(Number(expenseAmount.replace(',','.'))*100)}}));setExpenseLabel('');setExpenseAmount('');}}>
-          <input className="field grow" placeholder="Label" aria-label="Expense label" required value={expenseLabel} onChange={event=>setExpenseLabel(event.target.value)}/>
-          <select className="field" value={expenseType} onChange={event=>setExpenseType(event.target.value as typeof expenseType)}><option value="expense">expense</option><option value="disbursement">disbursement</option></select>
-          <input className="field num" placeholder="0,00" aria-label="Amount in euros" required value={expenseAmount} onChange={event=>setExpenseAmount(event.target.value)}/><button className="btn small">Add</button>
-        </form>
+    <div className="billing-detail">
+      <Card className="billing-lines"><div className="row between"><div><h2>What will be on the invoice</h2><p>{billable.length} line{billable.length===1?'':'s'}{expenses.length?` and ${expenses.length} cost${expenses.length===1?'':'s'}`:''}</p></div><button className="btn small" onClick={()=>setExpenseOpen(value=>!value)}>Add a cost</button></div>
+        <div className="table-scroll"><table><thead><tr>{sortHeader('date','Date')}{sortHeader('label','Work')}{sortHeader('duration','Time')}{sortHeader('amount','Amount')}</tr></thead><tbody>
+          {sorted.map(row=><tr key={`${row.kind}-${row.id}`}><td className="num">{shortDate(row.date)}</td><td>{row.label}<small>{row.pending?'To validate':row.kind==='disbursement'?'Cost paid for the client':row.kind==='expense'?'Expense':row.kind==='flat_fee'?'Agreed flat fee':''}</small>{row.kind==='period'&&<button className="link" onClick={()=>{setEditing(row.id);setCorrectedMinutes(String((row.durationMs??0)/60000))}}>Correct time</button>}</td><td className="num">{editing===row.id?<span className="row"><input className="field" type="number" min="0" step="0.001" aria-label="Corrected minutes" value={correctedMinutes} onChange={event=>setCorrectedMinutes(event.target.value)}/><button className="btn small" onClick={async()=>{const value=Number(correctedMinutes);if(!Number.isFinite(value)||value<0)return;const result=await action(api.POST('/api/work-periods/{id}/duration-override',{params:{path:{id:row.id}},body:{durationMs:Math.round(value*60000)}}));if(result)setEditing(null)}}>Save</button></span>:row.durationMs===null?'—':formatPreciseDuration(row.durationMs)}</td><td className="num">{row.amountCents===null?'Included':money(row.amountCents)}</td></tr>)}
+          {!rows.length&&<tr><td colSpan={4}>Nothing left to bill on this case.</td></tr>}
+        </tbody></table></div>
+        {expenseOpen&&<form className="row billing-cost-form" onSubmit={async event=>{event.preventDefault();const cents=Math.round(Number(expenseAmount)*100);if(!Number.isFinite(cents)||cents<=0){setNotice('Enter a valid cost amount.');return;}const result=await action(api.POST('/api/billing/expenses',{body:{caseId:String(item.id),date:today,label:expenseLabel,type:expenseType,amountCents:cents}}));if(result){setExpenseLabel('');setExpenseAmount('');setExpenseOpen(false);}}}>
+          <input className="field grow" placeholder="Cost description" aria-label="Cost description" required value={expenseLabel} onChange={event=>setExpenseLabel(event.target.value)}/>
+          <select className="field" value={expenseType} aria-label="Cost type" onChange={event=>setExpenseType(event.target.value as typeof expenseType)}><option value="expense">Expense</option><option value="disbursement">Cost paid for the client</option></select>
+          <input className="field num" type="number" min="0.01" step="0.01" placeholder="0.00" aria-label="Amount in US dollars" required value={expenseAmount} onChange={event=>setExpenseAmount(event.target.value)}/><button className="btn primary">Add</button>
+        </form>}
+        {(billed.length>0||non.length>0)&&<div className="billing-excluded">Not on this invoice: {billed.length?`${formatRoundedMinutes(summarizeWork(billed,core.sources).roundedMinutes)} already billed`:''}{billed.length&&non.length?' · ':''}{non.length?`${formatRoundedMinutes(summarizeWork(non,core.sources).roundedMinutes)} you chose not to bill`:''}.</div>}
       </Card>
-      <Card className="main"><h3>Issued invoices</h3>{invoices.length?invoices.map(invoice=><div className="col line-row" key={invoice.id}>
-        <div className="row between"><b>{invoice.number} · <MatterReference value={item.reference}/> {item.title}</b><span>{invoice.type} · {money(invoice.subtotalCents)} ex VAT <button className="btn small" onClick={()=>exportCsv(invoice.id)}>CSV</button></span></div>
-        {core.billing.lines.filter(l=>l.invoiceId===invoice.id).map(row=><div className="row between tiny muted" key={row.id}><span>{row.label}</span><span>{money(row.amountCents)}</span></div>)}
-      </div>):<span className="muted">No invoice for this case.</span>}</Card>
-    </div><Card className="side pre-summary">
-      <div className="row between"><span>Fees to bill</span><b>{money(preview.feesCents)}</b></div>
-      <div className="row between"><span>Expenses</span><b>{money(preview.expensesCents)}</b></div>
-      <div className="row between"><span>VAT</span><b>{money(preview.vatCents)}</b></div>
-      <div className="row between"><span>Disbursements</span><b>{money(preview.disbursementsCents)}</b></div>
-      <div className="row between total"><span>Total including VAT</span><b>{money(preview.totalCents)}</b></div>
-      <span className="small">Periods to validate: {preview.pendingPeriods || 'none'}</span>
-      <label className="col">Invoice type <select className="field" value={type} onChange={event=>setType(event.target.value as typeof type)}><option value="final">final</option><option value="deposit">deposit</option></select></label>
-      <button className="btn primary" disabled={preview.pendingPeriods>0||!preview.complete||alerts.length>0||preview.totalCents===0} onClick={issue}>{preview.pendingPeriods?'Validate time before issuing':!preview.complete?'Resolve coverage gaps':alerts.length?'Resolve client rules':preview.totalCents===0?'Nothing to invoice':'Issue invoice'}</button>
-      <span className="tiny muted">Calculated in the app from precise periods. Issuing saves this snapshot and fixes the applied rate.</span>
-    </Card></div>
-    {csv&&<div className="modal-back"><div className="modal glass pad col"><h2>CSV export</h2><textarea className="field csv" readOnly value={csv}/><div className="row"><button className="btn primary" onClick={()=>navigator.clipboard.writeText(csv)}>Copy</button><button className="btn" onClick={()=>setCsv('')}>Close</button></div></div></div>}
+      <Card className="billing-side"><h2>Invoice {nextNumber}</h2><p>{owner.name}</p><div className="billing-totals"><span>Work</span><strong>{money(preview.feesCents)}</strong>{preview.expensesCents>0&&<><span>Expenses</span><strong>{money(preview.expensesCents)}</strong></>}{preview.vatCents>0&&<><span>Sales tax</span><strong>{money(preview.vatCents)}</strong></>}{preview.disbursementsCents>0&&<><span>Costs paid for the client</span><strong>{money(preview.disbursementsCents)}</strong></>}<span>Total to pay</span><strong>{money(preview.totalCents)}</strong></div>
+        <div><span>Type of invoice</span><div className="seg" role="group" aria-label="Type of invoice"><button aria-pressed={type==='deposit'} onClick={()=>setType('deposit')}>Deposit</button><button aria-pressed={type==='final'} onClick={()=>setType('final')}>Final</button></div><small>{type==='deposit'?'An advance on the work done so far. The case stays open.':'The last invoice for this case.'}</small></div>
+        <button className="btn primary" disabled={pending.length>0||!preview.complete||preview.totalCents===0} onClick={issue}>{pending.length?`Validate ${pending.length} period${pending.length===1?'':'s'} first`:!preview.complete?'Resolve coverage gaps':preview.totalCents===0?'Nothing to invoice':`Create invoice ${nextNumber}`}</button>
+        <button className="btn" onClick={downloadCsv}>Download as spreadsheet</button>
+      </Card>
+    </div>
+    {notice&&<div className="toast" role="status" onClick={()=>setNotice('')}>{notice} ×</div>}
   </>;
 }

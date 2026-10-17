@@ -34,7 +34,17 @@ export function createApp(db: DatabaseSync) {
   });
   app.onError(errorHandler);
 
-  app.get('/api/state', c => c.json(demo.state()));
+  app.get('/api/state', c => c.json(demo.state(c.req.query('date'),c.req.query('clientId'),c.req.query('caseId'))));
+  app.get('/api/cases/search', c => c.json(demo.searchCases(c.req.query('query')??'')));
+  app.post('/api/cases/:id/source-pack', async c => {
+    const body=await c.req.json<{scope:'invoice'|'case'|'period'|'chosen';options:string[];invoiceId?:number;from?:string;to?:string;periodIds?:number[]}>();
+    if(!['invoice','case','period','chosen'].includes(body.scope) || !Array.isArray(body.options))
+      throw new AppError('invalid-request','Source pack scope and options required');
+    if(body.scope==='invoice' && !Number.isInteger(body.invoiceId)) throw new AppError('invalid-request','Invoice required');
+    if(body.scope==='period' && (!body.from || !body.to)) throw new AppError('invalid-request','Date range required');
+    if(body.scope==='chosen' && !Array.isArray(body.periodIds)) throw new AppError('invalid-request','Period selection required');
+    return c.json(demo.exportCaseSources(id(c.req.param('id')),body.scope,body.options,body));
+  });
   app.post('/api/demo/reset', c => c.json(demo.reset()));
   app.patch('/api/time-entries/:id', async c =>
     c.json(demo.updateEntry(id(c.req.param('id')), await readJson<Record<string, unknown>>(c), assignment)));

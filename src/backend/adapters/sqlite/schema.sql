@@ -19,6 +19,9 @@ CREATE TABLE setting (
   capture_retention TEXT NOT NULL,
   notifications INTEGER NOT NULL CHECK(notifications IN (0,1)),
   pill_position TEXT NOT NULL,
+  pill_always_on_top INTEGER NOT NULL DEFAULT 1 CHECK(pill_always_on_top IN (0,1)),
+  pill_display TEXT NOT NULL DEFAULT 'fees' CHECK(pill_display IN ('fees','time','case')),
+  pill_withhold_calls INTEGER NOT NULL DEFAULT 1 CHECK(pill_withhold_calls IN (0,1)),
   invoice_prefix TEXT NOT NULL,
   next_number INTEGER NOT NULL CHECK(next_number>0)
 );

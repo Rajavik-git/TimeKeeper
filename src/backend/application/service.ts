@@ -15,7 +15,7 @@ function view(p: PeriodRecord): PeriodView {
   return { id:p.id, sessionId:p.sessionId, caseId:p.caseId, startedAt:p.startedAt, endedAt:p.endedAt,
     detectedDurationMs:p.detectedDurationMs, durationOverrideMs:p.durationOverrideMs, assignmentRevision:p.assignmentRevision,
     effectiveRevision:p.effectiveRevision, validatedEffectiveRevision:p.validatedEffectiveRevision,
-    timeValidated:timeIsValidated(p), billingStatus:p.billingStatus,
+    timeValidated:timeIsValidated(p), timeValidatedAt:p.timeValidatedAt, billingStatus:p.billingStatus,
     appliedHourlyRateCents:p.appliedHourlyRateCents ?? null, appliedCurrency:p.appliedCurrency ?? null,
     taskTypeId:p.taskTypeId ?? null, label:p.label ?? '', billable:p.billable ?? true,
     nonbillableReason:p.nonbillableReason ?? null, excluded:p.excluded ?? false,
@@ -323,7 +323,7 @@ export class TimeKeeperService {
       const snapshot = status === 'billed' && p.billingStatus !== 'billed' && p.caseId ? this.currentRateForCase(p.caseId) : null;
       const next: PeriodRecord = { ...p,billingStatus:status,billedAt:status === 'billed' ? (p.billedAt ?? this.clock.now()) : null,
         appliedHourlyRateCents:status === 'billed' ? (p.appliedHourlyRateCents ?? snapshot) : null,
-        appliedCurrency:status === 'billed' ? (p.appliedCurrency ?? 'EUR') : null,revision:p.revision+1 };
+        appliedCurrency:status === 'billed' ? (p.appliedCurrency ?? 'USD') : null,revision:p.revision+1 };
       this.repo.savePeriod(next,this.clock.now()); return view(next);
     });
   }

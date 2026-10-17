@@ -39,14 +39,14 @@ describe('React billing calculations and frozen invoice application',()=>{
       expect(result).toMatchObject({preciseDurationMs:40000,roundedMinutes:1,complete:false});
     } finally {f.db.close();}
   });
-  it('matches the corrected fictional day and Dupont invoice reference',()=>{
+  it('matches the corrected fictional day and Dawson invoice reference',()=>{
     const f=fixture();try {
       const core=f.core();
       expect(summarizeWork(core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')),core.sources).roundedMinutes).toBe(267);
       expect(dayFees(f.legacy,core,core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')))).toBe(91250);
       expect(core.periods.find(p=>p.id==='14')).toMatchObject({detectedDurationMs:152*60000,durationOverrideMs:108*60000});
       const draft=draftInvoice(f.legacy,core,1,'final');
-      expect(draft).toMatchObject({billedMinutes:212,feesCents:106000,pendingPeriods:2});
+      expect(draft).toMatchObject({billedMinutes:608,feesCents:304000,pendingPeriods:2});
     } finally {f.db.close();}
   });
   it('keeps billed day fees at the applied rate after a catalogue rate edit',()=>{
@@ -60,7 +60,7 @@ describe('React billing calculations and frozen invoice application',()=>{
   it('stores the React snapshot and freezes the period rate',()=>{
     const f=fixture();try {
       const draft=draftInvoice(f.legacy,f.core(),2,'final');
-      expect(draft).toMatchObject({billedMinutes:66,feesCents:33000,vatCents:6600});
+      expect(draft).toMatchObject({billedMinutes:228,feesCents:114000,vatCents:0});
       const issued=issueInvoice(f.port,snapshot(draft),'2026-10-16T18:00:00Z');
       expect(issued.number).toBe('F-2026-0042');
       expect(f.core().periods.filter(p=>['7','8'].includes(p.id)).every(p=>p.billingStatus==='billed'&&p.appliedHourlyRateCents===30000)).toBe(true);
@@ -86,9 +86,9 @@ describe('React billing calculations and frozen invoice application',()=>{
       addExpense(f.port,{caseId:'2',date:'2026-10-16',label:'Filing',type:'expense',amountCents:1000});
       addExpense(f.port,{caseId:'2',date:'2026-10-16',label:'Court charge',type:'disbursement',amountCents:2000});
       const draft=draftInvoice(f.legacy,f.core(),2,'final');
-      expect(draft).toMatchObject({subtotalCents:34000,vatCents:6800,disbursementsCents:2000,totalCents:42800});
+      expect(draft).toMatchObject({subtotalCents:115000,vatCents:0,disbursementsCents:2000,totalCents:117000});
       const invoice=issueInvoice(f.port,snapshot(draft),'2026-10-16T18:00:00Z');
-      expect(f.port.listInvoices().find(row=>row.id===invoice.id)).toMatchObject({subtotalCents:34000,vatCents:6800,disbursementsCents:2000,totalCents:42800});
+      expect(f.port.listInvoices().find(row=>row.id===invoice.id)).toMatchObject({subtotalCents:115000,vatCents:0,disbursementsCents:2000,totalCents:117000});
     } finally {f.db.close();}
   });
   it('bills a flat fee once while storing tracked time with zero work amount',()=>{

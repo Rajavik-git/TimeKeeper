@@ -31,12 +31,24 @@ export function coreRoutes(db: DatabaseSync): Hono {
   router.get('/sessions/active',c=>c.json(service.activeSession()));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));
-  router.get('/work-periods',c=>c.json(service.allPeriods()));
+  router.get('/work-periods',c=>{
+    const {date,from,to,clientId,caseId}=c.req.query();
+    const values=service.allPeriods().filter(p=>
+      (!date || p.startedAt.startsWith(date)) && (!from || p.startedAt.slice(0,10)>=from) &&
+      (!to || p.startedAt.slice(0,10)<=to) && (!clientId || p.clientId===clientId) &&
+      (!caseId || p.caseId===caseId));
+    return c.json(values);
+  });
   router.get('/work-periods/:id',c=>c.json(service.getPeriod(c.req.param('id'))));
   router.get('/work-periods/:id/sources',c=>c.json(service.listSources(c.req.param('id'))));
   router.get('/sources',c=>c.json(service.allSources()));
-  router.get('/coverage-gaps',c=>c.json(service.coverageGaps()));
-  router.get('/questions',c=>c.json(service.allQuestions()));
+  router.get('/coverage-gaps',c=>c.json(service.coverageGaps().filter(g=>
+    !c.req.query('date') || g.startedAt.startsWith(c.req.query('date')!))));
+  router.get('/questions',c=>{
+    const date=c.req.query('date');
+    const ids=new Set(service.allPeriods().filter(p=>p.startedAt.startsWith(date??'')).map(p=>p.id));
+    return c.json(service.allQuestions().filter(q=>!date || ids.has(q.periodId)));
+  });
   router.get('/billing/state',c=>c.json(billingState(billing)));
   router.post('/billing/expenses',async c=>{
     const b=await input(c);

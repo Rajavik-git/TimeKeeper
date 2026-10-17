@@ -18,6 +18,8 @@ export function ThemeSwitch() {
       {(["light", "dark", "auto"] as const).map((value) => (
         <button
           key={value}
+          aria-label={value[0].toUpperCase() + value.slice(1)}
+          title={value[0].toUpperCase() + value.slice(1)}
           aria-pressed={theme === value}
           onClick={() => {
             setTheme(value);
@@ -31,7 +33,7 @@ export function ThemeSwitch() {
             }
             small
           />
-          {value[0].toUpperCase() + value.slice(1)}
+          <span className="theme-label">{value[0].toUpperCase() + value.slice(1)}</span>
         </button>
       ))}
     </div>

@@ -1,5 +1,6 @@
 import createClient from "openapi-fetch";
 import type { paths, components } from "../../contracts/generated";
+export { money, shortDate } from '../shared/format';
 export const api = createClient<paths>({ baseUrl: "__TAURI_INTERNALS__" in window ? "http://127.0.0.1:8787" : "" });
 export type State = components["schemas"]["State"];
 export type CoreState = {
@@ -29,16 +30,7 @@ export type ScreenProps = {
   selectedCase?: number;
   source: (id: string) => void;
 };
-export const money = (cts: number) =>
-  new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(
-    cts / 100,
-  );
-export const hours = (tenths_of_hour: number) =>
-  `${(tenths_of_hour / 10).toLocaleString("en-IE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;
-export const shortDate = (d: string) =>
-  new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(
-    new Date(d + "T00:00:00Z"),
-  );
+export { tenthsOfHour as hours } from '../shared/format';
 export const today = "2026-10-16";
 export function matter(s: State, id: number | null) {
   return s.matter.find((d) => d.id === id);

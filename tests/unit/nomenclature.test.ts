@@ -20,7 +20,7 @@ describe("matter nomenclature and learning", () => {
       const second = (await (await create(2)).json()) as { reference: string };
       const year = new Date().getFullYear();
       expect(first.reference).toBe(
-        `${year}-${year === 2026 ? "022" : "001"}-DUPONT`,
+        `${year}-${year === 2026 ? "022" : "001"}-DAWSON`,
       );
       expect(second.reference).toBe(
         `${year}-${year === 2026 ? "023" : "002"}-LUMEN`,
@@ -64,7 +64,7 @@ describe("matter nomenclature and learning", () => {
       expect(count("client")).toBe(8);
       expect(count("matter")).toBe(12);
       expect(count("marker")).toBe(25);
-      expect(count("time_entry")).toBe(25);
+      expect(count("time_entry")).toBe(37);
       expect(
         db
           .prepare("SELECT COUNT(*) AS n FROM matter WHERE status='closed'")
@@ -115,7 +115,7 @@ describe("matter nomenclature and learning", () => {
       ).toEqual([
         {
           type: "file",
-          value: "JAF appeal deadline research",
+          value: "Family court appeal deadline research",
           weight: 0.6,
           learned: 1,
         },

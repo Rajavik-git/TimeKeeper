@@ -23,7 +23,35 @@ export class DemoService {
     return result;
   }
 
-  state() { return this.port.state(); }
+  state(date?: string, clientId?: string, caseId?: string) {
+    const full=this.port.state();
+    if (!date && !clientId && !caseId) return full;
+    const allowedCases=new Set(full.matter.filter(matter=>!clientId || String(matter.client_id)===clientId).map(matter=>matter.id));
+    const entries=full.time_entry.filter(entry=>(!date || entry.date===date) &&
+      (!clientId || (entry.matter_id!==null&&allowedCases.has(entry.matter_id))) && (!caseId || String(entry.matter_id)===caseId));
+    const entryIds=new Set(entries.map(entry=>entry.id));
+    const blockIds=new Set(entries.map(entry=>entry.block_id).filter((id):id is number=>id!==null));
+    return {...full,time_entry:entries,
+      block:full.block.filter(block=>blockIds.has(block.id)),
+      source:full.source.filter(source=>blockIds.has(source.block_id)),
+      audit_event:full.audit_event.filter(event=>(event.time_entry_id!==null&&entryIds.has(event.time_entry_id)) || (event.block_id!==null&&blockIds.has(event.block_id))),
+      jev_review:full.jev_review.filter(review=>blockIds.has(review.block_id)),
+      pause:full.pause.filter(pause=>!date || pause.date===date)};
+  }
+
+  searchCases(query: string) {
+    const state=this.port.state();
+    const norm=(value: string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('en-US');
+    const needle=norm(query.trim());
+    if (!needle) return {clients:[],cases:[]};
+    return {
+      clients:state.client.filter(client=>norm(client.name).includes(needle)),
+      cases:state.matter.filter(matter=>[
+        matter.title,matter.reference,matter.category,matter.opposing_party,
+        state.client.find(client=>client.id===matter.client_id)?.name??'',
+      ].some(value=>norm(value).includes(needle))),
+    };
+  }
 
   reset() {
     return this.port.transaction(() => {
@@ -279,11 +307,11 @@ export class DemoService {
     const invoice = this.port.invoiceExport(id);
     if (!invoice) throw new AppError('not-found', 'Not found');
     const esc = (value: unknown) => `"${String(value).replaceAll('"', '""')}"`;
-    const rows = ['number;date;client;matter;label;minutes;rate_ex_vat;amount_ex_vat;vat'];
+    const rows = ['number;date;client;matter;label;minutes;rate_usd;amount_usd;sales_tax'];
     for (const line of invoice.lines) rows.push([
       invoice.number, invoice.date, invoice.clientName, invoice.caseTitle, line.label,
       line.billedMinutes, (line.rateCents / 100).toFixed(2),
-      (line.amountCents / 100).toFixed(2), line.vat ? 'yes' : 'no',
+      (line.amountCents / 100).toFixed(2), line.vat && invoice.vatCents > 0 ? 'yes' : 'no',
     ].map(esc).join(';'));
     return { csv: rows.join('\n') };
   }
@@ -320,10 +348,41 @@ export class DemoService {
       const hash = createHash('sha256').update(JSON.stringify(pack)).digest('hex');
       const item = this.port.insert('source_export', {
         time_entry_ids: String(entry.id), options: options.join(','), sha256: hash,
-        created_at: `${demoDate} ${new Date().toTimeString().slice(0, 5)}`,
+        created_at: new Date().toISOString(),
       });
       this.port.audit('Source pack generated', '', `SHA-256 ${hash.slice(0, 16)}…`, id, entry.block_id as number | null);
       return item;
+    });
+  }
+
+  exportCaseSources(id: number, scope: 'invoice'|'case'|'period'|'chosen', options: string[],
+    filters: {invoiceId?:number;from?:string;to?:string;periodIds?:number[]}) {
+    this.get('matter',id);
+    return this.port.transaction(()=>{
+      let entries=this.port.rows('time_entry').filter(entry=>entry.matter_id===id);
+      if(scope==='invoice') entries=entries.filter(entry=>entry.invoice_id===filters.invoiceId);
+      if(scope==='period') entries=entries.filter(entry=>String(entry.date)>=String(filters.from??'') && String(entry.date)<=String(filters.to??''));
+      if(scope==='chosen') entries=entries.filter(entry=>filters.periodIds?.includes(Number(entry.id)));
+      const blockedApps=String(this.port.rows('setting')[0]?.excluded_apps??'').split(',').map(value=>value.trim().toLocaleLowerCase('en-US'));
+      const blockApps=new Map(this.port.rows('block').map(block=>[block.id,String(block.app).toLocaleLowerCase('en-US')]));
+      if(options.includes('personal')) entries=entries.filter(entry=>entry.block_id===null || !blockedApps.some(app=>app&&blockApps.get(entry.block_id)?.includes(app)));
+      if(!entries.length) throw new AppError('invalid-request','No periods in source pack scope');
+      const ids=entries.map(entry=>Number(entry.id));
+      const blocks=new Set(entries.map(entry=>entry.block_id).filter(Boolean));
+      const otherNames=this.port.rows('client').filter(client=>client.id!==this.get('matter',id).client_id).map(client=>String(client.name));
+      const redact=(value:string)=>options.includes('blur')?otherNames.reduce((out,name)=>out.replaceAll(name,'[client redacted]'),value):value;
+      const visibleSources=this.port.rows('source').filter(source=>blocks.has(source.block_id) &&
+        (options.includes('transcripts') || source.type!=='audio') &&
+        (!options.includes('personal') || !blockedApps.some(app=>app&&blockApps.get(source.block_id)?.includes(app))));
+      const pack={caseId:id,scope,entries,
+        sources:visibleSources.map(source=>({...source,excerpt:redact(String(source.excerpt??'')),detected_marker:redact(String(source.detected_marker??''))})),
+        audit:options.includes('audit')?this.port.rows('audit_event').filter(event=>ids.includes(Number(event.time_entry_id))).map(event=>({...event,before:redact(String(event.before??'')),after:redact(String(event.after??''))})):[],options};
+      const payload=JSON.stringify(pack);
+      const hash=createHash('sha256').update(payload).digest('hex');
+      const item=this.port.insert('source_export',{time_entry_ids:JSON.stringify(ids),options:[scope,...options].join(','),sha256:hash,
+        created_at:new Date().toISOString()});
+      this.port.audit('Source pack generated','','SHA-256 '+hash.slice(0,16)+'…',ids[0],null);
+      return {export:item,payload};
     });
   }
 
@@ -390,7 +449,7 @@ export class DemoService {
       if (!/^[A-Z][A-Z0-9]*$/.test(code)) throw new AppError('invalid-request', 'Client code must be uppercase letters or digits');
       const item = this.port.insert('client', {
         name: required(body.name, 'Name'), code, type: 'individual', mode: 'hourly',
-        rate_cents: required(body.rate_cents, 'Rate'), vat_applicable: true, billing_address: '[ADDRESS]',
+        rate_cents: required(body.rate_cents, 'Rate'), vat_applicable: false, billing_address: '[ADDRESS]',
       });
       this.port.audit('Client created', '', String(item.name));
       return item;

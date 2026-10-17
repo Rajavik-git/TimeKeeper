@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { api, type CoreState, type State } from '../../../api/client';
 import { effectiveMs, formatPreciseDuration } from '../../../calculations/billing';
+import { configuredRate } from '../../../calculations/billing';
+import { money } from '../../../shared/format';
+import { Logo } from '../../../shared/brand/Logo';
 import './pill.css';
 
 const tauri='__TAURI_INTERNALS__' in window;
@@ -29,9 +33,15 @@ function Pill() {
   const current=core?.periods.find(p=>p.sessionId===active?.id&&p.endedAt===null);
   const item=state?.matter.find(m=>String(m.id)===current?.caseId);
   const owner=item?state?.client.find(c=>c.id===item.client_id):null;
+  const setting=state?.setting[0];
+  const durationMs=current?effectiveMs(current):null;
+  const hourlyRate=state&&item?configuredRate(state,item.id):null;
+  const amount=durationMs!==null&&durationMs!==undefined&&hourlyRate&&hourlyRate.origin!=='flat_fee'?money(Math.round(durationMs*hourlyRate.rateCents/3600000)):'—';
+  useEffect(()=>{if(tauri&&setting)void getCurrentWindow().setAlwaysOnTop(setting.pill_always_on_top).catch(()=>setError('Unable to apply pill position'));},[setting?.pill_always_on_top]);
   const pending=core?.periods.filter(p=>p.sessionId===active?.id&&!p.excluded&&!p.timeValidated).length??0;
   const question=core?.questions.find(q=>q.sessionId===active?.id&&q.status==='pending');
-  const notice=question&&!dismissed?`Case answer needed for period ${question.periodId}`:null;
+  const duringCall=Boolean(current&&/call|phone|video/i.test(current.label));
+  const notice=setting?.notifications&&question&&!dismissed&&(!setting.pill_withhold_calls||!duringCall)?'A period needs a case answer':null;
   useEffect(()=>{if(tauri) void invoke('set_pill_expanded',{expanded,notification:Boolean(notice&&!expanded)});},[expanded,notice]);
   const toggle=async()=>{
     const next=!expanded;
@@ -50,10 +60,10 @@ function Pill() {
   };
   return <main className="pill-root">
     <button className="pill-bar" onClick={()=>void toggle()} aria-expanded={expanded} aria-label="TimeKeeper, toggle panel">
-      <span className="pill-logo">T</span><span className={`status-dot ${active?'':'paused'}`}/>
+      <span className="pill-logo"><Logo compact wordmark={false}/></span><span className={`status-dot ${active?'':'paused'}`}/>
       <span className="pill-client">{offline?'Server not running':active?owner?.name??'Session active':'No active session'}</span>
-      <strong className="pill-amount">{offline?'—':current?formatPreciseDuration(effectiveMs(current)):'—'}</strong>
-      {pending>0&&<span className="pill-badge" aria-label={`${pending} periods to review`}>{pending}</span>}
+      <strong className="pill-amount">{offline?'—':setting?.pill_display==='case'?'':setting?.pill_display==='time'?current?formatPreciseDuration(effectiveMs(current)):'—':amount}</strong>
+      {pending>0&&<span className="pill-badge" aria-label={`${pending} periods to validate`}>{pending}</span>}
     </button>
     {expanded&&<section className="pill-panel" aria-label="Current work period">
       {offline?<p className="pill-error" role="status">Server not running. Start the local API and this panel will reconnect.</p>:<>

@@ -14,17 +14,7 @@ export type InvoiceDraft = {
 export const effectiveMs = (period: Pick<Period,'detectedDurationMs'|'durationOverrideMs'>): number | null =>
   period.durationOverrideMs ?? period.detectedDurationMs;
 
-export function formatPreciseDuration(ms: number | null): string {
-  if (ms === null) return 'Unknown';
-  if (!Number.isSafeInteger(ms) || ms < 0) throw Error('Invalid duration');
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  const remainder = ms % 1000;
-  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2,'0')}${seconds || remainder ? ` + ${seconds}.${String(remainder).padStart(3,'0')} s` : ''}`;
-}
-export function formatRoundedMinutes(minutes: number): string {
-  return `${Math.floor(minutes/60)}:${String(minutes%60).padStart(2,'0')}`;
-}
+export { duration as formatPreciseDuration, minutes as formatRoundedMinutes } from '../shared/format';
 
 export function hasCoverageGap(period: Period, sources: CoreState['sources']): boolean {
   if (effectiveMs(period) === null) return true;

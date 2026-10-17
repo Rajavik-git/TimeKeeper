@@ -9,24 +9,22 @@ import { Source } from "./features/workday/Source";
 import { Settings } from "./features/settings/Settings";
 import { ThemeSwitch, restoreTheme } from "./shared/components/ThemeSwitch";
 import { Icon } from "./shared/components/Icon";
+import { Logo } from "./shared/brand/Logo";
 import "./shared/theme.css";
 
 restoreTheme();
 const primaryViews = [
   ["myDay", "My day", "day", "1"],
   ["matters", "Cases", "cases", "2"],
-  ["preInvoices", "Pre-invoices", "pre", "3"],
-  ["source", "Source", "source", "4"],
-] as const;
-const workspaceViews = [
-  ["settings", "Settings", "settings"],
-  ["desk", "Desk pill", "desk"],
+  ["preInvoices", "Billing", "pre", "3"],
+  ["source", "Activity", "source", "4"],
+  ["settings", "Settings", "settings", "5"],
 ] as const;
 
 function App() {
   const [s, setS] = useState<State>();
   const [core, setCore] = useState<CoreState>();
-  const [view, setView] = useState<View>("myDay");
+  const [view, setView] = useState<View>(new URLSearchParams(window.location.search).get('view')==='desk'?'desk':'myDay');
   const [sourceId, setSourceId] = useState('');
   const [selectedCase, setSelectedCase] = useState<number>();
   const [message, setMessage] = useState("");
@@ -64,7 +62,10 @@ function App() {
   };
   const navigate = (v: View, matterId?: number) => {
     if (matterId) setSelectedCase(matterId);
+    else if (v === 'matters' || v === 'preInvoices') setSelectedCase(undefined);
     setView(v);
+    if(v==='desk') window.history.replaceState(null,'','?view=desk');
+    else if(window.location.search.includes('view=desk')) window.history.replaceState(null,'',window.location.pathname);
     document.querySelector(".shell-main")?.scrollTo(0, 0);
     window.scrollTo(0, 0);
   };
@@ -94,106 +95,24 @@ function App() {
   const props = s && core
     ? { s, core, refresh, action, navigate, source, selectedCase }
     : undefined;
-  const lawyer = s?.firm[0]?.lawyer_name ?? "TimeKeeper";
-  const initials = lawyer
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
   const pending = core?.periods.filter(p=>p.startedAt.startsWith(today) && !p.excluded && !p.timeValidated).length ?? 0;
-  const activePeriod = core?.periods.find(p=>p.sessionId === core.activeSession?.id && p.endedAt === null);
-  const currentCase = s?.matter.find(m=>String(m.id) === activePeriod?.caseId);
-  const viewName =
-    [...primaryViews, ...workspaceViews].find(
-      (item) => item[0] === view,
-    )?.[1] ?? "My day";
   return (
-    <div className="app">
-      <aside className="shell-side">
-        <div className="ws">
-          <span className="logo" aria-hidden="true">
-            T
-          </span>
-          <span className="t">
-            <b>TimeKeeper</b>
-            <span>{lawyer}</span>
-          </span>
-        </div>
-        <nav className="nav" aria-label="Screens">
-          {primaryViews.map(([key, title, icon, shortcut]) => (
-            <button
-              key={key}
-              aria-current={view === key ? "page" : undefined}
-              onClick={() => navigate(key)}
-            >
-              <Icon name={icon} />
-              <span>{title}</span>
-              {key === "myDay" && <span className="cnt">{pending}</span>}
-              {key === "matters" && (
-                <span className="cnt">{s?.matter.length ?? 0}</span>
-              )}
-              {key !== "myDay" && key !== "matters" && <kbd>{shortcut}</kbd>}
-            </button>
-          ))}
-          <div className="sect">Workspace</div>
-          {workspaceViews.map(([key, title, icon]) => (
-            <button
-              key={key}
-              aria-current={view === key ? "page" : undefined}
-              onClick={() => navigate(key)}
-            >
-              <Icon name={icon} />
-              <span>{title}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="shell-bottom">
-          <div className="capture">
-            <div className="row1">
-              <span className="live" aria-hidden="true" />
-              {core?.activeSession ? 'Session active' : 'No active session'}
-            </div>
-            <p>{core?.activeSession ? `Started from Screenpipe at ${core.activeSession.startedAt.slice(11,16)}. Closing TimeKeeper keeps it open.` : 'Start from Screenpipe to begin a session.'}</p>
-            {core?.activeSession&&<p className="num tiny">session {core.activeSession.id} · revision {core.activeSession.revision}{currentCase?` · ${currentCase.reference}`:''}</p>}
-            <button
-              className="btn sm"
-              disabled
-              title="Capture control is unavailable"
-            >
-              Pause capture
-            </button>
-          </div>
-          <ThemeSwitch />
-          <div className="user">
-            <span className="avatar">{initials}</span>
-            <span className="t">
-              {lawyer}
-              <span>Attorney at law</span>
-            </span>
-            <Icon name="more" small />
-          </div>
-        </div>
-      </aside>
+    <div className="app floating-shell">
       <div className="shell-main">
-        <header className="top">
-          <div className="crumbs">
-            <b>{viewName}</b>
-          </div>
-          <div className="right">
-            <button className="cmdk" disabled title="Search is unavailable">
-              <Icon name="search" small />
-              <span>Search or jump to…</span>
-              <kbd>Ctrl K</kbd>
-            </button>
-            <button
-              className="iconbtn"
-              disabled
-              aria-label="Help"
-              title="Help is unavailable"
-            >
-              <Icon name="help" />
-            </button>
+        <header className="floating-nav">
+          <Logo compact />
+          <nav className="floating-tabs" aria-label="Screens">
+            {primaryViews.map(([key,title,icon]) => <button key={key} aria-current={view===key?'page':undefined} aria-label={title} onClick={()=>navigate(key)}>
+              <Icon name={icon}/><span className="tab-label">{title}</span>
+              {key==='myDay'&&<span className="cnt">{pending}</span>}
+              {key==='matters'&&<span className="cnt">{s?.matter.length??0}</span>}
+            </button>)}
+          </nav>
+          <div className="floating-tools">
+            <span className="session-chip" title={core?.activeSession?`Started from Screenpipe at ${core.activeSession.startedAt.slice(11,16)}. Closing TimeKeeper keeps the session open.`:'Start from Screenpipe to begin a session.'}>
+              <span className="live" aria-hidden="true"/>{core?.activeSession?`Session since ${core.activeSession.startedAt.slice(11,16)}`:'No active session'}
+            </span>
+            <ThemeSwitch />
           </div>
         </header>
         {message && (

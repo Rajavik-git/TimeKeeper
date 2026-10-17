@@ -56,7 +56,33 @@
               }
             }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clientId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "caseId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/demo/reset": {
@@ -2639,7 +2665,48 @@
     "/api/work-periods": {
       "get": {
         "summary": "Read WorkPeriod",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clientId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "caseId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -2777,7 +2844,16 @@
     "/api/questions": {
       "get": {
         "summary": "Read PendingQuestion",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
@@ -4303,6 +4379,202 @@
               }
             }
           }
+        },
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/cases/search": {
+      "get": {
+        "summary": "Search clients and cases",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "clients",
+                    "cases"
+                  ],
+                  "properties": {
+                    "clients": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/client"
+                      }
+                    },
+                    "cases": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/matter"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cases/{id}/source-pack": {
+      "post": {
+        "summary": "Create a source pack for a case",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "scope",
+                  "options"
+                ],
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "invoice",
+                      "case",
+                      "period",
+                      "chosen"
+                    ]
+                  },
+                  "invoiceId": {
+                    "type": "integer"
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "to": {
+                    "type": "string",
+                    "format": "date"
+                  },
+                  "periodIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "options": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "export",
+                    "payload"
+                  ],
+                  "properties": {
+                    "export": {
+                      "$ref": "#/components/schemas/source_export"
+                    },
+                    "payload": {
+                      "type": "string",
+                      "description": "UTF-8 JSON source pack, with confidentiality options applied"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, or the rule needed for this action is not decided yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -4565,7 +4837,10 @@
           "notifications",
           "pill_position",
           "invoice_prefix",
-          "next_number"
+          "next_number",
+          "pill_always_on_top",
+          "pill_display",
+          "pill_withhold_calls"
         ],
         "properties": {
           "id": {
@@ -4591,6 +4866,20 @@
           },
           "next_number": {
             "type": "integer"
+          },
+          "pill_always_on_top": {
+            "type": "boolean"
+          },
+          "pill_display": {
+            "type": "string",
+            "enum": [
+              "fees",
+              "time",
+              "case"
+            ]
+          },
+          "pill_withhold_calls": {
+            "type": "boolean"
           }
         }
       },
@@ -5900,6 +6189,7 @@
           "effectiveRevision",
           "validatedEffectiveRevision",
           "timeValidated",
+          "timeValidatedAt",
           "billingStatus",
           "label",
           "billable",
@@ -5961,6 +6251,12 @@
           },
           "timeValidated": {
             "type": "boolean"
+          },
+          "timeValidatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "billingStatus": {
             "type": "string",
