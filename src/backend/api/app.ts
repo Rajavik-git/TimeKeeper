@@ -31,7 +31,8 @@ export function createApp(db: DatabaseSync) {
   ]);
   app.use('/api/*', async (c, next) => {
     const origin = c.req.header('Origin');
-    if (origin && !allowedOrigins.has(origin)) return c.json({ error: 'Origin not allowed' }, 403);
+    const sameDeployment = process.env.VERCEL && origin === `https://${c.req.header('host')}`;
+    if (origin && !allowedOrigins.has(origin) && !sameDeployment) return c.json({ error: 'Origin not allowed' }, 403);
     return cors({ origin: origin ?? '', allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], allowHeaders: ['Content-Type'] })(c, next);
   });
   app.onError((error, c) => {
