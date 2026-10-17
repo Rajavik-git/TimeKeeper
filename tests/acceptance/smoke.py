@@ -55,6 +55,18 @@ with sync_playwright() as p:
     page.get_by_role('group', name='Theme').get_by_role('button', name='Auto').click()
     nav.get_by_role('button', name='My day', exact=False).click()
     page.get_by_text('$912.50', exact=True).wait_for()
+    assert page.locator('.datebadge').inner_text() == '1'
+    assert page.locator('.datebadge').get_attribute('title') == '1 other day with periods to validate'
+    page.locator('.datebtn').click()
+    assert page.locator('[data-calendar-day="2026-10-15"] i.p').count() == 1
+    assert page.locator('[data-calendar-day="2026-10-14"] i:not(.p)').count() == 1
+    assert 'off' in (page.locator('[data-calendar-day="2026-10-01"]').get_attribute('class') or '')
+    assert page.locator('[data-calendar-day="2026-10-01"]').is_enabled()
+    assert page.locator('[data-calendar-day="2026-10-17"]').is_disabled()
+    assert page.get_by_text('Grey: no work', exact=True).count() == 1
+    page.locator('[data-calendar-day="2026-10-01"]').click()
+    page.locator('.day-periods .empty b').get_by_text('No work recorded').wait_for()
+    assert page.locator('.datebadge').inner_text() == '2'
     page.locator('.datebtn').click()
     page.locator('[data-calendar-day="2026-10-15"]').click()
     page.locator('.ph p').first.get_by_text('Thursday 15 October 2026', exact=False).wait_for()
@@ -84,5 +96,5 @@ with sync_playwright() as p:
     pill.get_by_role('button', name='TimeKeeper, toggle panel').wait_for()
     assert page.request.post(f'{url}api/demo/reset').ok
     assert not errors, errors
-    print('Five screens, final palette, date picker, Clients sort, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
+    print('Five screens, final palette, calendar statuses and badge, Clients sort, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
     browser.close()

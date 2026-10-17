@@ -37,7 +37,7 @@ const compareNullable = (a: number | null, b: number | null, direction: SortDire
   return direction === 'ascending' ? a - b : b - a;
 };
 
-function DayCalendar({ selected, recorded, onSelect, onMonthChange }: { selected: string; recorded: Set<string>; onSelect: (date: string) => void; onMonthChange: (month: string) => void }) {
+function DayCalendar({ selected, recorded, pending, onSelect, onMonthChange }: { selected: string; recorded: Set<string>; pending: Set<string>; onSelect: (date: string) => void; onMonthChange: (month: string) => void }) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(selected.slice(0, 7));
   const wrapper = useRef<HTMLDivElement>(null);
@@ -71,10 +71,11 @@ function DayCalendar({ selected, recorded, onSelect, onMonthChange }: { selected
   const days = Number(monthEnd(month).slice(8, 10));
   const years = Array.from({ length: Number(today.slice(0, 4)) - Math.min(2020, year) + 1 }, (_, index) => Number(today.slice(0, 4)) - index);
   const nextMonth = shiftMonth(month, 1);
+  const otherPendingDays = [...pending].filter(date => date !== selected).length;
   return <div className="daypick" role="group" aria-label="Choose a day">
     <button className="iconbtn" aria-label="Previous day" onClick={() => choose(shiftDay(selected, -1))}><span aria-hidden="true">‹</span></button>
     <div className="calwrap" ref={wrapper}>
-      <button className="datebtn" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>{shortDay.format(dayDate(selected))}<Icon name="day" small /></button>
+      <button className="datebtn" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>{shortDay.format(dayDate(selected))}<Icon name="day" small />{otherPendingDays > 0 && <span className="datebadge" title={`${otherPendingDays} other day${otherPendingDays === 1 ? '' : 's'} with periods to validate`}>{otherPendingDays}</span>}</button>
       {open && <div className="cal" role="dialog" aria-label="Choose a day">
         <div className="calhd">
           <button className="iconbtn" aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))}><span aria-hidden="true">‹</span></button>
@@ -94,12 +95,14 @@ function DayCalendar({ selected, recorded, onSelect, onMonthChange }: { selected
           {Array.from({ length: days }, (_, index) => {
             const date = `${month}-${String(index + 1).padStart(2, '0')}`;
             const selectedDay = date === selected;
-            return <button key={date} type="button" ref={selectedDay ? selectedRef : undefined} className={`cday${selectedDay ? ' sel' : ''}${date === today ? ' today' : ''}`}
-              data-calendar-day={date} disabled={date > today} aria-label={`${longDate(date)}${recorded.has(date) ? ', work recorded' : ''}`} aria-current={selectedDay ? 'date' : undefined}
-              onKeyDown={event => moveFocus(event, date)} onClick={() => choose(date)}>{index + 1}{recorded.has(date) && <i aria-hidden="true" />}</button>;
+            const future = date > today;
+            const noWork = !future && !recorded.has(date);
+            return <button key={date} type="button" ref={selectedDay ? selectedRef : undefined} className={`cday${selectedDay ? ' sel' : ''}${date === today ? ' today' : ''}${noWork ? ' off' : ''}`}
+              data-calendar-day={date} disabled={future} aria-label={`${longDate(date)}${pending.has(date) ? ', to validate' : recorded.has(date) ? ', validated' : noWork ? ', no work recorded' : ''}`} aria-current={selectedDay ? 'date' : undefined}
+              onKeyDown={event => moveFocus(event, date)} onClick={() => choose(date)}>{index + 1}{pending.has(date) ? <i className="p" aria-hidden="true" /> : recorded.has(date) ? <i aria-hidden="true" /> : null}</button>;
           })}
         </div>
-        <div className="calft"><span className="muted"><i className="dotk" aria-hidden="true" />Work recorded</span><button className="btn sm" onClick={() => choose(today)}>Today</button></div>
+        <div className="calft"><div className="calkey"><span><i className="dotk" aria-hidden="true" />Validated</span><span><i className="dotk p" aria-hidden="true" />To validate</span><span>Grey: no work</span></div><button className="btn sm" onClick={() => choose(today)}>Today</button></div>
       </div>}
     </div>
     <button className="iconbtn" aria-label="Next day" disabled={selected >= today} onClick={() => choose(shiftDay(selected, 1))}><span aria-hidden="true">›</span></button>
@@ -119,6 +122,7 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
   const [selectedDate, setSelectedDate] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [recorded, setRecorded] = useState<Set<string>>(new Set());
+  const pendingDays = new Set(core.periods.filter(period => !period.excluded && !period.timeValidated && period.startedAt.slice(0, 10) <= today).map(period => period.startedAt.slice(0, 10)));
   const [dayData, setDayData] = useState<DayData | null>(null);
   const [loadError, setLoadError] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -157,7 +161,7 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
     let live = true;
     const load = async () => {
       const result = await api.GET('/api/work-periods', { params: { query: { from: `${month}-01`, to: monthEnd(month) } } });
-      if (live && !result.error) setRecorded(new Set((result.data ?? []).map(period => period.startedAt.slice(0, 10))));
+      if (live && !result.error) setRecorded(new Set((result.data ?? []).filter(period => !period.excluded).map(period => period.startedAt.slice(0, 10))));
     };
     void load();
     return () => { live = false; };
@@ -238,7 +242,7 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
   const leftRows = [...excluded].sort((a, b) => comparePeriod(a, b, leftSort?.key ?? 'time', leftSort?.direction ?? 'ascending'));
   return <>
     <div className="ph"><div className="t"><h1>My day</h1><p>{longDate(selectedDate)}{selectedDate === today ? ' · today' : ''}</p></div>
-      <div className="actions"><DayCalendar selected={selectedDate} recorded={recorded} onSelect={setSelectedDate} onMonthChange={setMonth} />
+      <div className="actions"><DayCalendar selected={selectedDate} recorded={recorded} pending={pendingDays} onSelect={setSelectedDate} onMonthChange={setMonth} />
         <button className="btn" onClick={() => setManual(true)}><Icon name="plus" small />Add a hearing or meeting</button></div></div>
     {loadError && <p className="day-load-error" role="alert">{loadError}</p>}
     <div className="grid4">
