@@ -287,6 +287,38 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A11 | Replace `pending` refusals with `rule-not-decided` and `conflict`. | **Decided**, see [D4](#d4-error-codes-replacing-pending-for-refusals). Fixes [E1](#e1-undecided-rules-are-returned-as-successful-202-pending). |
 | A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
 | A13 | Canonical reads: `GET /api/clients`, `GET /api/cases` (filters `clientId`, `status`), `GET /api/settings`. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added) and [Clients, cases, and settings](#clients-cases-and-settings). Complements the writes in A5. |
+| A14 | Show the lawyer the inbox commands that could not be applied. | **Proposed, with an interface proposal.** See [A14. Failed inbox commands](#a14-failed-inbox-commands). |
+
+### A14. Failed inbox commands
+
+**Problem.** When TimeKeeper reopens, it applies the start and end commands left in the inbox ([D8](#d8-synchronization-at-startup-through-a-local-inbox-folder)). A command that is refused (for example an end for an unknown session, or an end whose time is before its start) moves to `inbox/failed/` with its error. Today nobody sees it: the lawyer believes the session ended, while TimeKeeper still shows it as active, and the day's time is wrong.
+
+**API proposal (to build on the API branch):**
+
+- `GET /api/inbox/failed` returns one entry per failed file, newest first:
+
+  ```json
+  [{
+    "file": "end-2026-10-17-1800-a1b2.json",
+    "kind": "end",
+    "sessionId": "session-2026-10-17",
+    "occurredAt": "2026-10-17T18:00:00.000Z",
+    "error": "conflict",
+    "message": "end before start"
+  }]
+  ```
+
+  `kind`, `sessionId`, and `occurredAt` are `null` when the file was not valid JSON.
+- `POST /api/inbox/failed/{file}/dismiss` moves the file to `inbox/dismissed/` once the lawyer has dealt with it, so it stops showing. Idempotent; `404` for an unknown file.
+- Callers: `ui` only. Files hold only IDs and times, never client information.
+
+**Interface proposal (for the interface owner):**
+
+- On startup, and when the session indicator is shown, call `GET /api/inbox/failed`. If it returns entries, show a notice on the Desk and in the pill, for example: "An End pressed on 17 Oct at 18:00 could not be applied: end before start."
+- Offer two actions per entry:
+  - **Fix**: open the session in My day so the lawyer can end it or correct the period, then dismiss the entry.
+  - **Dismiss**: call the dismiss route when nothing needs fixing.
+- Show nothing when the list is empty. The notice must not block other work.
 
 ### Why A12 and A13 were added
 
@@ -409,6 +441,13 @@ This is about the **outgoing** calls TimeKeeper makes to Screenpipe (the Screenp
   - A missing token, or a `401`/`403` from Screenpipe, is reported as "Screenpipe authentication failed" and is not retried automatically, because retrying with the same token cannot succeed. Evidence already imported stays as it is.
   - Readiness: `GET /health` on Screenpipe confirms it is running; it does not prove the token works. Check the token with one small authenticated read before reporting Screenpipe as connected.
 - **Revisit:** a settings screen to enter the token, and reading it from the operating system's credential store instead of an environment variable.
+- **Status (2026-10-17): adapter built, not yet used, not tested against a real Screenpipe.**
+  - `src/backend/adapters/screenpipe/http.ts` implements the `ScreenpipeMemory` port. `read(startAt, endAt)` calls `GET /search` for `accessibility` (returned as type `UI`), `ocr`, and `audio`, with `include_cloud=false`, reading every page (100 per page, at most 50 pages per kind), then removes duplicates and sorts by time.
+  - Each result becomes a reference only: `instanceId` (from `SCREENPIPE_INSTANCE_ID`, default `local`), `contentType` (`accessibility`, `ocr`, `audio`), `externalId` (the UI `id`, OCR `frame_id`, or audio `chunk_id`), `recordedAt` normalized to UTC milliseconds, and `appName`, `windowName`, `url` when present. Screen text and transcriptions are not kept. Items without an ID or a valid time are skipped.
+  - `health()` calls `GET /health` without the token; `verifyAccess()` makes one small authenticated search.
+  - Errors: `ScreenpipeAuthError` for `401`/`403` ("Screenpipe authentication failed", never the token, no retry); `ScreenpipeUnavailableError` for timeouts (10 seconds), network failures, and other error statuses.
+  - Tests: `tests/unit/screenpipe-http.test.ts` against a stand-in shaped like Screenpipe's documented response ([search reference](https://docs.screenpipe.com/api-reference/search/search-screen-and-audio-content)).
+  - Not yet: nothing calls the adapter. Catching up missed recordings ([D8](#d8-synchronization-at-startup-through-a-local-inbox-folder) step 4) is the first planned user. Checking it against an installed Screenpipe is still required.
 
 ### D6. Screenpipe reaches the API through the TimeKeeper MCP server
 
