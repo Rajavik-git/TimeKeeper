@@ -70,7 +70,6 @@
 .day-table .day-actions .btn { padding:0 11px; }
 .day-duration { text-decoration:none; }
 .day-duration:not([disabled]):hover { text-decoration:underline; }
-.day-question .btn.primary[disabled] { opacity:1;cursor:not-allowed; }
 .daypick .iconbtn { border:1px solid var(--line-2);font-size:var(--fs-lg); }
 .daypick .iconbtn[disabled] { opacity:.45; }
 @media (max-width:1280px) { .day-periods .day-table th:nth-child(2) { width:25%; } }
@@ -82,3 +81,9 @@
 .daypick .iconbtn { display:inline-flex;align-items:center;justify-content:center; }
 .day-table td:nth-child(1) .sub,.day-table td:nth-child(2) .sub { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .datebadge { min-width:18px;height:18px;border-radius:9px;font-size:11px; }
+.page .day-table .day-actions { justify-content:flex-end; }
+.day-duration.corrected { font-weight:600; }
+.daypick .iconbtn { flex:0 0 var(--h-sm);width:var(--h-sm); }
+.page .day-prompts > .card { height:158px;min-height:0; }
+.page .day-periods .day-table th:nth-child(1) { width:10.9%; }
+@media (max-width:900px) { .page .day-prompts > .card { height:auto;min-height:158px; } }

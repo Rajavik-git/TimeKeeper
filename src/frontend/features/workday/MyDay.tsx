@@ -252,7 +252,7 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
       </section>
       <section className="card day-question"><div><h2><Icon name="alert" small /> Which case was this?</h2>
         {unresolved[0] ? <p>{unresolved[0].startedAt.slice(11, 16)}–{unresolved[0].endedAt?.slice(11, 16)} · {unresolved[0].demoWindowTitle ?? unresolved[0].label}</p> : <p>Every period has a case. You can review the list below.</p>}</div>
-        {unresolved[0] && <div className="row"><MatterSelect s={s} value={answerCase} allowEmpty onChange={setAnswerCase} /><button className="btn primary" disabled={!answerCase} onClick={() => { if (answerCase) void assign(unresolved[0]!.id, answerCase); }}>Answer</button>
+        {unresolved[0] && <div className="row"><MatterSelect s={s} value={answerCase} allowEmpty onChange={setAnswerCase} /><button className="btn primary" aria-disabled={!answerCase} onClick={() => { if (answerCase) void assign(unresolved[0]!.id, answerCase); }}>Answer</button>
           <button className="btn ghost" onClick={() => void action(api.PATCH('/api/work-periods/{id}/details', { params: { path: { id: unresolved[0]!.id } }, body: { excluded: true } }))}>Not client work</button></div>}
       </section>
     </div>
@@ -289,7 +289,7 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
           <td>{item ? <>{owner?.name}<span className="sub">{item.title} · <MatterReference value={item.reference} /></span></> : <><span className="flag"><Icon name="alert" small />Unresolved</span><span className="sub">Waiting for your answer above</span></>}</td>
           <td className="wrap">{period.label}<span className="sub">{s.task.find(task => task.id === period.taskTypeId)?.label ?? 'Work period'} · {caseRate(caseId)}</span></td>
           <td className="r num">{editing === period.id ? <span className="row"><input className="field" type="number" min="0" step="0.001" aria-label="Corrected minutes" value={minutes} onChange={event => setMinutes(event.target.value)} /><button className="btn sm primary" onClick={() => saveDuration(period.id)}>Save</button><button className="btn sm" onClick={() => setEditing(null)}>Cancel</button></span>
-            : <button className="day-duration" disabled={period.billingStatus === 'billed'} aria-label={`Correct duration for ${period.label}`} title="Correct duration" onClick={() => { setEditing(period.id); setMinutes(String((effectiveMs(period) ?? 0) / 60000)); }}>{formatPreciseDuration(effectiveMs(period))}</button>}
+            : <button className={`day-duration${period.durationOverrideMs !== null ? ' corrected' : ''}`} disabled={period.billingStatus === 'billed'} aria-label={`Correct duration for ${period.label}`} title="Correct duration" onClick={() => { setEditing(period.id); setMinutes(String((effectiveMs(period) ?? 0) / 60000)); }}>{formatPreciseDuration(effectiveMs(period))}</button>}
             {period.durationOverrideMs !== null && <span className="sub">was {formatPreciseDuration(period.detectedDurationMs)}</span>}</td>
           <td><div className="day-actions">{period.timeValidated ? <span className="day-validated">✓ Validated</span> : period.caseId ? <button className="btn sm attn" disabled={validating} onClick={() => void validate([period])}>Validate</button> : null}
             <button className="btn sm" disabled={!linked.length} onClick={() => source(period.id)}>Sources</button></div></td>
