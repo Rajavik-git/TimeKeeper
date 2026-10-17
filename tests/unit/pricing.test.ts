@@ -1,233 +1,130 @@
-import { describe, it, expect } from "vitest";
-import { memoryDb, one, priceLine, rate, reprice, state } from "../../src/backend/adapters/sqlite/repository";
-import { createApp } from "../../src/backend/api/app";
+import { describe, expect, it } from 'vitest';
+import { memoryDb, state } from '../../src/backend/adapters/sqlite/repository';
+import { SqliteRepository } from '../../src/backend/adapters/sqlite/core-repository';
+import { TimeKeeperService } from '../../src/backend/application/service';
+import { billingState, issueInvoice, addExpense } from '../../src/backend/application/invoice';
+import { invoicePort } from '../../src/backend/adapters/sqlite/invoice';
+import { configuredRate, dayFees, draftInvoice, summarizeWork } from '../../src/frontend/calculations/billing';
 
-const call = async (
-  app: ReturnType<typeof createApp>,
-  path: string,
-  method: string,
-  body?: unknown,
-) => {
-  const res = await app.request(path, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  return {
-    status: res.status,
-    data: (await res.json()) as Record<string, unknown>,
-  };
+function fixture() {
+  const db=memoryDb();
+  const service=new TimeKeeperService(new SqliteRepository(db));
+  const port=invoicePort(db);
+  const legacy=state(db);
+  const core=()=>({activeSession:service.activeSession(),sessions:service.listSessions(),periods:service.allPeriods(),
+    sources:service.allSources(),questions:service.allQuestions(),coverageGaps:service.coverageGaps(),billing:billingState(port)});
+  return {db,service,port,legacy,core};
+}
+const snapshot=(draft:ReturnType<typeof draftInvoice>,type:'deposit'|'final'='final')=>{
+  const {pendingPeriods,complete,...frozen}=draft;
+  return {...frozen,type};
 };
 
-describe("server pricing and invoice behavior", () => {
-  it("uses base, client and matter rates in order", () => {
-    const db = memoryDb();
-    try {
-      expect(priceLine(db, one(db, "time_entry", 13)!).amount_cents).toBe(3000);
-      expect(rate(db, null).origin).toBe("base");
-      db.prepare("UPDATE time_entry SET matter_id=5 WHERE id=13").run();
-      expect(priceLine(db, one(db, "time_entry", 13)!).amount_cents).toBe(5000);
-      expect(rate(db, 5).origin).toBe("client");
-      db.prepare("UPDATE matter SET own_rate_cents=40000 WHERE id=5").run();
-      expect(priceLine(db, one(db, "time_entry", 13)!).amount_cents).toBe(8000);
-      expect(rate(db, 5).origin).toBe("matter");
-    } finally {
-      db.close();
-    }
+describe('React billing calculations and frozen invoice application',()=>{
+  it('uses case, client, then base rates for display',()=>{
+    const f=fixture();try {
+      expect(configuredRate(f.legacy,2)).toMatchObject({rateCents:30000,origin:'client'});
+      const changed={...f.legacy,matter:f.legacy.matter.map(m=>m.id===2?{...m,own_rate_cents:40000}:m)};
+      expect(configuredRate(changed,2)).toMatchObject({rateCents:40000,origin:'matter'});
+      const base={...changed,matter:changed.matter.map(m=>m.id===2?{...m,own_rate_cents:null}:m),
+        client:changed.client.map(c=>c.id===changed.matter.find(m=>m.id===2)?.client_id?{...c,rate_cents:undefined as never}:c)};
+      expect(configuredRate(base,2)).toMatchObject({origin:'base'});
+    } finally {f.db.close();}
   });
-
-  it("tracks flat-fee and non-billable value without billing the time", () => {
-    const db = memoryDb();
-    try {
-      const flat = priceLine(db, one(db, "time_entry", 9)!);
-      expect(flat).toMatchObject({
-        origin: "flat_fee",
-        amount_cents: 0,
-        value_cents: 54000,
-      });
-      const offered = priceLine(db, one(db, "time_entry", 2)!);
-      expect(offered).toMatchObject({ amount_cents: 0, value_cents: 9000 });
-      expect(state(db).alerts["1"]).toContain(
-        "No more than 0.5 h of billable research per day: 1.3 h on 2026-10-13.",
-      );
-    } finally {
-      db.close();
-    }
+  it('rounds a combined group once and marks unknown coverage separately',()=>{
+    const f=fixture();try {
+      const base=f.core().periods[0]!;
+      const periods=[{...base,id:'a',detectedDurationMs:20000,durationOverrideMs:null},{...base,id:'b',detectedDurationMs:20000,durationOverrideMs:null}];
+      const result=summarizeWork(periods,[]);
+      expect(result).toMatchObject({preciseDurationMs:40000,roundedMinutes:1,complete:false});
+    } finally {f.db.close();}
   });
-
-  it("prices non-billable travel at zero and flags the client rule", async () => {
-    const db = memoryDb(),
-      app = createApp(db);
-    try {
-      const result = await call(app, "/api/time-entries/manual", "POST", {
-        matter_id: 4,
-        task_id: 10,
-        date: "2026-10-16",
-        tenths_of_hour: 5,
-        label: "Travel to court",
-      });
-      expect(result.status).toBe(200);
-      const entry = one(db, "time_entry", Number(result.data.id))!;
-      expect(entry.amount_cents).toBe(0);
-      expect(priceLine(db, entry).value_cents).toBe(15000);
-      expect(state(db).alerts["4"]).toContain(
-        "Travel is not billable: Travel to court.",
-      );
-    } finally {
-      db.close();
-    }
+  it('matches the corrected fictional day and Dupont invoice reference',()=>{
+    const f=fixture();try {
+      const core=f.core();
+      expect(summarizeWork(core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')),core.sources).roundedMinutes).toBe(267);
+      expect(dayFees(f.legacy,core,core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')))).toBe(91250);
+      expect(core.periods.find(p=>p.id==='14')).toMatchObject({detectedDurationMs:152*60000,durationOverrideMs:108*60000});
+      const draft=draftInvoice(f.legacy,core,1,'final');
+      expect(draft).toMatchObject({billedMinutes:212,feesCents:106000,pendingPeriods:2});
+    } finally {f.db.close();}
   });
-
-  it("reassigns JAF work, learns a marker and audits the change", async () => {
-    const db = memoryDb(),
-      app = createApp(db);
-    try {
-      const before = state(db).audit_event.length;
-      const result = await call(app, "/api/time-entries/13", "PATCH", {
-        matter_id: 5,
-      });
-      expect(result.status).toBe(200);
-      expect(result.data.amount_cents).toBe(5000);
-      expect(one(db, "block", 13)?.matter_id).toBe(5);
-      expect(state(db).marker.some((m) => m.matter_id === 5 && m.learned)).toBe(
-        true,
-      );
-      expect(state(db).audit_event.length).toBeGreaterThan(before);
-    } finally {
-      db.close();
-    }
+  it('keeps billed day fees at the applied rate after a catalogue rate edit',()=>{
+    const f=fixture();try {
+      const period={...f.core().periods.find(p=>p.id==='19')!,billingStatus:'billed' as const,appliedHourlyRateCents:25000};
+      const changed={...f.legacy,matter:f.legacy.matter.map(item=>item.id===5?{...item,own_rate_cents:100000}:item)};
+      expect(dayFees(f.legacy,f.core(),[period])).toBe(21250);
+      expect(dayFees(changed,f.core(),[period])).toBe(21250);
+    } finally {f.db.close();}
   });
-
-  it("approves a day while leaving unassigned time for review", async () => {
-    const db = memoryDb(),
-      app = createApp(db);
-    try {
-      const result = await call(app, "/api/day/approve", "POST", {
-        date: "2026-10-16",
-      });
-      expect(result).toMatchObject({
-        status: 200,
-        data: { approved: 4, unassigned: 1 },
-      });
-      expect(one(db, "time_entry", 13)?.review_status).toBe("to_review");
-      expect(
-        state(db).audit_event.filter((e) => e.action === "Time entry approved")
-          .length,
-      ).toBeGreaterThan(1);
-    } finally {
-      db.close();
-    }
+  it('stores the React snapshot and freezes the period rate',()=>{
+    const f=fixture();try {
+      const draft=draftInvoice(f.legacy,f.core(),2,'final');
+      expect(draft).toMatchObject({billedMinutes:66,feesCents:33000,vatCents:6600});
+      const issued=issueInvoice(f.port,snapshot(draft),'2026-10-16T18:00:00Z');
+      expect(issued.number).toBe('F-2026-0042');
+      expect(f.core().periods.filter(p=>['7','8'].includes(p.id)).every(p=>p.billingStatus==='billed'&&p.appliedHourlyRateCents===30000)).toBe(true);
+      expect((f.db.prepare('SELECT billing_status FROM time_entry WHERE id=7').get() as {billing_status:string}).billing_status).toBe('billed');
+      const lines=f.port.listInvoiceLines().filter(line=>line.invoiceId===issued.id);
+      f.db.prepare('UPDATE clients SET hourly_rate_cents=40000 WHERE id=(SELECT client_id FROM cases WHERE id=?)').run('2');
+      expect(f.port.listInvoiceLines().filter(line=>line.invoiceId===issued.id)).toEqual(lines);
+      expect(f.core().periods.find(p=>p.id==='7')?.appliedHourlyRateCents).toBe(30000);
+    } finally {f.db.close();}
   });
-
-  it("freezes billed entries and invoice lines when a client rate changes", async () => {
-    const db = memoryDb(),
-      app = createApp(db);
-    try {
-      const issued = await call(app, "/api/invoices", "POST", {
-        matter_id: 2,
-        type: "final",
-      });
-      expect(issued.status).toBe(200);
-      expect(issued.data.number).toBe("F-2026-0042");
-      const invoiceId = Number(issued.data.id);
-      const frozen = state(db).invoice_line.filter(
-        (l) => l.invoice_id === invoiceId,
-      );
-      expect(frozen.map((l) => l.amount_cents)).toEqual([12000, 21000]);
-      expect(
-        state(db)
-          .time_entry.filter((l) => l.matter_id === 2)
-          .every((l) => l.billing_status === "billed"),
-      ).toBe(true);
-      await call(app, "/api/client/1", "PATCH", { rate_cents: 40000 });
-      reprice(db);
-      expect(
-        state(db).invoice_line.filter((l) => l.invoice_id === invoiceId),
-      ).toEqual(frozen);
-      expect(one(db, "time_entry", 7)?.amount_cents).toBe(12000);
-    } finally {
-      db.close();
-    }
+  it('rejects unvalidated and stale periods without issuing',()=>{
+    const f=fixture();try {
+      const unvalidated=snapshot(draftInvoice(f.legacy,f.core(),1,'final'));
+      expect(()=>issueInvoice(f.port,unvalidated,'2026-10-16T18:00:00Z')).toThrow(/not time validated/);
+      const stale=snapshot(draftInvoice(f.legacy,f.core(),2,'final'));
+      f.service.setDurationOverride('7',25*60000);
+      expect(()=>issueInvoice(f.port,stale,'2026-10-16T18:00:00Z')).toThrow(/changed or is not time validated/);
+      expect(f.port.listInvoices()).toHaveLength(1);
+    } finally {f.db.close();}
   });
-
-  it("rejects unapproved work and charges VAT on fees, not disbursements", async () => {
-    const db = memoryDb(),
-      app = createApp(db);
-    try {
-      expect(
-        (
-          await call(app, "/api/invoices", "POST", {
-            matter_id: 5,
-            type: "final",
-          })
-        ).status,
-      ).toBe(400);
-      await call(app, "/api/expenses", "POST", {
-        matter_id: 2,
-        date: "2026-10-16",
-        label: "Filing fee",
-        type: "expense",
-        amount_cents: 1000,
-      });
-      await call(app, "/api/expenses", "POST", {
-        matter_id: 2,
-        date: "2026-10-16",
-        label: "Court charge",
-        type: "disbursement",
-        amount_cents: 2000,
-      });
-      const preview = state(db).invoice_previews["2"].final;
-      const result = await call(app, "/api/invoices", "POST", {
-        matter_id: 2,
-        type: "final",
-      });
-      expect(result.data).toMatchObject({
-        subtotal_cents: preview.fees_cents + preview.expenses_cents,
-        vat_cents: preview.vat_cents,
-        disbursements_cents: preview.disbursements_cents,
-      });
-      expect(result.data).toMatchObject({
-        subtotal_cents: 34000,
-        vat_cents: 6800,
-        disbursements_cents: 2000,
-      });
-    } finally {
-      db.close();
-    }
+  it('records VAT, expenses and disbursements from the frontend snapshot',()=>{
+    const f=fixture();try {
+      addExpense(f.port,{caseId:'2',date:'2026-10-16',label:'Filing',type:'expense',amountCents:1000});
+      addExpense(f.port,{caseId:'2',date:'2026-10-16',label:'Court charge',type:'disbursement',amountCents:2000});
+      const draft=draftInvoice(f.legacy,f.core(),2,'final');
+      expect(draft).toMatchObject({subtotalCents:34000,vatCents:6800,disbursementsCents:2000,totalCents:42800});
+      const invoice=issueInvoice(f.port,snapshot(draft),'2026-10-16T18:00:00Z');
+      expect(f.port.listInvoices().find(row=>row.id===invoice.id)).toMatchObject({subtotalCents:34000,vatCents:6800,disbursementsCents:2000,totalCents:42800});
+    } finally {f.db.close();}
   });
-});
-
-describe("flat-fee final invoice", () => {
-  it("charges the agreed fee once and freezes the tracked time at zero", async () => {
-    const db = memoryDb(),
-      app = createApp(db);
-    try {
-      await call(app, "/api/matters/3/approve", "POST");
-      const issued = await call(app, "/api/invoices", "POST", {
-        matter_id: 3,
-        type: "final",
-      });
-      expect(issued.status).toBe(200);
-      expect(issued.data.subtotal_cents).toBe(200000);
-      const lines = state(db).invoice_line.filter(
-        (x) => x.invoice_id === issued.data.id,
-      );
-      expect(lines.filter((x) => x.origin === "flat_fee")).toHaveLength(1);
-      expect(
-        lines
-          .filter((x) => x.origin === "time_entry")
-          .every((x) => x.amount_cents === 0),
-      ).toBe(true);
-      expect(
-        (
-          await call(app, "/api/invoices", "POST", {
-            matter_id: 3,
-            type: "final",
-          })
-        ).status,
-      ).toBe(400);
-    } finally {
-      db.close();
-    }
+  it('bills a flat fee once while storing tracked time with zero work amount',()=>{
+    const f=fixture();try {
+      f.service.validatePeriod('18');
+      const draft=draftInvoice(f.legacy,f.core(),3,'final');
+      expect(draft).toMatchObject({feesCents:200000,rateCents:0});
+      const issued=issueInvoice(f.port,snapshot(draft),'2026-10-16T18:00:00Z');
+      expect(f.port.listInvoiceLines().filter(row=>row.invoiceId===issued.id)).toEqual(expect.arrayContaining([
+        expect.objectContaining({origin:'flat_fee',amountCents:200000}),expect.objectContaining({origin:'work_period',amountCents:0}),
+      ]));
+      expect(()=>issueInvoice(f.port,snapshot(draft),'2026-10-16T18:01:00Z')).toThrow(/already exists/);
+    } finally {f.db.close();}
+  });
+  it('rejects incomplete monetary snapshots without writing an invoice',()=>{
+    const f=fixture();try {
+      const draft=snapshot(draftInvoice(f.legacy,f.core(),2,'final'));
+      expect(()=>issueInvoice(f.port,{...draft,totalCents:undefined as never},'2026-10-16T18:00:00Z')).toThrow(/totalCents/);
+      expect(f.port.listInvoices()).toHaveLength(1);
+    } finally {f.db.close();}
+  });
+  it('enforces retained client rules when a snapshot is submitted directly',()=>{
+    const f=fixture();try {
+      const draft=snapshot(draftInvoice(f.legacy,f.core(),2,'final'));
+      f.db.prepare(`INSERT INTO client_rules(client_id,type,value,label) VALUES ((SELECT client_id FROM cases WHERE id='2'),'nonbillable_travel',0,'Travel excluded')`).run();
+      f.db.prepare(`UPDATE work_periods SET task_type_id=(SELECT id FROM task_types WHERE code='DEPL') WHERE id='7'`).run();
+      expect(()=>issueInvoice(f.port,draft,'2026-10-16T18:00:00Z')).toThrow(/travel rule/);
+      expect(f.port.listInvoices()).toHaveLength(1);
+    } finally {f.db.close();}
+  });
+  it('applies a client daily research cap across already billed cases',()=>{
+    const f=fixture();try {
+      f.db.prepare("UPDATE work_periods SET session_id='demo-2026-10-09',started_at='2026-10-09T10:00:00Z',ended_at='2026-10-09T10:10:00Z',detected_duration_ms=600000,task_type_id=(SELECT id FROM task_types WHERE code='RECH') WHERE id='1'").run();
+      f.db.prepare("UPDATE work_periods SET task_type_id=(SELECT id FROM task_types WHERE code='RECH') WHERE id='7'").run();
+      const draft=snapshot(draftInvoice(f.legacy,f.core(),2,'final'));
+      expect(()=>issueInvoice(f.port,draft,'2026-10-16T18:00:00Z')).toThrow(/research cap/);
+    } finally {f.db.close();}
   });
 });

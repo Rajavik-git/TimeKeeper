@@ -24,7 +24,7 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
   "POST /api/demo/reset": {},
   "PATCH /api/time-entries/{id}": {
     path: "/api/time-entries/13",
-    body: { matter_id: 5 },
+    body: { matter_id: 5, expected_assignment_revision: 0 },
   },
   "POST /api/day/approve": { body: { date: "2026-10-16" } },
   "POST /api/matters/{id}/approve": { path: "/api/matters/1/approve" },
@@ -58,7 +58,34 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
     },
   },
   "DELETE /api/expenses/{id}": { path: "/api/expenses/1" },
-  "POST /api/invoices": { body: { matter_id: 2, type: "final" } },
+  "POST /api/invoices": { body: {
+    caseId:2,type:'final',periodIds:['7','8'],revisions:{'7':0,'8':0},billedMinutes:66,
+    rateCents:30000,rateOrigin:'client',feesCents:33000,subtotalCents:33000,
+    expensesCents:0,disbursementsCents:0,vatCents:6600,totalCents:39600,
+    lines:[{origin:'work_period',originId:'2',label:'Work on case',billedMinutes:66,rateCents:30000,amountCents:33000,vat:true}],
+  } },
+  'GET /api/sessions/active': {},
+  'GET /api/sessions': {},
+  'GET /api/work-periods': {},
+  'GET /api/sources': {},
+  'GET /api/questions': {},
+  'POST /api/questions': {body:{questionId:'retry-13',sessionId:'demo-2026-10-16',periodId:'13',expectedAssignmentRevision:0}},
+  'POST /api/commands/start': {body:{producerId:'test',commandId:'start',sessionId:'new',occurredAt:'2026-10-16T16:43:00Z'}},
+  'POST /api/commands/end': {body:{producerId:'test',commandId:'end',sessionId:'demo-2026-10-16',occurredAt:'2026-10-16T17:00:00Z'}},
+  'POST /api/work-periods/{id}/assignment': {path:'/api/work-periods/13/assignment',body:{caseId:'5',expectedAssignmentRevision:0,origin:'lawyer'}},
+  'POST /api/work-periods/{id}/duration-override': {path:'/api/work-periods/14/duration-override',body:{durationMs:600000}},
+  'POST /api/work-periods/{id}/detected-duration': {path:'/api/work-periods/14/detected-duration',body:{durationMs:600000}},
+  'POST /api/work-periods/{id}/validate-time': {path:'/api/work-periods/14/validate-time',body:{}},
+  'POST /api/work-periods/{id}/billing-status': {path:'/api/work-periods/14/billing-status',body:{status:'unbilled'}},
+  'POST /api/questions/answer': {body:{questionId:'demo-question-13',sessionId:'demo-2026-10-16',periodId:'13',expectedAssignmentRevision:0,caseId:'5',responseCommandId:'answer-13'}},
+  'POST /api/sources/{instanceId}/{contentType}/{externalId}/validate': {path:'/api/sources/demo/screen/frame_id%2042001/validate',body:{}},
+  'POST /api/work-periods/manual': {body:{sessionId:'demo-2026-10-16',caseId:'1',startedAt:'2026-10-16T17:00:00Z',durationMs:600000,taskTypeId:5,label:'Demo hearing'}},
+  'PATCH /api/work-periods/{id}/details': {path:'/api/work-periods/14/details',body:{label:'Updated demo work'}},
+  'POST /api/sources/{instanceId}/{contentType}/{externalId}/availability': {path:'/api/sources/demo/screen/frame_id%2042001/availability',body:{availability:'unavailable'}},
+  'GET /api/billing/state': {},
+  'GET /api/coverage-gaps': {},
+  'POST /api/billing/expenses': {body:{caseId:'2',date:'2026-10-16',label:'Filing',type:'expense',amountCents:1000}},
+  'DELETE /api/billing/expenses/{id}': {path:'/api/billing/expenses/1'},
   "GET /api/invoices/{id}/csv": { path: "/api/invoices/1/csv" },
   "GET /api/sources/{id}": { path: "/api/sources/1" },
   "GET /api/blocks/{id}/recognition": { path: "/api/blocks/14/recognition" },
@@ -121,10 +148,11 @@ describe("OpenAPI response contract", () => {
                 ? undefined
                 : JSON.stringify(fixture.body),
           });
-          expect(response.status, await response.clone().text()).toBe(200);
+          const documentedStatus=operation.responses['200'] ? 200 : 202;
+          expect(response.status, await response.clone().text()).toBe(documentedStatus);
           const data = await response.json();
           const schema =
-            operation.responses["200"].content["application/json"].schema;
+            operation.responses[String(documentedStatus)].content["application/json"].schema;
           const validate = ajv.compile({
             ...schema,
             components: spec.components,

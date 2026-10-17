@@ -88,19 +88,9 @@ describe("matter nomenclature and learning", () => {
         expect(entry.review_status).toBe("approved");
         expect(entry.billing_status).toBe("to_bill");
         expect(entry.invoice_id).toBeNull();
-        const rate =
-          entry.rate_origin === "matter"
-            ? 34000
-            : (
-                db
-                  .prepare(
-                    "SELECT rate_cents FROM client JOIN matter ON matter.client_id=client.id WHERE matter.id=?",
-                  )
-                  .get(entry.matter_id) as { rate_cents: number }
-              ).rate_cents;
-        expect(entry.amount_cents).toBe(
-          (Number(entry.tenths_of_hour) * rate) / 10,
-        );
+        expect(entry.amount_cents).toBe(0);
+        const period=db.prepare('SELECT duration_override_ms FROM work_periods WHERE id=?').get(String(entry.id)) as {duration_override_ms:number};
+        expect(period.duration_override_ms).toBe(Number(entry.tenths_of_hour)*360000);
       }
       expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     } finally {
@@ -113,7 +103,7 @@ describe("matter nomenclature and learning", () => {
       const response = await createApp(db).request("/api/time-entries/13", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ matter_id: 5 }),
+        body: JSON.stringify({ matter_id: 5, expected_assignment_revision: 0 }),
       });
       expect(response.status).toBe(200);
       expect(
