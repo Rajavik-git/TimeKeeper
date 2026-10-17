@@ -29,7 +29,7 @@ export function seedCanonicalDemo(db: DatabaseSync): void {
         item.status === 'closed' ? 'archived' : 'active',now,now,item.category,item.case_number,item.opposing_party,item.mode,item.flat_fee_cents,item.hour_cap,item.success_fee_percent,item.budget_cents,item.opened_on);
     }
     db.prepare(`INSERT INTO settings(id,global_hourly_rate_cents,currency,workspace_id,updated_at,lawyer_name,address,vat_number,base_unit,vat_rate,confidence_threshold,excluded_apps,capture_retention,notifications,pill_position,invoice_prefix,next_number)
-      VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(firm.base_rate_cents,'EUR','demo-workspace',now,firm.lawyer_name,firm.address,firm.vat_number,firm.base_unit,firm.vat_rate,
+      VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(firm.base_rate_cents,'USD','demo-workspace',now,firm.lawyer_name,firm.address,firm.vat_number,firm.base_unit,firm.vat_rate,
       preference.confidence_threshold,preference.excluded_apps,preference.capture_retention,preference.notifications,preference.pill_position,preference.invoice_prefix,preference.next_number);
     for (const task of rows(db,'task')) db.prepare(`INSERT INTO task_types(id,code,label,billable_by_default,off_screen,sort_order) VALUES (?,?,?,?,?,?)`).run(task.id,task.code,task.label,task.billable_by_default,task.off_screen,task.sort_order);
     for (const marker of rows(db,'marker')) db.prepare(`INSERT INTO markers(id,case_id,type,value,weight,learned,hits,last_seen_at) VALUES (?,?,?,?,?,?,?,?)`).run(marker.id,asText(marker.matter_id),marker.type,marker.value,marker.weight,marker.learned,marker.hits,marker.last_seen_at);
@@ -68,8 +68,8 @@ export function seedCanonicalDemo(db: DatabaseSync): void {
       const demoOverride = Number(entry?.id) === 14 ? 108*60000 : null;
       const rate = caseId ? Number(caseRates.get(caseId) ?? clientRates.get(clients.get(caseId)!) ?? firm.base_rate_cents) : null;
       insertPeriod.run(asText(entry?.id ?? `excluded-${block.id}`),`demo-${date}`,caseId,caseId,caseId ? 'automatic' : 'unresolved',start,end,
-        Number(block.minutes)*60000,demoOverride,caseId ? 'automatic' : 'unresolved',validated ? 'validated' : 'unvalidated',0,validated ? 0 : null,validated ? now : null,
-        billed ? 'billed' : 'unbilled',billed ? now : null,billed ? rate : null,billed ? 'EUR' : null,0,0,now,now,
+        Number(block.minutes)*60000,demoOverride,caseId ? 'automatic' : 'unresolved',validated ? 'validated' : 'unvalidated',0,validated ? 0 : null,validated ? end ?? start : null,
+        billed ? 'billed' : 'unbilled',billed ? now : null,billed ? rate : null,billed ? 'USD' : null,0,0,now,now,
         entry?.task_id ?? block.task_id,entry?.label ?? `${block.app} · ${block.window_title}`,entry?.billable ?? 0,entry?.reason ?? null,excluded ? 1 : 0,
         block.app,block.window_title,block.confidence,entry?.invoice_id ?? null);
       db.prepare('INSERT INTO demo_block_periods(block_id,period_id) VALUES (?,?)').run(block.id,asText(entry?.id ?? `excluded-${block.id}`));
@@ -83,8 +83,8 @@ export function seedCanonicalDemo(db: DatabaseSync): void {
       const billed=entry.billing_status === 'billed';
       const rate=caseId ? Number(caseRates.get(caseId) ?? clientRates.get(clients.get(caseId)!) ?? firm.base_rate_cents) : null;
       insertPeriod.run(asText(entry.id),`demo-${date}`,caseId,caseId,'lawyer',start,end,null,Number(entry.tenths_of_hour)*360000,
-        'lawyer',validated ? 'validated' : 'unvalidated',0,validated ? 0 : null,validated ? now : null,
-        billed ? 'billed' : 'unbilled',billed ? now : null,billed ? rate : null,billed ? 'EUR' : null,0,0,now,now,
+        'lawyer',validated ? 'validated' : 'unvalidated',0,validated ? 0 : null,validated ? end : null,
+        billed ? 'billed' : 'unbilled',billed ? now : null,billed ? rate : null,billed ? 'USD' : null,0,0,now,now,
         entry.task_id,entry.label,entry.billable,entry.reason,0,null,null,null,entry.invoice_id);
     }
     for (const source of rows(db,'source')) {

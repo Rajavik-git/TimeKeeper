@@ -21,11 +21,11 @@ export function Desk({s,core,action,navigate}:ScreenProps) {
   const currentAmount=period && rate && rate.origin!=='flat_fee' && effectiveMs(period)!==null
     ? Math.round(effectiveMs(period)!*rate.rateCents/3600000) : null;
   return <>
-    <div className="row between"><div><span className="eyebrow">Lawyer desk · fictional demo</span><h1>The TimeKeeper pill</h1></div>
+    <div className="row between"><div><span className="eyebrow"><button className="link" onClick={()=>navigate('settings')}>Settings</button> › Desk pill preview</span><h1>Desk pill preview</h1></div>
       <span className="small muted">Session and period state come from the application API.</span></div>
     <div className="desk"><div className="docwin"><div className="row between dochead"><span>{period?.demoWindowTitle ?? 'No active period'}</span>
-      <span className="num">{session?.startedAt.slice(11,16) ?? '—'}</span></div><div className="docpage"><h2>{period?.label ?? 'Waiting for a work period'}</h2>
-      <p>{period?.demoWindowTitle ?? 'Recorded observations appear here when available.'}</p></div></div>
+      <span className="num">{session?.startedAt.slice(11,16) ?? '—'}</span></div><div className="docpage"><h2>MEMORANDUM OF LAW IN OPPOSITION</h2>
+      <p>Supreme Court of the State of New York · Index No. [NUMBER]</p><p>Plaintiff: Paul Dawson · Defendant: Martin Distribution LLC</p></div></div>
       <button className="pastille" aria-expanded={open} onClick={()=>setOpen(!open)}><span className="mini-logo"><Logo compact wordmark={false}/></span><span className="dot"/>
         <span>{owner?.name ?? 'No case'}</span><span className="num">{duration}</span></button>
       {open&&<div className="float glass pad col"><div className="row between"><b><MatterReference value={activeCase?.reference ?? ''}/> {activeCase?.title ?? 'Case answer needed'}</b>

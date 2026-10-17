@@ -16,18 +16,15 @@ restoreTheme();
 const primaryViews = [
   ["myDay", "My day", "day", "1"],
   ["matters", "Cases", "cases", "2"],
-  ["preInvoices", "Pre-invoices", "pre", "3"],
-  ["source", "Source", "source", "4"],
-] as const;
-const workspaceViews = [
-  ["desk", "Desk pill", "desk"],
-  ["settings", "Settings", "settings"],
+  ["preInvoices", "Billing", "pre", "3"],
+  ["source", "Activity", "source", "4"],
+  ["settings", "Settings", "settings", "5"],
 ] as const;
 
 function App() {
   const [s, setS] = useState<State>();
   const [core, setCore] = useState<CoreState>();
-  const [view, setView] = useState<View>("myDay");
+  const [view, setView] = useState<View>(new URLSearchParams(window.location.search).get('view')==='desk'?'desk':'myDay');
   const [sourceId, setSourceId] = useState('');
   const [selectedCase, setSelectedCase] = useState<number>();
   const [message, setMessage] = useState("");
@@ -65,8 +62,10 @@ function App() {
   };
   const navigate = (v: View, matterId?: number) => {
     if (matterId) setSelectedCase(matterId);
-    else if (v === 'matters') setSelectedCase(undefined);
+    else if (v === 'matters' || v === 'preInvoices') setSelectedCase(undefined);
     setView(v);
+    if(v==='desk') window.history.replaceState(null,'','?view=desk');
+    else if(window.location.search.includes('view=desk')) window.history.replaceState(null,'',window.location.pathname);
     document.querySelector(".shell-main")?.scrollTo(0, 0);
     window.scrollTo(0, 0);
   };
@@ -107,9 +106,6 @@ function App() {
               <Icon name={icon}/><span className="tab-label">{title}</span>
               {key==='myDay'&&<span className="cnt">{pending}</span>}
               {key==='matters'&&<span className="cnt">{s?.matter.length??0}</span>}
-            </button>)}
-            {workspaceViews.map(([key,title,icon]) => <button key={key} aria-current={view===key?'page':undefined} aria-label={title} onClick={()=>navigate(key)}>
-              <Icon name={icon}/><span className="tab-label">{title}</span>
             </button>)}
           </nav>
           <div className="floating-tools">

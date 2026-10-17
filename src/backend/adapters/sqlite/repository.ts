@@ -31,6 +31,8 @@ export type Table = (typeof tables)[number];
 export type Row = Record<string, unknown>;
 const bools = new Set([
   "notifications",
+  "pill_always_on_top",
+  "pill_withhold_calls",
   "billable_by_default",
   "off_screen",
   "vat_applicable",
@@ -43,6 +45,12 @@ export function openDb(
   path = resolve(projectRoot, process.env.TIMEKEEPER_DB ?? "data/timekeeper.db"),
 ) {
   const db = new DatabaseSync(path);
+  const settingColumns=new Set((db.prepare('PRAGMA table_info(setting)').all() as Array<{name:string}>).map(row=>row.name));
+  if(settingColumns.size){
+    if(!settingColumns.has('pill_always_on_top')) db.exec("ALTER TABLE setting ADD COLUMN pill_always_on_top INTEGER NOT NULL DEFAULT 1 CHECK(pill_always_on_top IN (0,1))");
+    if(!settingColumns.has('pill_display')) db.exec("ALTER TABLE setting ADD COLUMN pill_display TEXT NOT NULL DEFAULT 'fees' CHECK(pill_display IN ('fees','time','case'))");
+    if(!settingColumns.has('pill_withhold_calls')) db.exec("ALTER TABLE setting ADD COLUMN pill_withhold_calls INTEGER NOT NULL DEFAULT 1 CHECK(pill_withhold_calls IN (0,1))");
+  }
   seedCanonicalDemo(db);
   return db;
 }

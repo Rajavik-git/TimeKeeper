@@ -1,0 +1,29 @@
+.day-prompts { align-items:stretch; }
+.page .day-prompts > .card { justify-content:space-between; padding:16px; gap:12px; }
+.day-prompts .card > div:first-child { display:flex; flex-direction:column; gap:7px; }
+.page .day-prompts h2 { font-size:var(--fs-h2); }
+.page .day-prompts p { font-size:var(--fs-md); }
+.day-periods { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
+.day-periods > .tbl { min-height:0; flex:1 1 auto; overflow:auto; }
+.day-periods .day-table th:nth-child(1) { width:110px; }
+.day-periods .day-table th:nth-child(2) { width:190px; }
+.day-periods .day-table th:nth-child(3) { width:auto; }
+.day-periods .day-table th:nth-child(4) { width:135px; }
+.day-periods .day-table th:nth-child(5) { width:135px; }
+.day-periods .day-table th:nth-child(6) { width:168px; }
+.day-periods .day-table table { min-width:0; }
+.day-table td:nth-child(4) { white-space:normal; }
+.day-table .day-actions { justify-content:flex-end; }
+.day-sort { display:block; width:100%; border:0; padding:0; background:none; text-align:inherit; color:inherit; font:inherit; font-weight:inherit; cursor:pointer; }
+.day-table th.r .day-sort, .day-periods th.r .day-sort { text-align:right; }
+.day-duration { border:0; background:none; font:inherit; color:inherit; padding:0; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; }
+.day-duration[disabled] { cursor:default; text-decoration:none; }
+.day-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:100; background:var(--primary); color:var(--on-primary); padding:10px 16px; border-radius:var(--r-md); box-shadow:var(--shadow); font-size:var(--fs-md); cursor:pointer; }
+.day-load-error { color:var(--warn); font-size:var(--fs-sm); }
+.daypick .calwrap { position:relative; }
+.daypick .iconbtn { border:1px solid var(--line-2); color:var(--ink); font-size:var(--fs-xl); }
+.daypick .iconbtn[disabled] { opacity:.45; cursor:not-allowed; }
+.calft { display:flex; justify-content:space-between; align-items:center; font-size:var(--fs-sm); }
+.calft .dotk { background:var(--ok-dot); }
+.cal .cday i { background:var(--ok-dot); }
+@media (max-width:1100px) { .day-periods .day-table th:nth-child(2) { width:175px; } .day-periods .day-table th:nth-child(4) { width:105px; } .day-periods .day-table th:nth-child(5) { width:120px; } .day-periods .day-table th:nth-child(6) { width:158px; } }

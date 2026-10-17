@@ -1,5 +1,5 @@
 const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2,
+  style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
 });
 const whole = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const short = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -9,7 +9,7 @@ const long = new Intl.DateTimeFormat('en-GB', {
 const parseDate = (value: string) => new Date(`${value.slice(0, 10)}T00:00:00Z`);
 
 export const money = (cents: number) => currency.format(cents / 100);
-export const rate = (cents: number) => `€${whole.format(Math.round(cents / 100))}/h`;
+export const rate = (cents: number) => `$${whole.format(Math.round(cents / 100))}/h`;
 export const percent = (value: number) => `${whole.format(Math.round(value))}%`;
 export const shortDate = (value: string) => short.format(parseDate(value));
 export const longDate = (value: string) => long.format(parseDate(value)).replace(',', '');

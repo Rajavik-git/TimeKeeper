@@ -31,6 +31,6 @@ export function Status({
       ? "Billed"
       : review_status === "approved"
         ? "Approved"
-        : "To review";
+        : "To validate";
   return <Pill kind={kind}>{text}</Pill>;
 }

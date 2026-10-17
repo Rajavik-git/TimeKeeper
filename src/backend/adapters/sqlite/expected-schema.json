@@ -15,6 +15,9 @@
     "capture_retention",
     "notifications",
     "pill_position",
+    "pill_always_on_top",
+    "pill_display",
+    "pill_withhold_calls",
     "invoice_prefix",
     "next_number"
   ],

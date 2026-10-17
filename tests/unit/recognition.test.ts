@@ -32,8 +32,8 @@ describe("recognition", () => {
         matter_id: 1,
         score: 0.6,
       });
-      expect(match("Paul Dupont").filter((x) => x.score >= 0.5)).toEqual([]);
-      expect(decision(match("Paul Dupont"), 0.2)).toMatchObject({
+      expect(match("Paul Dawson").filter((x) => x.score >= 0.5)).toEqual([]);
+      expect(decision(match("Paul Dawson"), 0.2)).toMatchObject({
         state: "to_check",
         matter_id: null,
       });

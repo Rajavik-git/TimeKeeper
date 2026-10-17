@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { duration, longDate, minutes, money, percent, rate, shortDate, tenthsOfHour } from '../../src/frontend/shared/format';
 
 describe('English display formats', () => {
-  it('uses two decimal places for money and whole euros for hourly rates', () => {
-    expect(money(139000)).toBe('€1,390.00');
-    expect(rate(30000)).toBe('€300/h');
+  it('uses two decimal places for money and whole dollars for hourly rates', () => {
+    expect(money(139000)).toBe('$1,390.00');
+    expect(rate(30000)).toBe('$300/h');
     expect(percent(91)).toBe('91%');
   });
   it('shows durations as hours and minutes without decimal hours', () => {

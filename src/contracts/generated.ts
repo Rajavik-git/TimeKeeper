@@ -596,7 +596,13 @@ export interface paths {
         /** Read WorkPeriod */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    date?: string;
+                    from?: string;
+                    to?: string;
+                    clientId?: string;
+                    caseId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -668,7 +674,9 @@ export interface paths {
         /** Read PendingQuestion */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    date?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1669,7 +1677,9 @@ export interface paths {
         /** Read incomplete retrieval coverage */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    date?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1689,6 +1699,103 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cases/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search clients and cases */
+        get: {
+            parameters: {
+                query?: {
+                    query?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Matches */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            clients: components["schemas"]["client"][];
+                            cases: components["schemas"]["matter"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cases/{id}/source-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a source pack for a case */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        scope: "invoice" | "case" | "period" | "chosen";
+                        invoiceId?: number;
+                        /** Format: date */
+                        from?: string;
+                        /** Format: date */
+                        to?: string;
+                        periodIds?: number[];
+                        options: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            export: components["schemas"]["source_export"];
+                            /** @description UTF-8 JSON source pack, with confidentiality options applied */
+                            payload: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1720,6 +1827,10 @@ export interface components {
             pill_position: string;
             invoice_prefix: string;
             next_number: number;
+            pill_always_on_top: boolean;
+            /** @enum {string} */
+            pill_display: "fees" | "time" | "case";
+            pill_withhold_calls: boolean;
         };
         /** @description Work category */
         task: {
@@ -2007,6 +2118,7 @@ export interface components {
             effectiveRevision: number;
             validatedEffectiveRevision: number | null;
             timeValidated: boolean;
+            timeValidatedAt: string | null;
             /** @enum {string} */
             billingStatus: "unbilled" | "billed";
             appliedHourlyRateCents?: number | null;
@@ -2143,7 +2255,11 @@ export type $defs = Record<string, never>;
 export interface operations {
     state_get: {
         parameters: {
-            query?: never;
+            query?: {
+                date?: string;
+                clientId?: string;
+                caseId?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

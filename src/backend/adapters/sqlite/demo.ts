@@ -32,14 +32,14 @@ export function demoPort(db: DatabaseSync): DemoPort {
     },
     syncCatalog: () => syncDemoCatalog(db),
     invoiceExport: (id): InvoiceExport | undefined => {
-      const header = db.prepare(`SELECT i.number,i.date,c.name AS client_name,ca.title AS case_title
+      const header = db.prepare(`SELECT i.number,i.date,i.vat_cents,c.name AS client_name,ca.title AS case_title
         FROM invoices i JOIN cases ca ON ca.id=i.case_id JOIN clients c ON c.id=ca.client_id
         WHERE i.id=?`).get(id) as RawRow | undefined;
       if (!header) return undefined;
       const lines = db.prepare(`SELECT label,billed_minutes,rate_cents,amount_cents,vat
         FROM invoice_lines WHERE invoice_id=? ORDER BY id`).all(id) as RawRow[];
       return {
-        number: String(header.number), date: String(header.date),
+        number: String(header.number), date: String(header.date), vatCents: Number(header.vat_cents),
         clientName: String(header.client_name), caseTitle: String(header.case_title),
         lines: lines.map(line => ({
           label: String(line.label), billedMinutes: Number(line.billed_minutes),

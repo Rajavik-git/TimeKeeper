@@ -12,6 +12,7 @@ export type DemoTable =
 export interface InvoiceExport {
   number: string;
   date: string;
+  vatCents: number;
   clientName: string;
   caseTitle: string;
   lines: Array<{

@@ -1,5 +1,5 @@
 import type { CoreState, Matter, State } from '../api/client';
-import { configuredRate, draftInvoice, summarizeWork } from './billing';
+import { configuredRate, draftInvoice, effectiveMs, summarizeWork } from './billing';
 
 export function caseMetrics(state: State, core: CoreState, item: Matter) {
   const periods = core.periods.filter(period => period.caseId === String(item.id) && !period.excluded);
@@ -28,4 +28,51 @@ export function clientMetrics(state: State, core: CoreState, clientId: number) {
   const pending = periods.filter(period => !period.timeValidated).length;
   const latest = periods.reduce((date, period) => period.startedAt > date ? period.startedAt : date, '');
   return { cases, time, toBill, pending, latest };
+}
+
+/** Values visible at the same date in the previous month. No historical alert state is inferred. */
+export function previousMonthMetrics(state: State, core: CoreState, today: string) {
+  const [year, month, day] = today.split('-').map(Number);
+  const prior = new Date(Date.UTC(year!, month! - 2, day!));
+  const previousDay = prior.toISOString().slice(0, 10);
+  const monthStart = `${previousDay.slice(0, 7)}-01`;
+  const previousCases = state.matter.filter(item => item.opened_on <= previousDay).length;
+  const previousMinutes = Math.ceil(core.periods.filter(period => !period.excluded && period.startedAt.slice(0,10) >= monthStart && period.startedAt.slice(0,10) <= previousDay)
+    .reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
+  const invoicesById = new Map(core.billing.invoices.map(invoice => [invoice.id, invoice.date]));
+  const previousToBill = state.matter.reduce((total, item) => {
+    if (item.mode === 'flat_fee') return total;
+    const periods = core.periods.filter(period => {
+      if (period.caseId !== String(item.id) || !period.billable || period.excluded || period.startedAt.slice(0,10) > previousDay) return false;
+      const invoiceId = period.invoiceId ?? state.time_entry.find(entry => String(entry.id) === period.id)?.invoice_id;
+      const invoiceDate = invoiceId ? invoicesById.get(invoiceId) ?? state.invoice.find(invoice => invoice.id === invoiceId)?.date : null;
+      return !invoiceDate || invoiceDate > previousDay;
+    });
+    const minutes = Math.ceil(periods.reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
+    return total + Math.round(minutes * configuredRate(state, item.id).rateCents / 60);
+  }, 0);
+  return { previousDay, previousCases, previousMinutes, previousToBill };
+}
+
+/** A historical billing snapshot uses the validation and invoice dates, not today's flags. */
+export function previousBillingMetrics(state: State, core: CoreState, today: string) {
+  const [year, month, day] = today.split('-').map(Number);
+  const previousDay = new Date(Date.UTC(year!, month! - 2, day!)).toISOString().slice(0, 10);
+  const invoiceDates = new Map(core.billing.invoices.map(invoice => [invoice.id, invoice.date]));
+  let readyCents = 0, waitingCases = 0, toBillCents = 0;
+  for (const item of state.matter.filter(matter => matter.mode === 'hourly' && matter.status === 'open' && matter.opened_on <= previousDay)) {
+    const periods = core.periods.filter(period => {
+      if (period.caseId !== String(item.id) || !period.billable || period.excluded || period.startedAt.slice(0, 10) > previousDay) return false;
+      const invoiceId = period.invoiceId ?? state.time_entry.find(entry => String(entry.id) === period.id)?.invoice_id;
+      const invoiceDate = invoiceId ? invoiceDates.get(invoiceId) ?? state.invoice.find(invoice => invoice.id === invoiceId)?.date : null;
+      return !invoiceDate || invoiceDate > previousDay;
+    });
+    if (!periods.length) continue;
+    const minutes = Math.ceil(periods.reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
+    const amount = Math.round(minutes * configuredRate(state, item.id).rateCents / 60);
+    toBillCents += amount;
+    if (periods.every(period => period.timeValidatedAt !== null && period.timeValidatedAt.slice(0, 10) <= previousDay)) readyCents += amount;
+    else waitingCases++;
+  }
+  return { previousDay, readyCents, waitingCases, toBillCents };
 }
