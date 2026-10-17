@@ -11,10 +11,10 @@ use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 struct ApiSidecar(Mutex<Option<CommandChild>>);
 
-const PILL_WIDTH: u32 = 340;
+const PILL_WIDTH: u32 = 380;
 const PILL_HEIGHT: u32 = 58;
-const NOTICE_HEIGHT: u32 = 150;
-const PANEL_HEIGHT: u32 = 490;
+const NOTICE_HEIGHT: u32 = 270;
+const PANEL_HEIGHT: u32 = 560;
 
 fn position_pill(window: &tauri::WebviewWindow, height: u32) -> tauri::Result<()> {
     let monitor = window.primary_monitor()?;

@@ -4,6 +4,8 @@ import { SqliteRepository } from '../adapters/sqlite/core-repository.js';
 import { AppError, TimeKeeperService } from '../application/service.js';
 import { addExpense, billingState, removeExpense } from '../application/invoice.js';
 import { invoicePort } from '../adapters/sqlite/invoice.js';
+import { catalogFromDb } from '../adapters/sqlite/recognition.js';
+import { recognizeWindow, type WindowCatalog } from '../application/window-recognition.js';
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AppError('invalid-request','JSON object required');
@@ -32,6 +34,17 @@ export function coreRoutes(db: DatabaseSync): Hono {
     return c.json({error:'internal',message:'internal error'},500);
   });
   router.get('/sessions/active',c=>c.json(service.activeSession()));
+  router.post('/recognize',async c=>{
+    const b=await input(c);
+    return c.json(recognizeWindow(string(b.windowTitle,'windowTitle'),string(b.appName,'appName'),catalogFromDb(db) as WindowCatalog));
+  });
+  router.post('/periods/switch',async c=>{
+    const b=await input(c);
+    if(b.notClientWork !== undefined && typeof b.notClientWork !== 'boolean') throw new AppError('invalid-request','notClientWork must be boolean');
+    return c.json(service.switchPeriod({caseId:b.caseId === null ? null : string(b.caseId,'caseId'),
+      windowTitle:string(b.windowTitle,'windowTitle'),appName:string(b.appName,'appName'),at:string(b.at,'at'),
+      notClientWork:b.notClientWork === true}));
+  });
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));
   router.get('/work-periods',c=>{

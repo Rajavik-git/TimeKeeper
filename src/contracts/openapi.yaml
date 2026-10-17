@@ -2072,6 +2072,20 @@
         }
       }
     },
+    "/api/recognize": {
+      "post": {
+        "summary": "Suggest a case for the active window",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["windowTitle", "appName"], "properties": {"windowTitle": {"type": "string"}, "appName": {"type": "string"}}}}}},
+        "responses": {"200": {"description": "Case suggestion", "content": {"application/json": {"schema": {"type": "object", "required": ["suggestion", "alternatives", "confidence"], "properties": {"suggestion": {"oneOf": [{"$ref": "#/components/schemas/CaseSuggestion"}, {"type": "null"}]}, "alternatives": {"type": "array", "maxItems": 3, "items": {"$ref": "#/components/schemas/CaseSuggestion"}}, "confidence": {"type": "string", "enum": ["high", "low"]}}}}}}}
+      }
+    },
+    "/api/periods/switch": {
+      "post": {
+        "summary": "Record an accepted file switch as a new work period",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["caseId", "windowTitle", "appName", "at"], "properties": {"caseId": {"type": ["string", "null"]}, "windowTitle": {"type": "string"}, "appName": {"type": "string"}, "at": {"type": "string", "format": "date-time"}, "notClientWork": {"type": "boolean"}}}}}},
+        "responses": {"200": {"description": "New period", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkPeriod"}}}}}
+      }
+    },
     "/api/work-periods": {
       "get": {
         "summary": "Read WorkPeriod",
@@ -3524,6 +3538,15 @@
   },
   "components": {
     "schemas": {
+      "CaseSuggestion": {
+        "type": "object",
+        "required": ["caseId", "client", "title", "reference", "reason"],
+        "properties": {
+          "caseId": {"type": "string"}, "client": {"type": "string"},
+          "title": {"type": "string"}, "reference": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      },
       "firm": {
         "type": "object",
         "description": "Sole lawyer and base pricing",

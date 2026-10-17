@@ -586,6 +586,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suggest a case for the active window */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        windowTitle: string;
+                        appName: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Case suggestion */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            suggestion: components["schemas"]["CaseSuggestion"] | null;
+                            alternatives: components["schemas"]["CaseSuggestion"][];
+                            /** @enum {string} */
+                            confidence: "high" | "low";
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/periods/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an accepted file switch as a new work period */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        caseId: string | null;
+                        windowTitle: string;
+                        appName: string;
+                        /** Format: date-time */
+                        at: string;
+                        notClientWork?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description New period */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkPeriod"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/work-periods": {
         parameters: {
             query?: never;
@@ -1806,6 +1901,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CaseSuggestion: {
+            caseId: string;
+            client: string;
+            title: string;
+            reference: string;
+            reason: string;
+        };
         /** @description Sole lawyer and base pricing */
         firm: {
             id: number;
