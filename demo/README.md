@@ -1,6 +1,6 @@
 # Demo documents
 
-Fictional legal documents for the live demo. Copy the `documents` folder to the demo computer and open the files while Screenpipe records. TimeKeepr recognizes each case from what appears on screen.
+Fictional legal documents for a future live demo. Copy the `documents` folder to the demo computer and open the files while Screenpipe records. The current application uses prepared fictional recognition signals; live Screenpipe ingestion is not connected yet.
 
 All names, companies, cases, and facts are invented. Placeholders in brackets, such as `[ADDRESS]` or `CASE [NUMBER]`, stand for details a real document would contain.
 

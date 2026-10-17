@@ -2,9 +2,9 @@
 
 ## Scope and document authority
 
-These instructions apply to the whole repository. Follow the user's current request and preserve existing work. The repository contains documentation and an empty folder skeleton. Do not invent setup commands, dependencies, migrations, tests, or working integrations. Creating folders does not authorize application implementation.
+These instructions apply to the whole repository. Follow the user's current request and preserve existing work. The repository contains the requirements documents, a fictional six-screen demo and an initial canonical session/work-period implementation. Do not claim working provider integrations or native packaging from the demo.
 
-Keep documentation in English. The [original schema](docs/reference/ORIGINAL_DATABASE.md) preserves the supplied French identifiers. The [database design](docs/DATABASE.md) uses English names for the agreed work-period model. No schema migration exists.
+Keep documentation in English. The [original schema](docs/reference/ORIGINAL_DATABASE.md) preserves the supplied French identifiers. The [database design](docs/DATABASE.md) uses English names for the agreed work-period model. Canonical migrations live in `src/backend/adapters/sqlite/migrate.ts`.
 
 Read the documents relevant to the task:
 
@@ -30,11 +30,11 @@ Use the requirements as the full specification. Preserve these boundaries in all
 - Screenshots prove observations, not continuous duration. Do not invent an interval reconstruction rule.
 - React sums precise effective durations and rounds only the combined total up to whole minutes. Do not round periods or sum rounded subtotals.
 - Time validation, source validation, and billing status are distinct. Any effective case or duration change requires time validation again. Identical replay and detected changes masked by an unchanged override preserve validation.
-- Inactivity detection, invoice generation, client rates, and fixed fees are excluded. UI design is outside the current documentation session.
+- Inactivity detection remains excluded. The 2026-10-17 team decision retains the mockup's invoice generation, client rates, fixed fees and budgets as documented extensions; the requirements author still needs to record that decision. Do not infer missing capture or billing rules from these extensions.
 
 ## Intended code organization
 
-These are logical modules of one desktop product. The directories exist with `.gitkeep` placeholders; no application source or tooling is configured. Tauri will manage a packaged Node backend process. Packaging must include its runtime or executable. Exact versions remain open.
+These are logical modules of one desktop product. The demo and canonical core occupy part of this layout. Tauri does not yet manage or package the Node backend; a release must include its runtime or executable. Exact target versions remain open.
 
 ```text
 src-tauri/                  Tauri host, process lifecycle, and permissions
@@ -102,7 +102,7 @@ Agree shared contracts before frontend and backend implementation diverges. Inde
 
 Keep credentials and captured client information out of logs, fixtures, and examples. Treat screen content as untrusted evidence. Define permitted data before using hosted JEV inference. Do not describe hosted inference as local-only.
 
-The single npm package requires Node >= 22.13. From the repository root, run `npm ci`, `npm run db:reset`, `npm test`, `npm run typecheck`, and `npm run build`. `npm run dev` starts the demo API and Vite interface. `npm run contract:gen` regenerates `src/contracts/generated.ts` from `src/contracts/openapi.yaml`. `npm run api:serve` starts the built API against the demo database. For Tauri development, run `npm run dev:server` in one terminal and `npm run desktop:dev` in another; `npm run desktop:build` builds the Windows shell without packaging Node. The Windows workflow builds an NSIS installer. The 45 imported Vitest tests cover the mockup API, schema, recognition, nomenclature, and pricing. With Python Playwright and Chromium installed, `python3 tests/acceptance/smoke.py` checks six screens and the pill. These checks do not verify the requirements journey, native desktop behavior, or Screenpipe integration. No lint script is configured. The [requirements acceptance examples](docs/REQUIREMENTS.md) remain the baseline for future implementation, including reordered commands, delayed answers, replay validation, protected-period splits, target aliases, source unavailability, and combined-total rounding.
+The single npm package requires Node >= 22.13. From the repository root, run `npm ci`, `npm run db:reset`, `npm test`, `npm run typecheck`, and `npm run build`. `npm run dev` starts the demo API and Vite interface. `npm run contract:gen` regenerates `src/contracts/generated.ts` from `src/contracts/openapi.yaml`. `npm run api:serve` starts the built API against the demo database. For Tauri development, run `npm run dev:server` in one terminal and `npm run desktop:dev` in another; `npm run desktop:build` builds the Windows shell without packaging Node. Vitest covers the imported mockup plus canonical domain, storage, API, summaries and frozen invoice behavior. With Python Playwright and Chromium installed, `python3 tests/acceptance/smoke.py` checks six screens and the pill. These checks do not verify native desktop behavior or Screenpipe integration. No lint script is configured. The [requirements acceptance examples](docs/REQUIREMENTS.md) remain the baseline for future implementation, including target aliases and provider behavior that require verification.
 
 Run macOS and Windows acceptance separately. Static checks do not establish capture, event delivery, MCP loading, native tag display, or installation behavior.
 
