@@ -5,20 +5,13 @@
 .page .day-prompts p { font-size:var(--fs-md); }
 .day-periods { display:flex; flex:1 1 auto; flex-direction:column; min-height:0; }
 .day-periods > .tbl { min-height:0; flex:1 1 auto; overflow:auto; }
-.day-periods .day-table th:nth-child(1) { width:110px; }
-.day-periods .day-table th:nth-child(2) { width:190px; }
-.day-periods .day-table th:nth-child(3) { width:auto; }
-.day-periods .day-table th:nth-child(4) { width:135px; }
-.day-periods .day-table th:nth-child(5) { width:135px; }
-.day-periods .day-table th:nth-child(6) { width:168px; }
 .day-periods .day-table table { min-width:0; }
 .day-table td:nth-child(4) { white-space:normal; }
 .day-table .day-actions { justify-content:flex-end; }
 .day-sort { display:block; width:100%; border:0; padding:0; background:none; text-align:inherit; color:inherit; font:inherit; font-weight:inherit; cursor:pointer; }
 .day-table th.r .day-sort, .day-periods th.r .day-sort { text-align:right; }
-.day-duration { border:0; background:none; font:inherit; color:inherit; padding:0; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px; }
+.day-duration { border:0; background:none; font:inherit; color:inherit; padding:0; cursor:pointer; text-decoration:none; }
 .day-duration[disabled] { cursor:default; text-decoration:none; }
-.day-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:100; background:var(--primary); color:var(--on-primary); padding:10px 16px; border-radius:var(--r-md); box-shadow:var(--shadow); font-size:var(--fs-md); cursor:pointer; }
 .day-load-error { color:var(--warn); font-size:var(--fs-sm); }
 .daypick .calwrap { position:relative; }
 .daypick { display:inline-flex;align-items:center;gap:6px; }
@@ -34,18 +27,17 @@
 .cday.sel,.cday.off.sel { background:var(--primary);color:var(--on-primary); }
 .cday[disabled] { color:var(--faint);cursor:not-allowed; }
 .cday.off:not(.sel) { color:var(--faint);background:repeating-linear-gradient(135deg,transparent 0 4px,color-mix(in srgb,var(--line) 70%,transparent) 4px 5px); }
-.cday i { position:absolute;left:50%;bottom:4px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--ok-dot); }
-.cday i.p { width:7px;height:7px;margin-left:-3.5px;bottom:3px;background:var(--warn-dot); }
+.cday i { position:absolute;left:50%;bottom:4px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--ok-dot); }
+.cday i.p { bottom:3px;background:var(--warn-dot); }
 .cday.sel i { box-shadow:0 0 0 1.5px var(--primary); }
 .datebadge { min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--warn-dot);color:var(--warn-dot-ink);font-size:var(--fs-xs);font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums; }
-.daypick .iconbtn { border:1px solid var(--line-2); color:var(--ink); font-size:var(--fs-xl); }
+.daypick .iconbtn { display:inline-flex;align-items:center;justify-content:center;flex:0 0 var(--h-sm);width:var(--h-sm);border:1px solid var(--line-2);color:var(--ink);font-size:var(--fs-xl); }
 .daypick .iconbtn[disabled] { opacity:.45; cursor:not-allowed; }
 .calft { display:flex; justify-content:space-between; align-items:center; font-size:var(--fs-sm); }
-.calkey { display:flex;flex-wrap:wrap;gap:4px 10px;font-size:var(--fs-xs);color:var(--muted); }
+.calkey { display:flex;flex-wrap:wrap;gap:4px 12px;font-size:var(--fs-xs);color:var(--muted); }
 .calkey > span { display:inline-flex;align-items:center;gap:5px;white-space:nowrap; }
-.dotk { display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ok-dot); }
-.dotk.p { width:7px;height:7px;background:var(--warn-dot); }
-@media (max-width:1100px) { .day-periods .day-table th:nth-child(2) { width:175px; } .day-periods .day-table th:nth-child(4) { width:105px; } .day-periods .day-table th:nth-child(5) { width:120px; } .day-periods .day-table th:nth-child(6) { width:158px; } }
+.dotk { display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ok-dot); }
+.dotk.p { background:var(--warn-dot); }
 
 /* My day layout from the approved mockup. */
 .day-prompts { grid-template-columns:repeat(2,minmax(0,1fr));gap:20px; }
@@ -57,46 +49,35 @@
 .day-question .row { flex-wrap:wrap;gap:8px; }
 .day-question .row .field { flex:1;min-width:200px; }
 .day-periods .day-table table { table-layout:fixed; }
-.day-periods .day-table th:nth-child(1) { width:148px; }
 .day-periods .day-table th:nth-child(2) { width:25%; }
 .day-periods .day-table th:nth-child(3) { width:auto; }
-.day-periods .day-table th:nth-child(4) { width:137px; }
-.day-periods .day-table th:nth-child(5) { width:170px; }
 .day-table td { height:56px;white-space:normal;overflow-wrap:normal; }
 .day-table td:nth-child(1),.day-table td:nth-child(4) { white-space:nowrap; }
 .day-table td:nth-child(2) { overflow-wrap:anywhere; }
 .day-table .sub { white-space:normal; }
 .day-table .day-actions { justify-content:flex-end; }
 .day-table .day-actions .btn { padding:0 11px; }
-.day-duration { text-decoration:none; }
 .day-duration:not([disabled]):hover { text-decoration:underline; }
-.daypick .iconbtn { border:1px solid var(--line-2); }
-.daypick .iconbtn[disabled] { opacity:.45; }
-@media (max-width:1280px) { .day-periods .day-table th:nth-child(2) { width:25%; } }
 .page .day-prompts { gap:20px; }
-.page .day-periods .day-table th:nth-child(1) { width:11%; }
 .page .day-periods .day-table td { height:58px; }
 .page .day-periods .day-table tr:has(td[colspan]) td { height:50px; }
 .daypick .previous-day svg { transform:rotate(180deg); }
-.daypick .iconbtn { display:inline-flex;align-items:center;justify-content:center; }
 .day-table td:nth-child(1) .sub,.day-table td:nth-child(2) .sub { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .datebadge { min-width:18px;height:18px;border-radius:9px;font-size:11px; }
 .page .day-table .day-actions { justify-content:flex-end; }
 .day-duration.corrected { font-weight:600; }
-.daypick .iconbtn { flex:0 0 var(--h-sm);width:var(--h-sm); }
 .page .day-prompts > .card { height:158px;min-height:0; }
 .page .day-periods .day-table th:nth-child(1) { width:10.9%; }
 @media (max-width:900px) { .page .day-prompts > .card { height:auto;min-height:158px; } }
 .page .day-periods .day-table th:nth-child(4) { width:9%; }
 .page .day-periods .day-table th:nth-child(5) { width:16.35%; }
 .page .day-periods .day-table td.wrap { padding-top:8px;padding-bottom:8px;min-width:240px;white-space:normal; }
-.page .grid4 .kpi .small { font-size:var(--fs-md);font-weight:500;opacity:.75; }
+.page:has(.day-periods) .grid4 .kpi .small { font-size:var(--fs-md);font-weight:500;opacity:.75; }
 .datebtn { font-weight:400; }
 .calhd .select { height:var(--h-sm);min-height:var(--h-sm);font-size:var(--fs-sm); }
 .calhd .iconbtn { font-size:var(--fs-sm); }
 .calhd .iconbtn svg.i { stroke-width:1.6; }
 .calhd .previous-month svg { transform:rotate(180deg); }
-.calkey { gap:4px 12px;font-size:var(--fs-xs); }
 .day-table .gap-row td,.day-table .gap-row .muted { font-size:var(--fs-md); }
 .day-duration { position:relative;border-radius:var(--r-sm); }
 .day-duration:hover:not([disabled]),.day-duration:focus-visible { background:var(--hover); }
@@ -104,7 +85,7 @@
 .day-duration:hover svg,.day-duration:focus-visible svg { opacity:1; }
 .day-periods .tbl[data-has-more="true"] { mask-image:linear-gradient(#000 85%,transparent); }
 .day-client { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
-.page .grid4 .zero { color:var(--sum-ink);opacity:.65; }
+.page:has(.day-periods) .grid4 .zero { color:var(--sum-ink);opacity:.65; }
 .day-filter-wrap { position:relative; }
 .day-filter-toggle { position:relative; }
 .day-filter-dot { width:6px;height:6px;border-radius:50%;background:var(--act); }
@@ -119,7 +100,3 @@
 .day-table .gap-row td:first-child { border-left:3px solid var(--warn-dot);padding-left:11px; }
 .gap-add { margin-left:12px; }
 .day-table tr.recently-assigned td { background:color-mix(in srgb,var(--act) 12%,var(--surface)); }
-.cday i,.dotk { width:6px;height:6px; }
-.cday i { margin-left:-3px; }
-.cday i.p,.dotk.p { width:6px;height:6px; }
-.cday i.p { margin-left:-3px; }

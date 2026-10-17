@@ -37,6 +37,10 @@ const compareNullable = (a: number | null, b: number | null, direction: SortDire
   if (b === null) return -1;
   return direction === 'ascending' ? a - b : b - a;
 };
+const csvCell = (value: string) => {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return `"${safe.replaceAll('"', '""')}"`;
+};
 
 function DayCalendar({ selected, recorded, pending, onSelect, onMonthChange }: { selected: string; recorded: Set<string>; pending: Set<string>; onSelect: (date: string) => void; onMonthChange: (month: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -163,14 +167,20 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
   }, [validating, focusQuestionAfterValidation]);
   useEffect(() => { if (manual) manualDialog.current?.querySelector<HTMLElement>('select, input')?.focus(); }, [manual]);
   useEffect(() => {
+    if (!manual) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previous; };
+  }, [manual]);
+  useEffect(() => {
     if (!filterOpen) return;
     const close = (event: PointerEvent) => { if (!filterWrap.current?.contains(event.target as Node)) setFilterOpen(false); };
     const escape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') { setFilterOpen(false); filterWrap.current?.querySelector<HTMLButtonElement>('.day-filter-toggle')?.focus(); } };
     document.addEventListener('pointerdown', close); document.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', escape); };
   }, [filterOpen]);
-  const changeMainSort = (key: MainKey, numeric: boolean) => { setMainSort(current => { rememberedMainSort = sortNext(current, key, numeric); return rememberedMainSort; }); showToast('Table sorted'); };
-  const changeLeftSort = (key: LeftKey, numeric: boolean) => { setLeftSort(current => { rememberedLeftSort = sortNext(current, key, numeric); return rememberedLeftSort; }); showToast('Table sorted'); };
+  const changeMainSort = (key: MainKey, numeric: boolean) => { setMainSort(current => { rememberedMainSort = sortNext(current, key, numeric); return rememberedMainSort; }); };
+  const changeLeftSort = (key: LeftKey, numeric: boolean) => { setLeftSort(current => { rememberedLeftSort = sortNext(current, key, numeric); return rememberedLeftSort; }); };
   useEffect(() => { setMonth(selectedDate.slice(0, 7)); setFilter('all'); }, [selectedDate]);
   useEffect(() => {
     let live = true;
@@ -200,7 +210,8 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
   useEffect(() => {
     if (!data || !returnFocusId) return;
     const button = document.querySelector<HTMLButtonElement>(`[data-source-period-id="${CSS.escape(returnFocusId)}"]`);
-    if (button) { button.focus(); onFocusReturned?.(); }
+    button?.focus();
+    onFocusReturned?.();
   }, [data, returnFocusId, onFocusReturned]);
   const periods = data?.periods ?? [];
   const included = periods.filter(period => !period.excluded);
@@ -226,7 +237,6 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
     const question = questionFor(periodId);
     if (question) return action(api.POST('/api/questions/answer', { body: { questionId: question.questionId, sessionId: question.sessionId,
       periodId, expectedAssignmentRevision: question.expectedAssignmentRevision, caseId: String(caseId), responseCommandId: crypto.randomUUID() } }));
-    if (!period.caseId) return;
     return action(api.POST('/api/work-periods/{id}/assignment', { params: { path: { id: periodId } }, body: {
       caseId: String(caseId), expectedAssignmentRevision: period.assignmentRevision, origin: 'lawyer' } }));
   };
@@ -252,7 +262,6 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
     finally { setValidating(false); }
   };
   const tabs: [Filter, string, number][] = [['all', 'All', included.length], ['review', 'To validate', review.length], ['validated', 'Validated', validated.length], ['left', 'Left out', excluded.length]];
-  const mainRows: MainRow[] = [...shown.map(period => ({ kind: 'period' as const, period })), ...(filter === 'all' && !clientFilter && !caseFilter ? coverageGaps.map(gap => ({ kind: 'gap' as const, gap })) : [])];
   const comparePeriod = (a: Period, b: Period, key: MainKey | LeftKey, direction: SortDirection) => {
     if (key === 'duration') return compareNullable(effectiveMs(a), effectiveMs(b), direction);
     if (key === 'status') return compareText(a.timeValidated ? 'Validated' : 'To validate', b.timeValidated ? 'Validated' : 'To validate') * (direction === 'ascending' ? 1 : -1);
@@ -266,11 +275,14 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
     };
     return compareText(label(a), label(b)) * (direction === 'ascending' ? 1 : -1);
   };
-  mainRows.sort((a, b) => {
-    if (a.kind === 'gap' || b.kind === 'gap') return compareText(a.kind === 'gap' ? a.gap.startedAt : a.period.startedAt, b.kind === 'gap' ? b.gap.startedAt : b.period.startedAt);
-    return comparePeriod(a.period, b.period, mainSort?.key ?? 'period', mainSort?.direction ?? 'ascending');
-  });
+  const sortedPeriods = [...shown].sort((a, b) => comparePeriod(a, b, mainSort?.key ?? 'period', mainSort?.direction ?? 'ascending'));
+  const mainRows: MainRow[] = sortedPeriods.map(period => ({ kind: 'period', period }));
+  if (filter === 'all' && !clientFilter && !caseFilter && (!mainSort || mainSort.key === 'period')) {
+    mainRows.push(...coverageGaps.map(gap => ({ kind: 'gap' as const, gap })));
+    mainRows.sort((a, b) => compareText(a.kind === 'gap' ? a.gap.startedAt : a.period.startedAt, b.kind === 'gap' ? b.gap.startedAt : b.period.startedAt) * (mainSort?.direction === 'descending' ? -1 : 1));
+  }
   const leftRows = [...shown].sort((a, b) => comparePeriod(a, b, leftSort?.key ?? 'time', leftSort?.direction ?? 'ascending'));
+  const exportedPeriods = filter === 'left' ? leftRows : mainRows.flatMap(row => row.kind === 'period' ? [row.period] : []);
   useEffect(() => {
     const element = tableRef.current;
     if (!element) return;
@@ -301,25 +313,25 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
       <Kpi title="To validate" value={review.length || <span className="zero">—</span>} detail="Periods" />
     </div>
     <div className={`day-prompts${unresolved.length ? '' : ' day-prompts-single'}`}>
-      <section className="card day-ready"><div><h2>{review.length ? 'Your day is ready.' : 'Day validated'}</h2><p>{review.length ? `TimeKeeper recognized ${recognized.length} ${recognized.length === 1 ? 'period' : 'periods'} on their own. ${unresolved.length ? `${unresolved.length} needs one answer from you.` : 'Nothing needs your answer.'} Check them below, then validate in one click.` : `${included.length} periods · ${formatRoundedMinutes(summary.roundedMinutes)} · ${money(fees)}`}</p></div>
-        {recognized.length > 0 ? <button className="btn attn" disabled={validating} aria-busy={validating} onClick={() => void validate(recognized, true)}>{validating ? 'Validating…' : recognized.length === 1 ? 'Validate the recognized period' : `Validate the ${recognized.length} recognized periods`}</button> : !review.length ? <button className="btn ghost sm" onClick={() => navigate('preInvoices')}>View in Billing</button> : null}
+      <section className="card day-ready"><div><h2>{!included.length ? 'No work recorded' : review.length ? 'Your day is ready.' : 'Day validated'}</h2><p>{!included.length ? 'Choose another day to review recorded work.' : review.length ? recognized.length ? `TimeKeeper recognized ${recognized.length} ${recognized.length === 1 ? 'period' : 'periods'} on their own. ${unresolved.length ? `${unresolved.length} needs one answer from you.` : 'Nothing needs your answer.'} Check them below, then validate in one click.` : 'Review the periods below and answer any open case question.' : `${included.length} periods · ${formatRoundedMinutes(summary.roundedMinutes)} · ${money(fees)}`}</p></div>
+        {recognized.length > 0 ? <button className="btn attn" disabled={validating} aria-busy={validating} onClick={() => void validate(recognized, true)}>{validating ? 'Validating…' : recognized.length === 1 ? 'Validate the recognized period' : `Validate the ${recognized.length} recognized periods`}</button> : included.length > 0 && !review.length ? <button className="btn ghost sm" onClick={() => navigate('preInvoices')}>View in Billing</button> : null}
       </section>
       {unresolved.length > 0 && <section className="card day-question" ref={questionCard} tabIndex={-1}><div><h2><Icon name="alert" small /> Which case was this?</h2>
         {unresolved[0] ? <p>{unresolved[0].startedAt.slice(11, 16)}–{unresolved[0].endedAt?.slice(11, 16)} · {unresolved[0].demoWindowTitle ?? unresolved[0].label}</p> : <p>Every period has a case. You can review the list below.</p>}</div>
-        {unresolved[0] && <div className="row"><MatterSelect s={s} value={answerCase} allowEmpty onChange={setAnswerCase} /><button className="btn primary" aria-disabled={!answerCase} disabled={answering} aria-busy={answering} onClick={async () => { if (!answerCase) { showToast('Choose a case first'); return; } setAnswering(true); showToast('Assigning case…'); const periodId = unresolved[0]!.id; const result = await assign(periodId, answerCase); setAnswering(false); if (result) { showToast(`Assigned to ${matter(s, answerCase)?.title ?? 'case'}`); setRecentlyAssigned(periodId); window.setTimeout(() => setRecentlyAssigned(current => current === periodId ? null : current), 600); } }}> {answering ? 'Answering…' : 'Answer'}</button>
+        {unresolved[0] && <div className="row"><MatterSelect s={s} value={answerCase} allowEmpty onChange={setAnswerCase} /><button className="btn primary" aria-disabled={!answerCase} disabled={answering} aria-busy={answering} onClick={async () => { if (!answerCase) { showToast('Choose a case first'); return; } setAnswering(true); showToast('Assigning case…'); const periodId = unresolved[0]!.id; const result = await assign(periodId, answerCase); setAnswering(false); if (result) { showToast(`Assigned to ${matter(s, answerCase)?.title ?? 'case'}`); setRecentlyAssigned(periodId); window.setTimeout(() => setRecentlyAssigned(current => current === periodId ? null : current), 600); } else showToast('Could not assign this case'); }}>{answering ? 'Answering…' : 'Answer'}</button>
           <button className="btn" disabled={excluding} aria-busy={excluding} onClick={async () => { const periodId = unresolved[0]!.id; setExcluding(true); const result = await action(api.PATCH('/api/work-periods/{id}/details', { params: { path: { id: periodId } }, body: { excluded: true } })); setExcluding(false); if (result) showToast('Period left out', 'Undo', () => void action(api.PATCH('/api/work-periods/{id}/details', { params: { path: { id: periodId } }, body: { excluded: false } }))); }}>Not client work</button></div>}
       </section>}
     </div>
     <section className="card day-periods"><div className="toolbar"><div className="seg" role="group" aria-label="Work periods filter">
-      {tabs.map(([key, title, count]) => <button key={key} aria-pressed={filter === key} onClick={() => { setFilter(key); showToast(`Showing ${title.toLowerCase()} periods`); }}>{title}<span className="c">{count}</span></button>)}
-    </div><div className="right"><div className="day-filter-wrap" ref={filterWrap}><button className="btn ghost sm day-filter-toggle" aria-expanded={filterOpen} aria-controls="day-filter-popover" onClick={() => setFilterOpen(value => !value)}><Icon name="filter" small />Filter{(clientFilter || caseFilter) && <span className="day-filter-dot" aria-label="active" />}</button>
+      {tabs.map(([key, title, count]) => <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{title}<span className="c">{count}</span></button>)}
+    </div><div className="right"><div className="day-filter-wrap" ref={filterWrap}><button className="btn ghost sm day-filter-toggle" aria-expanded={filterOpen} aria-controls="day-filter-popover" onClick={() => setFilterOpen(value => !value)}><Icon name="filter" small />Filter{(clientFilter || caseFilter) && <><span className="day-filter-dot" aria-hidden="true" /><span className="sr-only">Filters active</span></>}</button>
       {filterOpen && <div id="day-filter-popover" className="day-filter-popover" role="group" aria-label="Filter work periods">
         <label>Client<select className="select sm" value={clientFilter} onChange={event => { setClientFilter(event.target.value); setCaseFilter(''); }}><option value="">All clients</option>{s.client.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label>Case<select className="select sm" value={caseFilter} onChange={event => setCaseFilter(event.target.value)}><option value="">All cases</option>{s.matter.filter(item => !clientFilter || String(item.client_id) === clientFilter).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
         <button className="btn sm" disabled={!clientFilter && !caseFilter} onClick={() => { setClientFilter(''); setCaseFilter(''); }}>Clear filters</button>
       </div>}</div><button className="btn ghost sm" onClick={() => {
-      const rows = shown.map(period => [selectedDate, `${period.startedAt.slice(11, 16)}–${period.endedAt?.slice(11, 16) ?? '…'}`, client(s, Number(period.caseId))?.name ?? '', matter(s, Number(period.caseId))?.title ?? '', period.label, formatPreciseDuration(effectiveMs(period)), period.excluded ? 'Left out' : period.timeValidated ? 'Validated' : 'To validate']);
-      const csv = [['Date', 'Period', 'Client', 'Case', 'Work performed', 'Duration', 'Status'], ...rows].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
+      const rows = exportedPeriods.map(period => [selectedDate, `${period.startedAt.slice(11, 16)}–${period.endedAt?.slice(11, 16) ?? '…'}`, client(s, Number(period.caseId))?.name ?? '', matter(s, Number(period.caseId))?.title ?? '', period.label, formatPreciseDuration(effectiveMs(period)), period.excluded ? 'Left out' : period.timeValidated ? 'Validated' : 'To validate']);
+      const csv = '\uFEFF' + [['Date', 'Period', 'Client', 'Case', 'Work performed', 'Duration', 'Status'], ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
       const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); link.download = `timekeeper-${selectedDate}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000); showToast('Day exported');
     }}><Icon name="down" small />Export</button></div></div>
       {!data && !loadError ? <div className="empty" role="status"><b>Loading day…</b></div> : filter === 'left' ? <div className="tbl" ref={tableRef} data-has-more={hasMoreRows}><table><thead><tr>
@@ -352,9 +364,9 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
           <td><div className="day-actions">{period.timeValidated ? <span className="day-validated">✓ Validated</span> : period.caseId ? <button className="btn sm attn" disabled={validating} aria-busy={validating} onClick={() => void validate([period])}>Validate</button> : null}
             <button className="btn sm" data-source-period-id={period.id} disabled={!linked.length} onClick={() => source(period.id)}>Sources</button></div></td>
         </tr>;
-      })}</tbody></table>{!mainRows.length && <div className="empty"><b>{!included.length && !coverageGaps.length ? 'No work recorded' : 'No matching periods'}</b><p>{!included.length && !coverageGaps.length ? 'Nothing was recorded on this day.' : 'Adjust the filters or choose another day.'}</p><button className="btn sm" onClick={event => openManual(event.currentTarget)}>Add a hearing or meeting</button></div>}</div>}
+      })}</tbody></table>{!mainRows.length && <div className="empty"><b>{!included.length && !coverageGaps.length ? 'No work recorded' : 'No matching periods'}</b><p>{!included.length && !coverageGaps.length ? 'Nothing was recorded on this day.' : 'Adjust the filters or choose another day.'}</p>{included.length > 0 && <button className="btn sm" onClick={event => openManual(event.currentTarget)}>Add a hearing or meeting</button>}</div>}</div>}
     </section>
-    {manual && <div className="modal-back"><form className="modal glass pad col" role="dialog" aria-modal="true" aria-labelledby="manual-dialog-title" ref={manualDialog} onKeyDown={event => {
+    {manual && <div className="modal-back" onMouseDown={event => { if (event.target === event.currentTarget) closeManual(); }}><form className="modal glass pad col" role="dialog" aria-modal="true" aria-labelledby="manual-dialog-title" ref={manualDialog} onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); closeManual(); return; }
       if (event.key !== 'Tab') return;
       const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]),select:not([disabled]),input:not([disabled])')];
