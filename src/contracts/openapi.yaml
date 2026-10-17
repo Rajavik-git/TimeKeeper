@@ -1,0 +1,3388 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TimeKeepr local API",
+    "version": "0.1.0",
+    "description": "The single contract between the local UI and API. Fictional demo data."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8787"
+    }
+  ],
+  "paths": {
+    "/api/state": {
+      "get": {
+        "summary": "Read local application state",
+        "operationId": "state_get",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/State"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demo/reset": {
+      "post": {
+        "summary": "Reset the demo database",
+        "operationId": "demo_reset_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/State"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/time-entries/{id}": {
+      "patch": {
+        "summary": "Update a time entry",
+        "operationId": "time_entries_id_patch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_entry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "matter_id": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "billable": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "offered",
+                          "internal",
+                          "admin"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "review_status": {
+                    "type": "string",
+                    "enum": [
+                      "approved"
+                    ]
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/day/approve": {
+      "post": {
+        "summary": "Approve a day",
+        "operationId": "day_approve_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "approved": {
+                      "type": "integer"
+                    },
+                    "unassigned": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "approved",
+                    "unassigned"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "date"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters/{id}/approve": {
+      "post": {
+        "summary": "Approve matter entries",
+        "operationId": "matters_id_approve_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "approved": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "approved"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/time-entries/{id}/discard": {
+      "post": {
+        "summary": "Discard a work block",
+        "operationId": "time_entries_id_discard_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/block"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/blocks/{id}/recover": {
+      "post": {
+        "summary": "Recover a discarded block",
+        "operationId": "blocks_id_recover_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_entry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/time-entries/manual": {
+      "post": {
+        "summary": "Add off-screen time",
+        "operationId": "time_entries_manual_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_entry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "matter_id": {
+                    "type": "integer"
+                  },
+                  "task_id": {
+                    "type": "integer"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "tenths_of_hour": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "matter_id",
+                  "task_id",
+                  "date",
+                  "tenths_of_hour",
+                  "label"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matters": {
+      "post": {
+        "summary": "Create a matter",
+        "operationId": "matters_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/matter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "client_id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "opposing_party": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "client_id",
+                  "title"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/markers": {
+      "post": {
+        "summary": "Add a marker",
+        "operationId": "markers_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/marker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "matter_id": {
+                    "type": "integer"
+                  },
+                  "type": {
+                    "enum": [
+                      "case_number",
+                      "opposing_party",
+                      "file",
+                      "email",
+                      "domain",
+                      "keyword"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "matter_id",
+                  "type",
+                  "value"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/markers/{id}": {
+      "delete": {
+        "summary": "Remove a marker",
+        "operationId": "markers_id_delete",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/expenses": {
+      "post": {
+        "summary": "Add an expense",
+        "operationId": "expenses_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/expense"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "matter_id": {
+                    "type": "integer"
+                  },
+                  "date": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "expense",
+                      "disbursement"
+                    ]
+                  },
+                  "amount_cents": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "matter_id",
+                  "date",
+                  "label",
+                  "type",
+                  "amount_cents"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/expenses/{id}": {
+      "delete": {
+        "summary": "Remove an expense",
+        "operationId": "expenses_id_delete",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/invoices": {
+      "post": {
+        "summary": "Issue an invoice",
+        "operationId": "invoices_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/invoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "matter_id": {
+                    "type": "integer"
+                  },
+                  "type": {
+                    "enum": [
+                      "deposit",
+                      "final"
+                    ]
+                  }
+                },
+                "required": [
+                  "matter_id",
+                  "type"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/invoices/{id}/csv": {
+      "get": {
+        "summary": "Export an invoice as CSV",
+        "operationId": "invoices_id_csv_get",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "csv": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "csv"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/sources/{id}": {
+      "get": {
+        "summary": "Read a time entry source",
+        "operationId": "sources_id_get",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/sources/{id}/export": {
+      "post": {
+        "summary": "Create a source pack hash",
+        "operationId": "sources_id_export_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/source_export"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "options": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "options"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/pauses": {
+      "post": {
+        "summary": "Pause capture",
+        "operationId": "pauses_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pause"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "start_time": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "date",
+                  "start_time"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pauses/{id}": {
+      "patch": {
+        "summary": "Resume capture",
+        "operationId": "pauses_id_patch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pause"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "end_time": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "end_time"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/blocks/{id}/close": {
+      "post": {
+        "summary": "Close the active block",
+        "operationId": "blocks_id_close_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_entry"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "minutes": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "minutes"
+                ]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/firm/{id}": {
+      "patch": {
+        "summary": "Update firm",
+        "operationId": "firm_id_patch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/firm"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "lawyer_name": {
+                    "type": "string"
+                  },
+                  "address": {
+                    "type": "string"
+                  },
+                  "vat_number": {
+                    "type": "string"
+                  },
+                  "base_rate_cents": {
+                    "type": "integer"
+                  },
+                  "base_unit": {
+                    "type": "string",
+                    "enum": [
+                      "hour",
+                      "intervention"
+                    ]
+                  },
+                  "vat_rate": {
+                    "type": "number"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/setting/{id}": {
+      "patch": {
+        "summary": "Update setting",
+        "operationId": "setting_id_patch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/setting"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "confidence_threshold": {
+                    "type": "number"
+                  },
+                  "excluded_apps": {
+                    "type": "string"
+                  },
+                  "capture_retention": {
+                    "type": "string"
+                  },
+                  "notifications": {
+                    "type": "boolean"
+                  },
+                  "pill_position": {
+                    "type": "string"
+                  },
+                  "invoice_prefix": {
+                    "type": "string"
+                  },
+                  "next_number": {
+                    "type": "integer"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/client/{id}": {
+      "patch": {
+        "summary": "Update client",
+        "operationId": "client_id_patch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/client"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "individual",
+                      "company"
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "hourly",
+                      "subscription"
+                    ]
+                  },
+                  "rate_cents": {
+                    "type": "integer"
+                  },
+                  "vat_applicable": {
+                    "type": "boolean"
+                  },
+                  "billing_address": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/matter/{id}": {
+      "patch": {
+        "summary": "Update matter",
+        "operationId": "matter_id_patch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/matter"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "client_id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "case_number": {
+                    "type": "string"
+                  },
+                  "opposing_party": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "hourly",
+                      "flat_fee"
+                    ]
+                  },
+                  "own_rate_cents": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "flat_fee_cents": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "hour_cap": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "success_fee_percent": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "budget_cents": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "open",
+                      "closed"
+                    ]
+                  },
+                  "opened_on": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/task/{id}": {
+      "patch": {
+        "summary": "Update task",
+        "operationId": "task_id_patch",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "billable_by_default": {
+                    "type": "boolean"
+                  },
+                  "off_screen": {
+                    "type": "boolean"
+                  },
+                  "sort_order": {
+                    "type": "integer"
+                  }
+                },
+                "required": []
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/clients": {
+      "post": {
+        "summary": "Create a client",
+        "operationId": "clients_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/client"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "rate_cents": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9]*$"
+                  }
+                },
+                "required": [
+                  "name",
+                  "rate_cents",
+                  "code"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks": {
+      "post": {
+        "summary": "Create a task",
+        "operationId": "tasks_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "label"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-rules": {
+      "post": {
+        "summary": "Create a client rule",
+        "operationId": "client_rules_post",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/client_rule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "client_id": {
+                    "type": "integer"
+                  },
+                  "type": {
+                    "enum": [
+                      "daily_research_cap",
+                      "nonbillable_travel"
+                    ]
+                  }
+                },
+                "required": [
+                  "client_id",
+                  "type"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/client-rules/{id}": {
+      "delete": {
+        "summary": "Remove a client rule",
+        "operationId": "client_rules_id_delete",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      }
+    },
+    "/api/blocks/{id}/recognition": {
+      "get": {
+        "summary": "Recognize a block from its stored signals",
+        "operationId": "blocks_id_recognition_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recognition candidates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recognition"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "firm": {
+        "type": "object",
+        "description": "Sole lawyer and base pricing",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "lawyer_name",
+          "address",
+          "vat_number",
+          "base_rate_cents",
+          "base_unit",
+          "vat_rate"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "lawyer_name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "vat_number": {
+            "type": "string"
+          },
+          "base_rate_cents": {
+            "type": "integer"
+          },
+          "base_unit": {
+            "type": "string",
+            "enum": [
+              "hour",
+              "intervention"
+            ]
+          },
+          "vat_rate": {
+            "type": "number"
+          }
+        }
+      },
+      "setting": {
+        "type": "object",
+        "description": "Local preferences and invoice numbering",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "confidence_threshold",
+          "excluded_apps",
+          "capture_retention",
+          "notifications",
+          "pill_position",
+          "invoice_prefix",
+          "next_number"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "confidence_threshold": {
+            "type": "number"
+          },
+          "excluded_apps": {
+            "type": "string"
+          },
+          "capture_retention": {
+            "type": "string"
+          },
+          "notifications": {
+            "type": "boolean"
+          },
+          "pill_position": {
+            "type": "string"
+          },
+          "invoice_prefix": {
+            "type": "string"
+          },
+          "next_number": {
+            "type": "integer"
+          }
+        }
+      },
+      "task": {
+        "type": "object",
+        "description": "Work category",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "label",
+          "billable_by_default",
+          "off_screen",
+          "sort_order"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "billable_by_default": {
+            "type": "boolean"
+          },
+          "off_screen": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer"
+          }
+        }
+      },
+      "client": {
+        "type": "object",
+        "description": "Client and hourly rate",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "code",
+          "type",
+          "mode",
+          "rate_cents",
+          "vat_applicable",
+          "billing_address"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "individual",
+              "company"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "subscription"
+            ]
+          },
+          "rate_cents": {
+            "type": "integer"
+          },
+          "vat_applicable": {
+            "type": "boolean"
+          },
+          "billing_address": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "matter": {
+        "type": "object",
+        "description": "Legal matter and budget",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "client_id",
+          "reference",
+          "title",
+          "category",
+          "case_number",
+          "opposing_party",
+          "mode",
+          "own_rate_cents",
+          "flat_fee_cents",
+          "hour_cap",
+          "success_fee_percent",
+          "budget_cents",
+          "status",
+          "opened_on"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "client_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "case_number": {
+            "type": "string"
+          },
+          "opposing_party": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "flat_fee"
+            ]
+          },
+          "own_rate_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flat_fee_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hour_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "success_fee_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "budget_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ]
+          },
+          "opened_on": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "marker": {
+        "type": "object",
+        "description": "Matter recognition cue",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "matter_id",
+          "type",
+          "value",
+          "learned",
+          "weight",
+          "hits",
+          "last_seen_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "matter_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "reference",
+              "case_number",
+              "opposing_party",
+              "client_name",
+              "file",
+              "email",
+              "domain",
+              "keyword"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "learned": {
+            "type": "boolean"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "last_seen_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "client_rule": {
+        "type": "object",
+        "description": "Client billing rule",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "client_id",
+          "type",
+          "value",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "client_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "daily_research_cap",
+              "nonbillable_travel"
+            ]
+          },
+          "value": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "block": {
+        "type": "object",
+        "description": "Detected work block",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "date",
+          "start_time",
+          "end_time",
+          "minutes",
+          "app",
+          "window_title",
+          "task_id",
+          "matter_id",
+          "confidence",
+          "state",
+          "overlaps_block_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string"
+          },
+          "start_time": {
+            "type": "string"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minutes": {
+            "type": "integer"
+          },
+          "app": {
+            "type": "string"
+          },
+          "window_title": {
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "matter_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "assigned",
+              "to_check",
+              "in_progress",
+              "discarded"
+            ]
+          },
+          "overlaps_block_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "source": {
+        "type": "object",
+        "description": "Reference to a screen or audio capture",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "block_id",
+          "type",
+          "screenpipe_ref",
+          "timestamp",
+          "excerpt",
+          "detected_marker",
+          "available"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "block_id": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "screen",
+              "audio",
+              "manual"
+            ]
+          },
+          "screenpipe_ref": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "detected_marker": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        }
+      },
+      "pause": {
+        "type": "object",
+        "description": "Capture pause",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "date",
+          "start_time",
+          "end_time",
+          "origin",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string"
+          },
+          "start_time": {
+            "type": "string"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "button",
+              "automatic"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "jev_review": {
+        "type": "object",
+        "description": "Stored demo review",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "block_id",
+          "question",
+          "answer",
+          "probability",
+          "sent_data"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "block_id": {
+            "type": "integer"
+          },
+          "question": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "probability": {
+            "type": "number"
+          },
+          "sent_data": {
+            "type": "string"
+          }
+        }
+      },
+      "invoice": {
+        "type": "object",
+        "description": "Issued invoice",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "matter_id",
+          "number",
+          "date",
+          "type",
+          "subtotal_cents",
+          "vat_cents",
+          "disbursements_cents",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "matter_id": {
+            "type": "integer"
+          },
+          "number": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "deposit",
+              "final"
+            ]
+          },
+          "subtotal_cents": {
+            "type": "integer"
+          },
+          "vat_cents": {
+            "type": "integer"
+          },
+          "disbursements_cents": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "issued"
+            ]
+          }
+        }
+      },
+      "time_entry": {
+        "type": "object",
+        "description": "Tracked time and billing state",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "block_id",
+          "matter_id",
+          "task_id",
+          "date",
+          "tenths_of_hour",
+          "label",
+          "amount_cents",
+          "rate_origin",
+          "billable",
+          "reason",
+          "review_status",
+          "billing_status",
+          "invoice_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "block_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "matter_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "task_id": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string"
+          },
+          "tenths_of_hour": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "amount_cents": {
+            "type": "integer"
+          },
+          "rate_origin": {
+            "type": "string",
+            "enum": [
+              "",
+              "base",
+              "client",
+              "matter",
+              "flat_fee"
+            ]
+          },
+          "billable": {
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "offered",
+                  "internal",
+                  "admin"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "to_review",
+              "approved"
+            ]
+          },
+          "billing_status": {
+            "type": "string",
+            "enum": [
+              "not_billable",
+              "to_bill",
+              "billed"
+            ]
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "expense": {
+        "type": "object",
+        "description": "Expense or disbursement",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "matter_id",
+          "date",
+          "label",
+          "type",
+          "amount_cents",
+          "invoice_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "matter_id": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "expense",
+              "disbursement"
+            ]
+          },
+          "amount_cents": {
+            "type": "integer"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "invoice_line": {
+        "type": "object",
+        "description": "Frozen invoice item",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "invoice_id",
+          "origin",
+          "origin_id",
+          "label",
+          "tenths_of_hour",
+          "rate_cents",
+          "amount_cents",
+          "vat"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "invoice_id": {
+            "type": "integer"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "time_entry",
+              "flat_fee",
+              "expense"
+            ]
+          },
+          "origin_id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "tenths_of_hour": {
+            "type": "integer"
+          },
+          "rate_cents": {
+            "type": "integer"
+          },
+          "amount_cents": {
+            "type": "integer"
+          },
+          "vat": {
+            "type": "boolean"
+          }
+        }
+      },
+      "audit_event": {
+        "type": "object",
+        "description": "Mutation history",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "time_entry_id",
+          "block_id",
+          "timestamp",
+          "actor",
+          "action",
+          "before",
+          "after"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "time_entry_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "block_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          }
+        }
+      },
+      "source_export": {
+        "type": "object",
+        "description": "Source pack hash",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "time_entry_ids",
+          "options",
+          "sha256",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "time_entry_ids": {
+            "type": "string"
+          },
+          "options": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        }
+      },
+      "schema_version": {
+        "type": "object",
+        "description": "Schema version",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "applied_on",
+          "description"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "applied_on": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "State": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "firm",
+          "setting",
+          "task",
+          "client",
+          "matter",
+          "marker",
+          "client_rule",
+          "block",
+          "source",
+          "pause",
+          "jev_review",
+          "invoice",
+          "time_entry",
+          "expense",
+          "invoice_line",
+          "audit_event",
+          "source_export",
+          "schema_version",
+          "pricing",
+          "alerts",
+          "invoice_previews"
+        ],
+        "properties": {
+          "firm": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/firm"
+            }
+          },
+          "setting": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/setting"
+            }
+          },
+          "task": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/task"
+            }
+          },
+          "client": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/client"
+            }
+          },
+          "matter": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/matter"
+            }
+          },
+          "marker": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/marker"
+            }
+          },
+          "client_rule": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/client_rule"
+            }
+          },
+          "block": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/block"
+            }
+          },
+          "source": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/source"
+            }
+          },
+          "pause": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/pause"
+            }
+          },
+          "jev_review": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/jev_review"
+            }
+          },
+          "invoice": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/invoice"
+            }
+          },
+          "time_entry": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/time_entry"
+            }
+          },
+          "expense": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/expense"
+            }
+          },
+          "invoice_line": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/invoice_line"
+            }
+          },
+          "audit_event": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/audit_event"
+            }
+          },
+          "source_export": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/source_export"
+            }
+          },
+          "schema_version": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/schema_version"
+            }
+          },
+          "pricing": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PriceDetail"
+            }
+          },
+          "alerts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "invoice_previews": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "final",
+                "deposit"
+              ],
+              "properties": {
+                "final": {
+                  "$ref": "#/components/schemas/InvoicePreview"
+                },
+                "deposit": {
+                  "$ref": "#/components/schemas/InvoicePreview"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "SourceDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "time_entry",
+          "block",
+          "sources",
+          "jev_reviews",
+          "audit"
+        ],
+        "properties": {
+          "time_entry": {
+            "$ref": "#/components/schemas/time_entry"
+          },
+          "block": {
+            "$ref": "#/components/schemas/block"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/source"
+            }
+          },
+          "audit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/audit_event"
+            }
+          },
+          "jev_reviews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/jev_review"
+            }
+          }
+        }
+      },
+      "PriceDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rate_cents",
+          "origin",
+          "value_cents",
+          "amount_cents",
+          "flat_fee"
+        ],
+        "properties": {
+          "rate_cents": {
+            "type": "integer"
+          },
+          "origin": {
+            "enum": [
+              "base",
+              "client",
+              "matter",
+              "flat_fee"
+            ]
+          },
+          "value_cents": {
+            "type": "integer"
+          },
+          "amount_cents": {
+            "type": "integer"
+          },
+          "flat_fee": {
+            "type": "boolean"
+          }
+        }
+      },
+      "InvoicePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fees_cents",
+          "expenses_cents",
+          "disbursements_cents",
+          "vat_cents",
+          "total_cents",
+          "pending_entries",
+          "flat_fee_due",
+          "rate_cents",
+          "rate_origin"
+        ],
+        "properties": {
+          "fees_cents": {
+            "type": "integer"
+          },
+          "expenses_cents": {
+            "type": "integer"
+          },
+          "disbursements_cents": {
+            "type": "integer"
+          },
+          "vat_cents": {
+            "type": "integer"
+          },
+          "total_cents": {
+            "type": "integer"
+          },
+          "pending_entries": {
+            "type": "integer"
+          },
+          "flat_fee_due": {
+            "type": "boolean"
+          },
+          "rate_cents": {
+            "type": "integer"
+          },
+          "rate_origin": {
+            "enum": [
+              "base",
+              "client",
+              "matter",
+              "flat_fee"
+            ]
+          }
+        }
+      },
+      "Recognition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "block_id",
+          "threshold",
+          "decision",
+          "candidates"
+        ],
+        "properties": {
+          "block_id": {
+            "type": "integer"
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "decision": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "matter_id",
+              "confidence"
+            ],
+            "properties": {
+              "state": {
+                "enum": [
+                  "assigned",
+                  "to_check"
+                ]
+              },
+              "matter_id": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              }
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "matter_id",
+                "score",
+                "found",
+                "continuity"
+              ],
+              "properties": {
+                "matter_id": {
+                  "type": "integer"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "continuity": {
+                  "type": "boolean"
+                },
+                "found": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "type",
+                      "value",
+                      "where",
+                      "weight",
+                      "marker_id"
+                    ],
+                    "properties": {
+                      "type": {
+                        "enum": [
+                          "reference",
+                          "case_number",
+                          "opposing_party",
+                          "client_name",
+                          "file",
+                          "email",
+                          "domain",
+                          "keyword"
+                        ]
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "where": {
+                        "enum": [
+                          "app",
+                          "window_title",
+                          "browser_url",
+                          "ocr",
+                          "audio",
+                          "speaker"
+                        ]
+                      },
+                      "weight": {
+                        "type": "number"
+                      },
+                      "marker_id": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
