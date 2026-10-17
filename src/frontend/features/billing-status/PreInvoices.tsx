@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, client, money, shortDate, today, type ScreenProps } from '../../api/client';
 import { configuredRate, draftInvoice, effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
 import { previousBillingMetrics } from '../../calculations/cases';
@@ -6,12 +6,14 @@ import { Card } from '../../shared/components/Card';
 import { Kpi } from '../../shared/components/Kpi';
 import { MatterReference } from '../../shared/components/MatterReference';
 import { Pill } from '../../shared/components/Pill';
+import { Icon } from '../../shared/components/Icon';
 import { rate as rateLabel } from '../../shared/format';
+import './Billing.css';
 
 type InvoiceRow = {id:string;date:string;label:string;durationMs:number|null;amountCents:number|null;kind:'period'|'expense'|'disbursement'|'flat_fee';pending:boolean};
 type SortKey = 'date'|'label'|'duration'|'amount';
 type SortState = {key:SortKey;direction:'ascending'|'descending'};
-let billingSort:SortState={key:'date',direction:'ascending'};
+let billingSort:SortState|null=null;
 
 function sortRows(rows: InvoiceRow[], key: SortKey, direction:'ascending'|'descending') {
   const value=(row:InvoiceRow):string|number|null => key==='date'?row.date:key==='label'?row.label:key==='duration'?row.durationMs:row.amountCents;
@@ -37,10 +39,12 @@ export function PreInvoices({s,core,action,selectedCase,refresh}:ScreenProps) {
   const [expenseLabel,setExpenseLabel]=useState('');
   const [expenseType,setExpenseType]=useState<'expense'|'disbursement'>('expense');
   const [expenseAmount,setExpenseAmount]=useState('');
-  const [sort,setSort]=useState<SortState>(billingSort);
+  const [sort,setSort]=useState<SortState|null>(billingSort);
   const [notice,setNotice]=useState('');
   const [editing,setEditing]=useState<string|null>(null);
   const [correctedMinutes,setCorrectedMinutes]=useState('');
+  const overviewRef=useRef<HTMLDivElement>(null);
+  const [moreCases,setMoreCases]=useState(false);
   useEffect(()=>{setSelected(selectedCase??null);if(selectedCase) setType(s.matter.find(m=>m.id===selectedCase)?.mode==='flat_fee'?'final':'deposit');},[selectedCase]);
   useEffect(()=>{if(!notice)return;const timer=window.setTimeout(()=>setNotice(''),3500);return()=>window.clearTimeout(timer);},[notice]);
 
@@ -49,9 +53,19 @@ export function PreInvoices({s,core,action,selectedCase,refresh}:ScreenProps) {
     const periods=core.periods.filter(period=>period.caseId===String(item.id)&&!period.excluded&&period.billable&&period.billingStatus==='unbilled');
     const preview=draftInvoice(s,core,item.id,'final');
     const invoices=core.billing.invoices.filter(invoice=>invoice.caseId===String(item.id)).sort((a,b)=>b.date.localeCompare(a.date));
-    return {item,owner,periods,preview,lastInvoice:invoices[0]};
+    return {item,owner,periods,preview,lastInvoice:invoices[0],toBillCents:item.mode==='flat_fee'?0:preview.feesCents};
   }).filter(row=>row.owner&&(row.periods.length||row.preview.feesCents>0))
-    .sort((a,b)=>b.preview.feesCents-a.preview.feesCents);
+    .sort((a,b)=>b.toBillCents-a.toBillCents);
+  useEffect(()=>{
+    const node=overviewRef.current;
+    if(!node)return;
+    const update=()=>setMoreCases(node.scrollHeight-node.scrollTop>node.clientHeight+2);
+    const observer=new ResizeObserver(update);
+    observer.observe(node);
+    window.addEventListener('resize',update);
+    update();
+    return()=>{observer.disconnect();window.removeEventListener('resize',update)};
+  },[selected,openCases.length]);
 
   const validate=async(ids:string[])=>{
     let done=0;
@@ -68,25 +82,25 @@ export function PreInvoices({s,core,action,selectedCase,refresh}:ScreenProps) {
   if(!item) {
     const prior=previousBillingMetrics(s,core,today);
     const note=`Changes in % compare with the same period last month (${new Date(`${prior.previousDay.slice(0,7)}-01T12:00:00Z`).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}–${prior.previousDay.slice(-2)}).`;
-    const ready=openCases.filter(row=>row.preview.pendingPeriods===0&&row.preview.complete);
+    const ready=openCases.filter(row=>row.item.mode!=='flat_fee'&&row.preview.pendingPeriods===0&&row.preview.complete);
     const waiting=openCases.filter(row=>row.preview.pendingPeriods>0);
     const readyCents=ready.reduce((sum,row)=>sum+row.preview.feesCents,0);
-    const allCents=openCases.reduce((sum,row)=>sum+row.preview.feesCents,0);
+    const allCents=openCases.reduce((sum,row)=>sum+row.toBillCents,0);
     return <>
-      <div className="page-head"><div><h1>Billing</h1><p>Choose a case to prepare its invoice. {note}</p></div></div>
-      <div className="billing-summary stats">
+      <div className="page-head billing-page-head"><div><h1>Billing</h1><p>Choose a case to prepare its invoice. {note}</p></div></div>
+      <div className="billing-summary stats billing-scope">
         <Kpi title="Ready to invoice" value={<>{money(readyCents)}{delta(readyCents,prior.readyCents,prior.previousDay,true)}</>} detail={`${ready.length} case${ready.length===1?'':'s'}, all validated`}/>
         <Kpi title="Waiting for validation" value={<>{waiting.length}{delta(waiting.length,prior.waitingCases,prior.previousDay,false)}</>} detail={`case${waiting.length===1?'':'s'} with periods to validate`}/>
         <Kpi title="To bill in total" value={<>{money(allCents)}{delta(allCents,prior.toBillCents,prior.previousDay,false)}</>} detail="Open cases"/>
       </div>
-      <div className="billing-overview"><div className="billing-cards">
+      <div className="billing-overview billing-scope" ref={overviewRef} onScroll={event=>setMoreCases(event.currentTarget.scrollHeight-event.currentTarget.scrollTop>event.currentTarget.clientHeight+2)}><div className="billing-cards">
         {openCases.map(({item:caseItem,owner,preview,lastInvoice})=><button className="billing-card" key={caseItem.id} onClick={()=>{setSelected(caseItem.id);setType(caseItem.mode==='flat_fee'?'final':'deposit')}}>
           <span className="billing-card-head"><strong>{owner!.name}</strong><span>{caseItem.title}</span><MatterReference value={caseItem.reference}/></span>
-          <span className="billing-card-value"><strong>{money(preview.feesCents)}</strong><span>{formatRoundedMinutes(preview.billedMinutes)}</span></span>
+          <span className="billing-card-value"><strong>{money(preview.feesCents)}</strong>{caseItem.mode!=='flat_fee'&&<span>{formatRoundedMinutes(preview.billedMinutes)}</span>}</span>
           <span className="billing-card-foot"><Pill kind={preview.pendingPeriods?'warn':caseItem.mode==='flat_fee'?'out':'ok'}>{preview.pendingPeriods?`${preview.pendingPeriods} to validate`:caseItem.mode==='flat_fee'?'Flat fee':'Ready to invoice'}</Pill>{lastInvoice&&<small>{`Last: ${lastInvoice.number}, ${shortDate(lastInvoice.date)}`}</small>}</span>
         </button>)}
         {!openCases.length&&<Card><h2>Nothing to invoice</h2><p>New billable work will appear here.</p></Card>}
-      </div></div>
+      </div>{moreCases&&<button className="billing-scroll-cue" onClick={()=>overviewRef.current?.scrollBy({top:overviewRef.current.clientHeight,behavior:'smooth'})}>More cases <span aria-hidden="true">↓</span></button>}</div>
       {notice&&<div className="toast" role="status" onClick={()=>setNotice('')}>{notice} ×</div>}
     </>;
   }
@@ -141,11 +155,11 @@ export function PreInvoices({s,core,action,selectedCase,refresh}:ScreenProps) {
     id:String(expense.id),date:expense.date,label:expense.label,durationMs:null,amountCents:expense.amountCents,
     kind:expense.type as InvoiceRow['kind'],pending:false,
   }))];
-  const sorted=sortRows(rows,sort.key,sort.direction);
-  const sortHeader=(key:SortKey,title:string)=><th scope="col" aria-sort={sort.key===key?sort.direction:undefined}><button type="button" className="sort-button" onClick={()=>setSort(previous=>{
-    billingSort={key,direction:previous.key===key?(previous.direction==='ascending'?'descending':'ascending'):(key==='date'||key==='duration'||key==='amount'?'descending':'ascending')};
+  const sorted=sort?sortRows(rows,sort.key,sort.direction):rows;
+  const sortHeader=(key:SortKey,title:string)=><th scope="col" aria-sort={sort?.key===key?sort.direction:undefined}><button type="button" className="sort-button" onClick={()=>setSort(previous=>{
+    billingSort={key,direction:previous?.key===key?(previous.direction==='ascending'?'descending':'ascending'):'ascending'};
     return billingSort;
-  })}>{title}<span aria-hidden="true"> {sort.key===key?(sort.direction==='ascending'?'↑':'↓'):'↕'}</span></button></th>;
+  })}>{title}{sort?.key===key&&<span aria-hidden="true"> {sort.direction==='ascending'?'↑':'↓'}</span>}</button></th>;
   const issue=async()=>{
     const {pendingPeriods,complete,...snapshot}=preview;
     const result=await action(api.POST('/api/invoices',{body:{...snapshot,type}}));
@@ -162,13 +176,13 @@ export function PreInvoices({s,core,action,selectedCase,refresh}:ScreenProps) {
   };
 
   return <>
-    <div className="page-head"><div><div className="eyebrow"><button className="link" onClick={()=>setSelected(null)}>Billing</button> › {owner.name} · {item.title}</div><h1>{owner.name} · {item.title}</h1><p>Check what will be billed, then create the invoice.</p></div><button className="btn" onClick={()=>setSelected(null)}>All cases</button></div>
-    <Card className="billing-hero"><div><h2>{item.mode==='flat_fee'?`This case is billed at a flat fee of ${money(item.flat_fee_cents??0)}.`:`You can bill ${owner.name} ${money(preview.feesCents)} for ${formatRoundedMinutes(preview.billedMinutes)} of work.`}</h2><p>{item.title} · {item.mode==='flat_fee'?'flat fee':rateLabel(rate.rateCents)}{alreadyBilledCents?` · ${money(alreadyBilledCents)} already billed`:''}</p></div>{pending.length?<div className="row"><Pill kind="warn">{pending.length} period{pending.length===1?'':'s'} to validate first</Pill><button className="btn attn" onClick={()=>validate(pending.map(period=>period.id))}>Validate them</button></div>:<Pill kind="ok">Everything is validated</Pill>}</Card>
-    {alerts.map(alert=><div className="card-l warn" key={alert}><b>Client rule</b> {alert}</div>)}
-    <div className="billing-detail">
-      <Card className="billing-lines"><div className="row between"><div><h2>What will be on the invoice</h2><p>{billable.length} line{billable.length===1?'':'s'}{expenses.length?` and ${expenses.length} cost${expenses.length===1?'':'s'}`:''}</p></div><button className="btn small" onClick={()=>setExpenseOpen(value=>!value)}>Add a cost</button></div>
+    <div className="page-head billing-page-head billing-detail-head"><div><div className="billing-crumbs"><button onClick={()=>setSelected(null)}>Billing</button><span>›</span><strong>{owner.name} · {item.title}</strong></div><h1>{owner.name} · {item.title}</h1><p>Check what will be billed, then create the invoice.</p></div><button className="btn" onClick={()=>setSelected(null)}><svg className="i sm billing-back-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>All cases</button></div>
+    <Card className="billing-hero billing-scope"><div><h2>{item.mode==='flat_fee'?`This case is billed at a flat fee of ${money(item.flat_fee_cents??0)}.`:`You can bill ${owner.name} ${money(preview.feesCents)} for ${formatRoundedMinutes(preview.billedMinutes)} of work.`}</h2><p>{item.title} · {item.mode==='flat_fee'?'flat fee':rateLabel(rate.rateCents)}{alreadyBilledCents?` · ${money(alreadyBilledCents)} already billed`:''}</p></div>{pending.length?<div className="row"><Pill kind="warn">{pending.length} period{pending.length===1?'':'s'} to validate first</Pill><button className="btn attn" onClick={()=>validate(pending.map(period=>period.id))}>Validate them</button></div>:<Pill kind="ok">Everything is validated</Pill>}</Card>
+    {alerts.map(alert=>{const boundary=alert.indexOf('. On ');return <div className="card-l warn billing-alert billing-scope" key={alert}><Icon name="alert"/><span>{boundary<0?alert:<><b>{alert.slice(0,boundary+1)}</b>{alert.slice(boundary+1)}</>}</span></div>})}
+    <div className="billing-detail billing-scope">
+      <Card className="billing-lines"><div className="billing-card-header"><div><h2>What will be on the invoice</h2><p>{billable.length} line{billable.length===1?'':'s'}{expenses.length?` and ${expenses.length} cost${expenses.length===1?'':'s'}`:''}</p></div><button className="btn small" onClick={()=>setExpenseOpen(value=>!value)}><Icon name="plus" small/>Add a cost</button></div>
         <div className="table-scroll"><table><thead><tr>{sortHeader('date','Date')}{sortHeader('label','Work')}{sortHeader('duration','Time')}{sortHeader('amount','Amount')}</tr></thead><tbody>
-          {sorted.map(row=><tr key={`${row.kind}-${row.id}`}><td className="num">{shortDate(row.date)}</td><td>{row.label}<small>{row.pending?'To validate':row.kind==='disbursement'?'Cost paid for the client':row.kind==='expense'?'Expense':row.kind==='flat_fee'?'Agreed flat fee':''}</small>{row.kind==='period'&&<button className="link" onClick={()=>{setEditing(row.id);setCorrectedMinutes(String((row.durationMs??0)/60000))}}>Correct time</button>}</td><td className="num">{editing===row.id?<span className="row"><input className="field" type="number" min="0" step="0.001" aria-label="Corrected minutes" value={correctedMinutes} onChange={event=>setCorrectedMinutes(event.target.value)}/><button className="btn small" onClick={async()=>{const value=Number(correctedMinutes);if(!Number.isFinite(value)||value<0)return;const result=await action(api.POST('/api/work-periods/{id}/duration-override',{params:{path:{id:row.id}},body:{durationMs:Math.round(value*60000)}}));if(result)setEditing(null)}}>Save</button></span>:row.durationMs===null?'—':formatPreciseDuration(row.durationMs)}</td><td className="num">{row.amountCents===null?'Included':money(row.amountCents)}</td></tr>)}
+          {sorted.map(row=><tr key={`${row.kind}-${row.id}`}><td className="num">{shortDate(row.date)}</td><td>{row.label}{(row.pending||row.kind!=='period')&&<small className={row.pending?'billing-pending':''}>{row.pending?'To validate':row.kind==='disbursement'?'Cost paid for the client':row.kind==='expense'?'Expense':'Agreed flat fee'}</small>}{row.kind==='period'&&<button className="link billing-correct" onClick={()=>{setEditing(row.id);setCorrectedMinutes(String((row.durationMs??0)/60000))}}>Correct time</button>}</td><td className="num">{editing===row.id?<span className="row"><input className="field" type="number" min="0" step="0.001" aria-label="Corrected minutes" value={correctedMinutes} onChange={event=>setCorrectedMinutes(event.target.value)}/><button className="btn small" onClick={async()=>{const value=Number(correctedMinutes);if(!Number.isFinite(value)||value<0)return;const result=await action(api.POST('/api/work-periods/{id}/duration-override',{params:{path:{id:row.id}},body:{durationMs:Math.round(value*60000)}}));if(result)setEditing(null)}}>Save</button></span>:row.durationMs===null?'—':formatPreciseDuration(row.durationMs)}</td><td className="num">{row.amountCents===null?'Included':money(row.amountCents)}</td></tr>)}
           {!rows.length&&<tr><td colSpan={4}>Nothing left to bill on this case.</td></tr>}
         </tbody></table></div>
         {expenseOpen&&<form className="row billing-cost-form" onSubmit={async event=>{event.preventDefault();const cents=Math.round(Number(expenseAmount)*100);if(!Number.isFinite(cents)||cents<=0){setNotice('Enter a valid cost amount.');return;}const result=await action(api.POST('/api/billing/expenses',{body:{caseId:String(item.id),date:today,label:expenseLabel,type:expenseType,amountCents:cents}}));if(result){setExpenseLabel('');setExpenseAmount('');setExpenseOpen(false);}}}>
@@ -178,10 +192,10 @@ export function PreInvoices({s,core,action,selectedCase,refresh}:ScreenProps) {
         </form>}
         {(billed.length>0||non.length>0)&&<div className="billing-excluded">Not on this invoice: {billed.length?`${formatRoundedMinutes(summarizeWork(billed,core.sources).roundedMinutes)} already billed`:''}{billed.length&&non.length?' · ':''}{non.length?`${formatRoundedMinutes(summarizeWork(non,core.sources).roundedMinutes)} you chose not to bill`:''}.</div>}
       </Card>
-      <Card className="billing-side"><h2>Invoice {nextNumber}</h2><p>{owner.name}</p><div className="billing-totals"><span>Work</span><strong>{money(preview.feesCents)}</strong>{preview.expensesCents>0&&<><span>Expenses</span><strong>{money(preview.expensesCents)}</strong></>}{preview.vatCents>0&&<><span>Sales tax</span><strong>{money(preview.vatCents)}</strong></>}{preview.disbursementsCents>0&&<><span>Costs paid for the client</span><strong>{money(preview.disbursementsCents)}</strong></>}<span>Total to pay</span><strong>{money(preview.totalCents)}</strong></div>
+      <Card className="billing-side"><div className="billing-card-header"><div><h2>Invoice {nextNumber}</h2><p>{owner.name}</p></div></div><div className="billing-side-body"><div className="billing-totals"><span>Work</span><strong>{money(preview.feesCents)}</strong>{preview.expensesCents>0&&<><span>Expenses</span><strong>{money(preview.expensesCents)}</strong></>}{preview.vatCents>0&&<><span>Sales tax</span><strong>{money(preview.vatCents)}</strong></>}{preview.disbursementsCents>0&&<><span>Costs paid for the client</span><strong>{money(preview.disbursementsCents)}</strong></>}<span>Total to pay</span><strong>{money(preview.totalCents)}</strong></div>
         <div><span>Type of invoice</span><div className="seg" role="group" aria-label="Type of invoice"><button aria-pressed={type==='deposit'} onClick={()=>setType('deposit')}>Deposit</button><button aria-pressed={type==='final'} onClick={()=>setType('final')}>Final</button></div><small>{type==='deposit'?'An advance on the work done so far. The case stays open.':'The last invoice for this case.'}</small></div>
         <button className="btn primary" disabled={pending.length>0||!preview.complete||preview.totalCents===0} onClick={issue}>{pending.length?`Validate ${pending.length} period${pending.length===1?'':'s'} first`:!preview.complete?'Resolve coverage gaps':preview.totalCents===0?'Nothing to invoice':`Create invoice ${nextNumber}`}</button>
-        <button className="btn" onClick={downloadCsv}>Download as spreadsheet</button>
+        <button className="btn billing-download" onClick={downloadCsv}><svg className="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12M6 10l6 6 6-6M4 20h16"/></svg>Download as spreadsheet</button></div>
       </Card>
     </div>
     {notice&&<div className="toast" role="status" onClick={()=>setNotice('')}>{notice} ×</div>}
