@@ -230,7 +230,7 @@ export function Source({ s, core, selected, action, navigate }: Props) {
       </div>
       <section
         className="activity-timeline"
-        style={{ height: `clamp(260px, ${137 + days * 30}px, 56vh)` }}
+        style={{ height: `clamp(260px, ${137 + days * 30}px, calc(56dvh / var(--fit-zoom, 1)))` }}
       >
         <div className="card-h">
           <div className="t">

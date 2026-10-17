@@ -1,8 +1,8 @@
-// Scales the whole interface so the landscape layout designed for 1280x800 fits any desktop
+// Scales the whole interface so the landscape layout designed for 1280x950 (every row of My day visible) fits any desktop
 // window without scrolling: windows smaller than the design zoom out; larger ones keep the normal size.
 const DESIGN_WIDTH = 1280;
-const DESIGN_HEIGHT = 800;
-const MIN_ZOOM = 0.72;
+const DESIGN_HEIGHT = 950;
+const MIN_ZOOM = 0.62;
 const MAX_ZOOM = 1;
 
 export function fitViewport(): void {
