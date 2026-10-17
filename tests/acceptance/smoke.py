@@ -20,7 +20,7 @@ with sync_playwright() as p:
     page.goto(url)
     page.wait_for_load_state('networkidle')
     nav = page.get_by_role('navigation', name='Screens')
-    assert [x.inner_text().split('\n')[0] for x in nav.locator('button').all()] == [v[0] for v in views]
+    assert [x.inner_text().split('\n')[0] for x in nav.locator('button').all()] == [v[0] for v in views] + ['Desktop']
     for width, height in [(1440, 900), (1280, 800)]:
         page.set_viewport_size({'width': width, 'height': height})
         for theme in ['light', 'dark']:
