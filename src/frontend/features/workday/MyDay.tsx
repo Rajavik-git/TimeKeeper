@@ -268,7 +268,7 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
         <SortHeader label="Time" sort={leftSort} sortKey="time" numeric onSort={changeLeftSort} />
         <SortHeader label="Application" sort={leftSort} sortKey="application" onSort={changeLeftSort} />
         <SortHeader label="Work observed" sort={leftSort} sortKey="work" onSort={changeLeftSort} />
-        <SortHeader label="Duration" sort={leftSort} sortKey="duration" numeric className="r" onSort={changeLeftSort} /><th>Actions</th>
+        <SortHeader label="Duration" sort={leftSort} sortKey="duration" numeric className="r" onSort={changeLeftSort} /><th scope="col" className="r">Actions</th>
       </tr></thead><tbody>{leftRows.map(period => <tr key={period.id}><td className="num">{period.startedAt.slice(11, 16)}–{period.endedAt?.slice(11, 16) ?? '…'}</td><td>{period.demoApp ?? '—'}</td>
         <td>{period.demoWindowTitle ?? period.label}</td><td className="r num">{formatPreciseDuration(effectiveMs(period))}</td><td><button className="btn sm" onClick={() => void action(api.PATCH('/api/work-periods/{id}/details', { params: { path: { id: period.id } }, body: { excluded: false } }))}>Count as work</button></td></tr>)}</tbody></table>
         {!excluded.length && <div className="empty"><b>No periods left out</b></div>}</div>
@@ -277,7 +277,7 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
         <SortHeader label="Client · case" sort={mainSort} sortKey="case" onSort={changeMainSort} />
         <SortHeader label="Work performed" sort={mainSort} sortKey="work" onSort={changeMainSort} />
         <SortHeader label="Duration" sort={mainSort} sortKey="duration" numeric className="r" onSort={changeMainSort} />
-        <th>Actions</th>
+        <th scope="col" className="r">Actions</th>
       </tr></thead><tbody>{mainRows.map(row => {
         if (row.kind === 'gap') return <tr key={row.gap.id}><td className="num muted">{row.gap.startedAt.slice(11, 16)}–{row.gap.endedAt.slice(11, 16)}</td><td colSpan={4}><span className="flag"><Icon name="alert" small />Coverage gap</span> <span className="muted">· not recorded or counted as work.</span></td></tr>;
         const period = row.period;

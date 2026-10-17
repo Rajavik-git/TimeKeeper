@@ -2704,6 +2704,22 @@ body { font-size:var(--fs-md); }
 .bill-case-row .bar { height:5px; }
 .bill-case-row .bar-amount,.bill-case-row .bar-time { font-size:var(--fs-xs); }
 @media (max-width:640px) { .bill-client-link { grid-template-columns:minmax(0,196px) minmax(40px,1fr) 90px; } .bill-case-row { grid-template-columns:minmax(0,184px) minmax(40px,1fr) 90px; } }
+
+/* Minimal scrollbars for every independently scrolling panel. */
+:root { --scroll-thumb:color-mix(in srgb,var(--ink) 22%,transparent); --scroll-thumb-hover:color-mix(in srgb,var(--ink) 40%,transparent); }
+@supports (-moz-appearance: none) {
+  * { scrollbar-width:thin;scrollbar-color:transparent transparent; }
+  *:hover { scrollbar-color:var(--scroll-thumb) transparent; }
+}
+*::-webkit-scrollbar { width:6px;height:6px; }
+*::-webkit-scrollbar-button { display:none;width:0;height:0; }
+*::-webkit-scrollbar-track { background:transparent; }
+*::-webkit-scrollbar-thumb { background:transparent;border-radius:var(--r-sm); }
+*:hover::-webkit-scrollbar-thumb { background:var(--scroll-thumb); }
+*::-webkit-scrollbar-thumb:hover { background:var(--scroll-thumb-hover); }
+
+/* Keep the sticky headers distinct from the table body. */
+th,.tbl th,.dt th,.billing-lines th { background:var(--subtle);color:var(--ink-2); }
 .activity-preview b { font-size:var(--fs-xs); }
 .activity-preview p { margin-top:6px;max-height:92px;overflow:hidden; }
 .page > .grid4 { border:0;border-radius:0;overflow:visible; }

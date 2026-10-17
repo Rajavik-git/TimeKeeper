@@ -35,6 +35,13 @@ with sync_playwright() as p:
                 assert geometry['pageScroll'] <= geometry['pageHeight']+1, (width,height,theme,tab,geometry)
                 assert geometry['shellScroll'] <= geometry['shellHeight']+1, (width,height,theme,tab,geometry)
                 if tab == 'My day':
+                    page.locator('.day-table').wait_for()
+                    actions_header = page.get_by_role('columnheader', name='Actions')
+                    assert actions_header.count() == 1
+                    assert actions_header.evaluate('(el) => getComputedStyle(el).textAlign') == 'right'
+                    header_styles = page.locator('.day-table th').first.evaluate('(el) => { const s=getComputedStyle(el); return [s.backgroundColor,s.color]; }')
+                    assert header_styles == (['rgb(228, 228, 231)','rgb(63, 63, 70)'] if theme == 'light' else ['rgb(17, 17, 19)','rgb(212, 212, 216)']), (theme,header_styles)
+                    assert page.locator('.day-periods .tbl').evaluate("(el) => getComputedStyle(el, '::-webkit-scrollbar').width") == '6px'
                     palette = page.evaluate("""() => { const css=getComputedStyle(document.documentElement);
                         return Object.fromEntries(['--act','--act-ink','--ok-dot','--ok','--warn-dot','--warn','--bad','--sum-up','--sum-down'].map(key=>[key,css.getPropertyValue(key).trim().toLowerCase()])); }""")
                     expected = ({'--act':'#2b3a4f','--act-ink':'#f2f5f9','--ok-dot':'#4f7a5e','--ok':'#3f6b50','--warn-dot':'#a8894f','--warn':'#8a6f3a','--bad':'#8e3b3b','--sum-up':'#9cc3a8','--sum-down':'#e2a3a3'} if theme == 'light' else
@@ -114,5 +121,5 @@ with sync_playwright() as p:
     pill.get_by_role('button', name='TimeKeeper, toggle panel').wait_for()
     assert page.request.post(f'{url}api/demo/reset').ok
     assert not errors, errors
-    print('Five screens, final palette, calendar statuses and badge, Clients sort, expandable billing cases, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
+    print('Five screens, final palette, calendar, table headers and scrollbars, Clients sort, expandable billing cases, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
     browser.close()
