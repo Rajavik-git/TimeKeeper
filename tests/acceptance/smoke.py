@@ -79,6 +79,24 @@ with sync_playwright() as p:
     nav.get_by_role('button', name='Billing').click()
     nav.get_by_role('button', name='Cases').click()
     assert page.get_by_label('Sort by').input_value() == 'name'
+    first_billing_client = page.locator('.bill-client-group').first
+    expand = first_billing_client.locator('.bill-expand')
+    assert expand.get_attribute('aria-expanded') == 'false'
+    expand.click()
+    assert expand.get_attribute('aria-expanded') == 'true'
+    assert page.get_by_role('heading', name='Cases', exact=True).is_visible()
+    assert first_billing_client.locator('.bill-case-row').first.is_visible()
+    assert first_billing_client.locator('.bill-case-row .bar').first.evaluate('(el) => el.getBoundingClientRect().height') < first_billing_client.locator('.bill-client-link .bar').evaluate('(el) => el.getBoundingClientRect().height')
+    expand.click()
+    assert expand.get_attribute('aria-expanded') == 'false'
+    assert not first_billing_client.locator('.bill-case-row').first.is_visible()
+    first_billing_client.locator('.bill-client-link').click()
+    assert page.get_by_role('navigation', name='Case breadcrumb').is_visible()
+    page.get_by_role('navigation', name='Case breadcrumb').get_by_role('button', name='Cases').click()
+    page.locator('.bill-client-group').first.locator('.bill-expand').click()
+    page.locator('.bill-client-group').first.locator('.bill-case-row').first.click()
+    assert page.get_by_role('button', name='Export source pack').is_visible()
+    page.get_by_role('navigation', name='Case breadcrumb').get_by_role('button', name='Cases').click()
     page.get_by_role('searchbox', name='Search a client or a case').fill('Dawson')
     page.get_by_role('option').first.wait_for()
     nav.get_by_role('button', name='Billing').click()
@@ -96,5 +114,5 @@ with sync_playwright() as p:
     pill.get_by_role('button', name='TimeKeeper, toggle panel').wait_for()
     assert page.request.post(f'{url}api/demo/reset').ok
     assert not errors, errors
-    print('Five screens, final palette, calendar statuses and badge, Clients sort, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
+    print('Five screens, final palette, calendar statuses and badge, Clients sort, expandable billing cases, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
     browser.close()

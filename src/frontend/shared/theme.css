@@ -2688,6 +2688,22 @@ body { font-size:var(--fs-md); }
 .activity-preview { position:fixed;z-index:50;width:300px;padding:12px;border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);pointer-events:none;font-size:var(--fs-sm); }
 .client-sort { display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--muted);white-space:nowrap; }
 .client-sort .field { height:var(--h-sm);min-height:var(--h-sm);padding:0 26px 0 9px;font-size:var(--fs-sm); }
+.bill-client-group { border-bottom:1px solid var(--line); }
+.bill-client-head { position:relative; }
+.bill-client-link,.bill-case-row { display:grid;grid-template-columns:196px minmax(40px,1fr) 90px 62px;align-items:center;gap:6px;width:100%;min-height:var(--h-lg);padding:4px 0;border:0;background:transparent;color:var(--ink);text-align:left;font-size:var(--fs-sm);cursor:pointer; }
+.bill-client-link:hover,.bill-case-row:hover { background:var(--hover); }
+.bill-client-link .bar-client-name { padding-left:24px;font-size:var(--fs-sm); }
+.bill-expand { position:absolute;left:0;top:50%;z-index:1;transform:translateY(-50%);display:grid;place-items:center;width:24px;height:var(--h-sm);padding:0;border:0;background:transparent;color:var(--ink);cursor:pointer; }
+.bill-expand span { display:block;font-size:var(--fs-lg);line-height:1;transition:transform .15s ease; }
+.bill-expand[aria-expanded="true"] span { transform:rotate(90deg); }
+.bill-case-list { display:flex;flex-direction:column;padding-left:12px;border-left:1px solid var(--line); }
+.bill-case-list[hidden] { display:none; }
+.bill-case-row { grid-template-columns:184px minmax(40px,1fr) 90px 62px;min-height:var(--h-sm);color:var(--ink-2);font-size:var(--fs-xs); }
+.bill-case-name { display:flex;flex-direction:column;min-width:0;padding-left:12px;overflow-wrap:anywhere; }
+.bill-case-name strong { font-size:var(--fs-sm);font-weight:500; }
+.bill-case-row .bar { height:5px; }
+.bill-case-row .bar-amount,.bill-case-row .bar-time { font-size:var(--fs-xs); }
+@media (max-width:640px) { .bill-client-link { grid-template-columns:minmax(0,196px) minmax(40px,1fr) 90px; } .bill-case-row { grid-template-columns:minmax(0,184px) minmax(40px,1fr) 90px; } }
 .activity-preview b { font-size:var(--fs-xs); }
 .activity-preview p { margin-top:6px;max-height:92px;overflow:hidden; }
 .page > .grid4 { border:0;border-radius:0;overflow:visible; }

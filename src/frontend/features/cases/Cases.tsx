@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, today, type ScreenProps, type Matter, type Client } from '../../api/client';
-import { effectiveMs, formatPreciseDuration, formatRoundedMinutes } from '../../calculations/billing';
+import { effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
 import { caseMetrics, clientMetrics, previousMonthMetrics } from '../../calculations/cases';
 import { money, percent, rate as formatRate, shortDate } from '../../shared/format';
 import { Icon } from '../../shared/components/Icon';
@@ -44,6 +44,7 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   const [searchActive, setSearchActive] = useState(0);
   const [recentIds, setRecentIds] = useState(storedRecent);
   const [clientSort, setClientSort] = useState<ClientSort>(storedClientSort);
+  const [expandedBillingClients, setExpandedBillingClients] = useState<Set<number>>(() => new Set());
   const [notice, setNotice] = useState('');
   const [sorts, setSorts] = useState<Record<string,{column:number; direction:1|-1}>>(() => {
     try { return JSON.parse(sessionStorage.getItem('timekeeper-case-sorts') ?? '{}'); } catch { return {}; }
@@ -217,12 +218,35 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
             }) : <p>No cases need attention.</p>}</div>
           </section>
           <section className="card"><div className="card-h"><div className="t"><h2>To bill by client</h2><p>Open each client to review their cases</p></div></div>
-            <div className="case-scroll bar-list">{[...clients].sort((a,b) => b.metrics.toBill-a.metrics.toBill).map(({item,metrics}) => <button key={item.id} onClick={() => openClient(item.id)}>
-              <strong className="bar-client-name">{item.name}</strong>
-              <span className="bar"><span style={{width:`${metrics.toBill*100/maxToBill}%`}}/></span>
-              <span className="bar-amount">{money(metrics.toBill)}</span>
-              <span className="bar-time">{formatRoundedMinutes(metrics.time)}</span>
-            </button>)}</div>
+            <div className="case-scroll bar-list">{[...clients].sort((a,b) => b.metrics.toBill-a.metrics.toBill).map(({item,metrics}) => {
+              const expanded = expandedBillingClients.has(item.id);
+              const cases = metrics.cases.map(matter => ({matter,metrics:caseMetrics(s,core,matter)})).sort((a,b) => b.metrics.toBill-a.metrics.toBill || a.matter.title.localeCompare(b.matter.title,'en-US'));
+              return <div className="bill-client-group" key={item.id}>
+                <div className="bill-client-head">
+                  <button type="button" className="bill-expand" aria-label={`${expanded?'Collapse':'Expand'} cases for ${item.name}`} aria-expanded={expanded} aria-controls={`bill-cases-${item.id}`} onClick={() => setExpandedBillingClients(previous => {
+                    const next = new Set(previous); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next;
+                  })}><span aria-hidden="true">›</span></button>
+                  <button type="button" className="bill-client-link" onClick={() => openClient(item.id)}>
+                    <strong className="bar-client-name">{item.name}</strong>
+                    <span className="bar"><span style={{width:`${metrics.toBill*100/maxToBill}%`}}/></span>
+                    <span className="bar-amount">{money(metrics.toBill)}</span>
+                    <span className="bar-time">{formatRoundedMinutes(metrics.time)}</span>
+                  </button>
+                </div>
+                <div className="bill-case-list" id={`bill-cases-${item.id}`} role="group" aria-label={`Cases for ${item.name}`} hidden={!expanded}>
+                  {cases.map(({matter,metrics:caseTotals}) => {
+                    const unbilled = core.periods.filter(period => period.caseId===String(matter.id) && period.billable && !period.excluded && period.billingStatus==='unbilled');
+                    const unbilledMinutes = summarizeWork(unbilled,core.sources).roundedMinutes;
+                    return <button type="button" className="bill-case-row" key={matter.id} onClick={() => openCase(matter)}>
+                      <span className="bill-case-name"><strong>{matter.title}</strong><MatterReference value={matter.reference}/></span>
+                      <span className="bar"><span style={{width:`${caseTotals.toBill*100/maxToBill}%`}}/></span>
+                      <span className="bar-amount">{matter.mode==='flat_fee'?'Flat fee':money(caseTotals.toBill)}</span>
+                      <span className="bar-time">{formatRoundedMinutes(unbilledMinutes)}</span>
+                    </button>;
+                  })}
+                </div>
+              </div>;
+            })}</div>
           </section>
         </div>
       </div>
