@@ -383,9 +383,15 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                       const label =
                         !caseItem || days > 14
                           ? ""
-                          : pixels >= 40
+                          : pixels >= full.length * 7.2 + 14
+                            ? full
+                            : pixels >= caseItem.title.length * 7.2 + 14
                               ? caseItem.title
-                              : "";
+                              : pixels >= short.length * 7.2 + 14
+                                ? short
+                                : pixels >= 60
+                                  ? caseItem.reference.slice(0, 8)
+                                  : "";
                       const canonical = core.periods.find(
                         (item) => item.id === String(entry.id),
                       );
