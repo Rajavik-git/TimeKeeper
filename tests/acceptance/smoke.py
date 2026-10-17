@@ -35,6 +35,12 @@ with sync_playwright() as p:
                 assert geometry['pageScroll'] <= geometry['pageHeight']+1, (width,height,theme,tab,geometry)
                 assert geometry['shellScroll'] <= geometry['shellHeight']+1, (width,height,theme,tab,geometry)
                 if tab == 'My day':
+                    palette = page.evaluate("""() => { const css=getComputedStyle(document.documentElement);
+                        return Object.fromEntries(['--act','--act-ink','--ok-dot','--ok','--warn-dot','--warn','--bad','--sum-up','--sum-down'].map(key=>[key,css.getPropertyValue(key).trim().toLowerCase()])); }""")
+                    expected = ({'--act':'#2b3a4f','--act-ink':'#f2f5f9','--ok-dot':'#4f7a5e','--ok':'#3f6b50','--warn-dot':'#a8894f','--warn':'#8a6f3a','--bad':'#8e3b3b','--sum-up':'#9cc3a8','--sum-down':'#e2a3a3'} if theme == 'light' else
+                                {'--act':'#93a5bf','--act-ink':'#0c0c0d','--ok-dot':'#7fa98d','--ok':'#7fa98d','--warn-dot':'#c9ae7a','--warn':'#c9ae7a','--bad':'#c77474','--sum-up':'#2f5e40','--sum-down':'#7a2c2c'})
+                    assert palette == expected, (theme, palette)
+                    assert page.locator('.btn.attn svg').count() == 0
                     assert page.locator('.day-table').evaluate('(el) => el.scrollWidth <= el.clientWidth'), (width,height,theme,'day table horizontal overflow')
                     assert page.get_by_role('columnheader', name='Amount').count()==0
                     assert page.get_by_role('columnheader', name='Status').count()==0
@@ -78,5 +84,5 @@ with sync_playwright() as p:
     pill.get_by_role('button', name='TimeKeeper, toggle panel').wait_for()
     assert page.request.post(f'{url}api/demo/reset').ok
     assert not errors, errors
-    print('Five screens, date picker, Clients sort, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
+    print('Five screens, final palette, date picker, Clients sort, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
     browser.close()
