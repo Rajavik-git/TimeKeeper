@@ -4,7 +4,7 @@
 
 ## About this document
 
-- **Baseline:** the API on `thejoyfulist/mvp` at commit `5ed3a04`. Line numbers refer to that commit.
+- **Baseline:** the API on `thejoyfulist/mvp` at commit `5ed3a04`. Line numbers in [Errors found](#errors-found) refer to that commit. `mvp` was merged again at `2747b4b`; routes added there are listed in [Current API](#current-api).
 - **Authority:** this document owns how behavior is exposed through the API: routes, payload conventions, status codes, and errors. [Requirements](REQUIREMENTS.md) own business rules, [architecture](ARCHITECTURE.md) owns components, and [database design](DATABASE.md) owns storage. This document links to those rules instead of restating them.
 - **Contract:** `src/contracts/openapi.yaml` is the machine-readable contract and must agree with this document. `npm run contract:gen` regenerates `src/contracts/generated.ts`.
 
@@ -136,6 +136,8 @@ Billing extensions are in scope by decision 1 (agreed 2026-10-17). [Requirements
 | `PATCH /api/firm/{id}`, `PATCH /api/setting/{id}` | ui | Firm details and settings. |
 | `POST /api/markers`, `DELETE /api/markers/{id}` | ui | Recognition markers. |
 | `GET /api/blocks/{id}/recognition` | ui | Ranked case candidates for a block. |
+| `GET /api/cases/search?query=` | ui | Search clients and cases by name, title, reference, category, or opposing party. Returns demo records with integer IDs; it is not the canonical case list ([A13](#why-a12-and-a13-were-added)). Added on `mvp` at `2747b4b`. |
+| `POST /api/cases/{id}/source-pack` | ui | Export a source pack for an invoice, case, period, or chosen periods. Added on `mvp` at `2747b4b`. |
 
 #### Demo routes
 
@@ -261,7 +263,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A1 | `GET /api/health` returning `{"status":"ok"}`. | **Done.** Lets the launcher and Tauri detect API readiness. When D8 synchronization is built, it must finish before this route answers. |
 | A2 | Revision guard on `validate-time` and `duration-override`: an `expectedEffectiveRevision` field, with `409` on mismatch. | Prevents validating or overriding a period that changed after the lawyer saw it. Periods already expose `effectiveRevision`. |
 | A3 | Bulk validation: `POST /api/work-periods/validate-time` with a list of `{id, expectedEffectiveRevision}`, all or nothing. | Canonical replacement for the demo "approve day" and "approve case" routes. |
-| A4 | Filters on list endpoints: `sessionId`, `caseId`, `from`, `to` on work periods; `periodId` on sources; `status` on questions; `sessionId`, `from`, `to` on coverage gaps. | Lists currently return everything. Chat and day views need ranges. |
+| A4 | Filters on list endpoints. | **Partly done on `mvp` (`2747b4b`):** `GET /api/work-periods` filters by `date`, `from`, `to`, `clientId`, `caseId`; `GET /api/coverage-gaps` and `GET /api/questions` filter by `date`. **Still missing:** `sessionId` on work periods and coverage gaps, `from`/`to` on coverage gaps, `periodId` on sources, `status` on questions (needed by [D3](#d3-read-only-chat-uses-existing-read-endpoints)). |
 | A5 | Canonical client, case, and global-rate endpoints using `createClient`, `createCase`, and `setGlobalRate`, which exist in `service.ts:123-136` but are not exposed. | Today configuration goes through the demo routes only. |
 | A6 | Reconstruction conflict endpoints: list and resolve. | **Open.** Conflicts are stored, but the lawyer's resolution action is undefined ([design review](DESIGN_REVIEW.md)). |
 | A7 | Read-only chat tools use existing read endpoints. | **Decided**, see [D3](#d3-read-only-chat-uses-existing-read-endpoints). Needs the A4 filters. |

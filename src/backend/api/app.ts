@@ -37,7 +37,7 @@ export function createApp(db: DatabaseSync) {
   app.get('/api/state', c => c.json(demo.state(c.req.query('date'),c.req.query('clientId'),c.req.query('caseId'))));
   app.get('/api/cases/search', c => c.json(demo.searchCases(c.req.query('query')??'')));
   app.post('/api/cases/:id/source-pack', async c => {
-    const body=await c.req.json<{scope:'invoice'|'case'|'period'|'chosen';options:string[];invoiceId?:number;from?:string;to?:string;periodIds?:number[]}>();
+    const body=await readJson<{scope:'invoice'|'case'|'period'|'chosen';options:string[];invoiceId?:number;from?:string;to?:string;periodIds?:number[]}>(c);
     if(!['invoice','case','period','chosen'].includes(body.scope) || !Array.isArray(body.options))
       throw new AppError('invalid-request','Source pack scope and options required');
     if(body.scope==='invoice' && !Number.isInteger(body.invoiceId)) throw new AppError('invalid-request','Invoice required');

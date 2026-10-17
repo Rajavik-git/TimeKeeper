@@ -36,6 +36,10 @@ describe('API error responses (docs/API.md E1-E5, E12, D4)', () => {
     expectError(await call('/api/matters', { method: 'POST', body: '{not json' }), 400, 'invalid-request');
   });
 
+  it('reports malformed JSON on the source pack route as invalid-request', async () => {
+    expectError(await call('/api/cases/1/source-pack', { method: 'POST', body: '{not json' }), 400, 'invalid-request');
+  });
+
   it('uses the same code and status for a missing record on core and demo routes', async () => {
     expectError(await call('/api/work-periods/missing/validate-time', { method: 'POST', body: '{}' }), 404, 'not-found');
     expectError(await call('/api/invoices/999/csv'), 404, 'not-found');
