@@ -66,6 +66,10 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
   } },
   'GET /api/sessions/active': {},
   'GET /api/sessions': {},
+  'GET /api/sessions/{id}': {path:'/api/sessions/demo-2026-10-16'},
+  'GET /api/work-periods/{id}': {path:'/api/work-periods/1'},
+  'GET /api/work-periods/{id}/sources': {path:'/api/work-periods/1/sources'},
+  'POST /api/work-periods': {body:{id:'contract-transition',sessionId:'demo-2026-10-16',caseId:'1',startedAt:'2026-10-16T17:00:00Z',origin:'automatic',mode:'current'}},
   'GET /api/work-periods': {},
   'GET /api/sources': {},
   'GET /api/questions': {},
@@ -164,6 +168,24 @@ describe("OpenAPI response contract", () => {
       });
     }
   }
+  it("POST /api/work-periods returns the documented 202 shape when a transition would split a protected period", async () => {
+    const db = memoryDb();
+    try {
+      const response = await createApp(db).request("/api/work-periods", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: "late-split", sessionId: "demo-2026-10-16", caseId: "1", startedAt: "2026-10-16T09:00:00Z", origin: "automatic", mode: "recovery" }),
+      });
+      expect(response.status, await response.clone().text()).toBe(202);
+      const data = await response.json();
+      expect(data).toEqual({ status: "pending", conflictId: "late-split" });
+      const schema = spec.paths["/api/work-periods"].post.responses["202"].content["application/json"].schema;
+      const validate = ajv.compile({ ...schema, components: spec.components });
+      expect(validate(data), JSON.stringify(validate.errors)).toBe(true);
+    } finally {
+      db.close();
+    }
+  });
   it("has a fixture for every documented operation", () => {
     const operations = Object.entries(spec.paths).flatMap(([path, methods]) =>
       Object.keys(methods).map((m) => `${m.toUpperCase()} ${path}`),

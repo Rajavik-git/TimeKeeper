@@ -150,8 +150,9 @@ export class TimeKeeperService {
   allQuestions() { return this.repo.allQuestions(); }
   allSources() { return this.repo.allSources(); }
   coverageGaps() { return this.repo.coverageGaps(); }
-  getPeriod(id: string): PeriodView {
-    const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found'); return view(p);
+  getPeriod(id: string): PeriodView & {clientId:string|null} {
+    const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
+    return {...view(p),clientId:p.caseId ? this.repo.clientForCase(p.caseId) : null};
   }
   listPeriods(sessionId: string): Array<PeriodView & {clientId:string|null}> {
     this.getSession(sessionId); return this.repo.listPeriods(sessionId).map(p => ({...view(p),clientId:p.caseId ? this.repo.clientForCase(p.caseId) : null}));

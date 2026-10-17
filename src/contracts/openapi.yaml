@@ -2665,6 +2665,82 @@
             }
           }
         }
+      },
+      "post": {
+        "summary": "Record a detected case transition (workflow)",
+        "description": "Closes the active period and opens a new one. When the transition conflicts with a corrected or validated period, the proposal is stored for review and 202 is returned.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenWorkPeriod"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkPeriod"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Stored as a reconstruction conflict for the lawyer to review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingReconstruction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, or the rule needed for this action is not decided yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/sources": {
@@ -4213,6 +4289,180 @@
                   "items": {
                     "$ref": "#/components/schemas/CoverageGap"
                   }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "summary": "Read one session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-periods/{id}": {
+      "get": {
+        "summary": "Read one work period, with its derived client",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkPeriod"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-periods/{id}/sources": {
+      "get": {
+        "summary": "List the evidence references of one work period",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PeriodSource"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -6220,6 +6470,70 @@
               "pending",
               "failed"
             ]
+          }
+        }
+      },
+      "OpenWorkPeriod": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sessionId",
+          "caseId",
+          "startedAt",
+          "origin",
+          "mode"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Caller-chosen period ID. Resending the same transition returns the existing period."
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "caseId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` opens an unresolved period and asks the lawyer."
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "UTC timestamp of the detected case transition."
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "lawyer",
+              "unresolved"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "current",
+              "recovery"
+            ],
+            "description": "`recovery` replays history after reopening."
+          }
+        }
+      },
+      "PendingReconstruction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "conflictId"
+        ],
+        "properties": {
+          "status": {
+            "const": "pending"
+          },
+          "conflictId": {
+            "type": "string"
           }
         }
       }

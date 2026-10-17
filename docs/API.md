@@ -80,7 +80,7 @@ Expected callers: `ui` (React), `workflow` (scoped MCP commands used by Screenpi
 | --- | --- | --- | --- |
 | `GET /api/sessions` | ui, chat | List sessions. | 200, 500 |
 | `GET /api/sessions/active` | ui, chat, workflow | Active session or `null`. | 200, 500 |
-| `GET /api/sessions/{id}` | ui, chat | One session. | Not in contract ([E6](#e6-routes-served-but-missing-from-the-contract)) |
+| `GET /api/sessions/{id}` | ui, chat | One session. | 200, 400, 404, 500 |
 | `POST /api/commands/start` | workflow | Start or return the active session. | 200, 202, 400, 404, 409, 500 |
 | `POST /api/commands/end` | workflow | End the target session; keeps the first end boundary. | 200, 202, 400, 404, 409, 500 |
 
@@ -89,9 +89,9 @@ Expected callers: `ui` (React), `workflow` (scoped MCP commands used by Screenpi
 | Method and path | Callers | Purpose | Responses declared |
 | --- | --- | --- | --- |
 | `GET /api/work-periods` | ui, chat | All periods, with derived `clientId`. | 200, 500 |
-| `GET /api/work-periods/{id}` | ui, chat | One period. | Not in contract |
-| `GET /api/work-periods/{id}/sources` | ui, chat | Sources of one period. | Not in contract |
-| `POST /api/work-periods` | workflow | Record a detected case transition (`mode`: `current` or `recovery`). | Not in contract |
+| `GET /api/work-periods/{id}` | ui, chat | One period, with derived `clientId` like the list. | 200, 400, 404, 500 |
+| `GET /api/work-periods/{id}/sources` | ui, chat | Sources of one period. | 200, 400, 404, 500 |
+| `POST /api/work-periods` | workflow | Record a detected case transition (`mode`: `current` or `recovery`). | 200, 202, 400, 404, 409, 500 |
 | `POST /api/work-periods/manual` | ui | Create a manual period. | 200, 400, 404, 409, 500 |
 | `PATCH /api/work-periods/{id}/details` | ui | Label, billable, non-billable reason, excluded. | 200, 400, 404, 409, 500 |
 | `POST /api/work-periods/{id}/assignment` | ui, workflow | Assign a case, guarded by `expectedAssignmentRevision`. | 200, 400, 404, 409, 500 |
@@ -200,6 +200,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E6. Routes served but missing from the contract
 
 - **Severity:** Medium.
+- **Status:** Fixed on `mprifti42tech/api`. The four routes are in the contract with fixtures in `tests/integration/contract.test.ts`; `GET /api/work-periods/{id}` now also returns `clientId`.
 - **Where:** `core-routes.ts:36`, `38`, `39`, `65`.
 - **Routes:** `GET /api/sessions/{id}`, `GET /api/work-periods/{id}`, `GET /api/work-periods/{id}/sources`, `POST /api/work-periods`.
 - **What goes wrong:** generated types and contract tests do not cover them, so the frontend and MCP cannot call them in a typed way.
