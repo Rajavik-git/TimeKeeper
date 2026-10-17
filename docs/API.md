@@ -29,8 +29,9 @@ How to read the sections:
 
 | Topic | Current behavior |
 | --- | --- |
-| Server | Hono with `@hono/node-server`, started by `src/backend/api/index.ts`. |
-| Address | `127.0.0.1` only, port `8787`, overridable with `TIMEKEEPER_PORT`. |
+| Server | Hono with `@hono/node-server`, started by `src/backend/api/index.ts`. In the installed Windows app, Tauri starts it as the `timekeeper-api` sidecar when the app opens and stops it when the app exits (`src-tauri/src/main.rs`, from `mvp` at `d335885`). In development the sidecar is not started; run `npm run dev:server`. |
+| Address | `127.0.0.1` only, port `8787`, overridable with `TIMEKEEPER_PORT` in development. The installed app always uses `8787`. |
+| Database | `TIMEKEEPER_DB`, default `data/timekeeper.db` in development. The installed app sets it to `timekeeper.db` in the app data folder: `%APPDATA%\com.timekeeper.desktop\` on Windows, `~/Library/Application Support/com.timekeeper.desktop/` on macOS. |
 | Routes | Demo and mockup routes in `src/backend/api/app.ts`. Canonical session, period, question, source, and billing routes in `src/backend/api/core-routes.ts`, mounted under `/api`. |
 | Browser origins | CORS allow-list in `app.ts`: Tauri origins and the Vite dev server (`127.0.0.1:5173`, `localhost:5173`). `UI_PORT` adds the dev server on another port (`127.0.0.1` and `localhost`), and `TIMEKEEPER_ALLOWED_ORIGINS` adds a comma-separated list, for example a shared preview (both from `mvp` at `d7ce0e0`). Other origins get `403 forbidden-origin`. Requests without an `Origin` header are allowed. |
 | Bodies | JSON. |
@@ -428,7 +429,7 @@ This is about the **outgoing** calls TimeKeeper makes to Screenpipe (the Screenp
 - **What is missing:**
   1. The MCP tools `start_session` and `end_session` (`src/mcp/` is empty).
   2. The Screenpipe pipe the lawyer runs as the button. Screenpipe documents manual runs for pipes (`schedule: manual`, run from the app, `pipe run <name>`, or `POST /pipes/<name>/run`; [scheduled tasks](https://docs.screenpipe.com/scheduled-tasks.md)), and Michel's JEV pipe (`feat/jev-implementation`) already runs manually. How the manual run appears to the lawyer must still be checked on an installed Screenpipe.
-  3. The launcher (`integrations/screenpipe/launcher/`): on start, open TimeKeeper if it is closed and wait for `GET /api/health` ([A1](#missing-endpoints-and-rules)) before sending the command.
+  3. The launcher (`integrations/screenpipe/launcher/`): on start, open TimeKeeper if it is closed and wait for `GET /api/health` ([A1](#missing-endpoints-and-rules)) before sending the command. Since `mvp` at `d335885`, opening the installed app also starts the API (Tauri sidecar), so the launcher only needs to open the app.
   4. Pressing end while TimeKeeper is closed: handled by [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder).
 
 ### D8. Synchronization at startup through a local inbox folder
@@ -441,7 +442,7 @@ Solves "end while TimeKeeper is closed" (README decision 4, [design review](DESI
 
 **1. Location**
 
-- A folder in TimeKeeper's local data directory: `%APPDATA%\TimeKeeper\inbox\` on Windows, `~/Library/Application Support/TimeKeeper/inbox/` on macOS.
+- An `inbox` folder in TimeKeeper's app data folder, next to the database: `%APPDATA%\com.timekeeper.desktop\inbox\` on Windows, `~/Library/Application Support/com.timekeeper.desktop/inbox/` on macOS. The folder name comes from the Tauri identifier `com.timekeeper.desktop` (`src-tauri/tauri.conf.json`); if the identifier changes, this path changes with it.
 - The pipe reads the path from `TIMEKEEPER_INBOX` in its configuration.
 
 **2. File format**

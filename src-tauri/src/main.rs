@@ -1,8 +1,15 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
+    path::BaseDirectory,
     tray::TrayIconBuilder,
     LogicalSize, Manager, PhysicalPosition,
 };
+use tauri_plugin_shell::{process::CommandChild, ShellExt};
+
+struct ApiSidecar(Mutex<Option<CommandChild>>);
 
 const PILL_WIDTH: u32 = 340;
 const PILL_HEIGHT: u32 = 58;
@@ -53,7 +60,8 @@ fn open_my_day(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![set_pill_expanded, open_my_day])
         .on_window_event(|window, event| {
             if window.label() == "main" {
@@ -64,14 +72,29 @@ fn main() {
             }
         })
         .setup(|app| {
+            if !cfg!(debug_assertions) {
+                let data_dir = app.path().app_data_dir()?;
+                std::fs::create_dir_all(&data_dir)?;
+                let fallback_script = app.path().resolve("api.cjs", BaseDirectory::Resource)?;
+                let (mut events, child) = app
+                    .shell()
+                    .sidecar("timekeeper-api")?
+                    .arg(fallback_script)
+                    .env("TIMEKEEPER_DB", data_dir.join("timekeeper.db"))
+                    .env("TIMEKEEPER_PORT", "8787")
+                    .spawn()?;
+                app.manage(ApiSidecar(Mutex::new(Some(child))));
+                tauri::async_runtime::spawn(async move { while events.recv().await.is_some() {} });
+            }
             let pill = app
                 .get_webview_window("pill")
                 .expect("pill window configured");
             position_pill(&pill, PILL_HEIGHT)?;
             pill.show()?;
             let open = MenuItem::with_id(app, "open", "Open TimeKeeper", true, None::<&str>)?;
+            let toggle_pill = MenuItem::with_id(app, "pill", "Show/Hide pill", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &quit])?;
+            let menu = Menu::with_items(app, &[&open, &toggle_pill, &quit])?;
             TrayIconBuilder::new()
                 .icon(
                     app.default_window_icon()
@@ -83,12 +106,32 @@ fn main() {
                     "open" => {
                         let _ = open_my_day(app.clone());
                     }
+                    "pill" => {
+                        if let Some(pill) = app.get_webview_window("pill") {
+                            let _ = if pill.is_visible().unwrap_or(false) {
+                                pill.hide()
+                            } else {
+                                position_pill(&pill, PILL_HEIGHT).and_then(|_| pill.show())
+                            };
+                        }
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })
                 .build(app)?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("TimeKeeper failed to start");
+        .build(tauri::generate_context!())
+        .expect("TimeKeeper failed to build");
+    app.run(|app, event| {
+        if let tauri::RunEvent::Exit = event {
+            if let Some(state) = app.try_state::<ApiSidecar>() {
+                if let Ok(mut child) = state.0.lock() {
+                    if let Some(child) = child.take() {
+                        let _ = child.kill();
+                    }
+                }
+            }
+        }
+    });
 }

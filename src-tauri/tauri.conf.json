@@ -45,6 +45,10 @@
     "targets": [
       "nsis"
     ],
+    "externalBin": ["binaries/timekeeper-api"],
+    "resources": {
+      "../dist/sidecar/api.cjs": "api.cjs"
+    },
     "icon": [
       "icons/icon.png",
       "icons/icon.ico"
