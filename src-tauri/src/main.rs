@@ -90,8 +90,22 @@ fn set_pill_expanded(
     };
     let width = content_width.unwrap_or(PILL_WIDTH).max(1);
     let height = content_height.unwrap_or(fallback_height).max(PILL_HEIGHT);
-    let monitor = window.primary_monitor().map_err(|error| error.to_string())?
-        .ok_or("Primary monitor unavailable")?;
+    let anchor_monitor = if let (Some(x), Some(y)) = (anchor_x, anchor_y) {
+        window.monitor_from_point(x as f64, y as f64)
+            .map_err(|error| error.to_string())?
+    } else {
+        None
+    };
+    let current_monitor = if anchor_monitor.is_none() {
+        window.current_monitor().map_err(|error| error.to_string())?
+    } else {
+        None
+    };
+    let monitor = if anchor_monitor.is_none() && current_monitor.is_none() {
+        window.primary_monitor().map_err(|error| error.to_string())?
+    } else {
+        anchor_monitor.or(current_monitor)
+    }.ok_or("No monitor available")?;
     let bounds = monitor.size();
     let origin = monitor.position();
     let scale = monitor.scale_factor();
