@@ -1,3 +1,4 @@
+import { format, parseISO } from "date-fns";
 import { calendarDay } from "../../../shared/dates";
 import { validatePeriods as runValidation, validationMessage } from "../../api/validatePeriods";
 import { useToday } from "../../shared/hooks/useToday";
@@ -16,6 +17,7 @@ import {
 import { caseMetrics, clientMetrics, previousMonthMetrics } from "../../calculations/cases";
 import { money as formatMoney, percent, rate as displayRate, shortDate } from "../../shared/format";
 import { Icon } from "../../shared/components/Icon";
+import { MetricComparison } from "../../shared/components/MetricComparison";
 import { CaseReference } from "../../shared/components/CaseReference";
 import { SourcePackDialog } from "../../shared/components/SourcePackDialog";
 import "./Cases.css";
@@ -27,19 +29,6 @@ function storedClientSort(): ClientSort {
   return value === "name" || value === "lastActivity" || value === "cases" || value === "rate"
     ? value
     : "toBill";
-}
-function delta(current: number, previous: number, previousDay: string, increaseGood = true) {
-  if (!previous) return null;
-  const change = Math.round(((current - previous) * 100) / previous);
-  return (
-    <span
-      className={`case-kpi-delta ${change === 0 ? "flat" : change > 0 === increaseGood ? "up" : "down"}`}
-      title={`vs ${new Date(`${previousDay}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
-    >
-      {change > 0 ? "+" : change < 0 ? "−" : ""}
-      {Math.abs(change)}%
-    </span>
-  );
 }
 const visibleValue = (value: string | null | undefined): value is string =>
   !!value && value !== "N/A" && !value.includes("[");
@@ -397,7 +386,7 @@ export function Cases({
         calendarDay(period.startedAt).slice(0, 7) === today.slice(0, 7) &&
         calendarDay(period.startedAt) <= today,
     );
-    const october = Math.ceil(
+    const monthlyMinutes = Math.ceil(
       allPeriods.reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000,
     );
     const clients = catalogState.clients.map((item) => ({
@@ -460,21 +449,34 @@ export function Cases({
             "To bill",
             money(toBill),
             "All cases",
-            delta(toBill, prior.previousToBill, prior.previousDay, false),
+            <MetricComparison
+              current={toBill}
+              previous={prior.previousToBill}
+              previousDay={prior.previousDay}
+              increaseGood={false}
+            />,
             () => navigate("preInvoices"),
           ],
           [
             "Cases",
             catalogState.cases.length,
             `${catalogState.clients.length} clients · ${openCases} open`,
-            delta(catalogState.cases.length, prior.previousCases, prior.previousDay),
+            <MetricComparison
+              current={catalogState.cases.length}
+              previous={prior.previousCases}
+              previousDay={prior.previousDay}
+            />,
             () => focusCard(clientsCardRef.current),
           ],
           [
-            "Time in October",
-            formatRoundedMinutes(october),
+            `Time in ${format(parseISO(today), "MMMM")}`,
+            formatRoundedMinutes(monthlyMinutes),
             "All cases",
-            delta(october, prior.previousMinutes, prior.previousDay),
+            <MetricComparison
+              current={monthlyMinutes}
+              previous={prior.previousMinutes}
+              previousDay={prior.previousDay}
+            />,
             () => navigate("source"),
           ],
         ])}

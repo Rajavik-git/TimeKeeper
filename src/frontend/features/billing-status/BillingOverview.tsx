@@ -6,24 +6,11 @@ import { money as formatMoney, shortDate } from "../../shared/format";
 import { useToday } from "../../shared/hooks/useToday";
 import { Card } from "../../shared/components/Card";
 import { Kpi } from "../../shared/components/Kpi";
+import { MetricComparison } from "../../shared/components/MetricComparison";
 import { CaseReference } from "../../shared/components/CaseReference";
 import { Pill } from "../../shared/components/Pill";
 
 const billingDate = (value: string) => shortDate(value).replace(/\bSept\b/, "Sep");
-function delta(current: number, previous: number, previousDay: string, increaseGood: boolean) {
-  if (!previous) return null;
-  const change = Math.round(((current - previous) * 100) / previous);
-  return (
-    <span
-      className={`case-kpi-delta ${change === 0 ? "flat" : change > 0 === increaseGood ? "up" : "down"}`}
-      title={`vs ${new Date(`${previousDay}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`}
-    >
-      {change > 0 ? "+" : change < 0 ? "−" : ""}
-      {Math.abs(change)}%
-    </span>
-  );
-}
-
 type Props = Pick<ScreenProps, "catalogState" | "workspaceState" | "navigate"> & {
   onSelect: (caseItem: Case) => void;
 };
@@ -113,7 +100,11 @@ export function BillingOverview({ catalogState, workspaceState, navigate, onSele
           value={
             <span className="billing-vrow">
               <span>{money(readyCents)}</span>
-              {delta(readyCents, prior.readyCents, prior.previousDay, true)}
+              <MetricComparison
+                current={readyCents}
+                previous={prior.readyCents}
+                previousDay={prior.previousDay}
+              />
             </span>
           }
           detail={`${ready.length} hourly case${ready.length === 1 ? "" : "s"}, all validated`}
@@ -123,7 +114,12 @@ export function BillingOverview({ catalogState, workspaceState, navigate, onSele
           value={
             <span className="billing-vrow">
               <span>{waiting.length}</span>
-              {delta(waiting.length, prior.waitingCases, prior.previousDay, false)}
+              <MetricComparison
+                current={waiting.length}
+                previous={prior.waitingCases}
+                previousDay={prior.previousDay}
+                increaseGood={false}
+              />
             </span>
           }
           detail={`Hourly cases with periods to validate`}
@@ -133,7 +129,12 @@ export function BillingOverview({ catalogState, workspaceState, navigate, onSele
           value={
             <span className="billing-vrow">
               <span>{money(allCents)}</span>
-              {delta(allCents, prior.toBillCents, prior.previousDay, false)}
+              <MetricComparison
+                current={allCents}
+                previous={prior.toBillCents}
+                previousDay={prior.previousDay}
+                increaseGood={false}
+              />
             </span>
           }
           detail="Hourly cases"
@@ -168,14 +169,20 @@ export function BillingOverview({ catalogState, workspaceState, navigate, onSele
               <span className="billing-card-foot">
                 <Pill
                   kind={
-                    preview.pendingPeriods ? "warn" : caseItem.mode === "flat_fee" ? "out" : "ok"
+                    !preview.complete || preview.pendingPeriods
+                      ? "warn"
+                      : caseItem.mode === "flat_fee"
+                        ? "out"
+                        : "ok"
                   }
                 >
-                  {preview.pendingPeriods
-                    ? `${preview.pendingPeriods} to validate`
-                    : caseItem.mode === "flat_fee"
-                      ? "Flat fee"
-                      : "Ready to invoice"}
+                  {!preview.complete
+                    ? "Resolve coverage gaps"
+                    : preview.pendingPeriods
+                      ? `${preview.pendingPeriods} to validate`
+                      : caseItem.mode === "flat_fee"
+                        ? "Flat fee"
+                        : "Ready to invoice"}
                 </Pill>
                 {lastInvoice && (
                   <small

@@ -4513,3 +4513,17 @@ dialog.native-modal:not([open]) {
 dialog.native-modal::backdrop {
   background: transparent;
 }
+
+/* Root zoom also scales viewport units. Compensate to keep the shell fitted. */
+@media (min-width: 900px) {
+  html,
+  body,
+  #root,
+  .app.floating-shell {
+    height: calc(100dvh / var(--fit-zoom, 1));
+  }
+  dialog.native-modal {
+    width: calc(100vw / var(--fit-zoom, 1));
+    height: calc(100dvh / var(--fit-zoom, 1));
+  }
+}

@@ -15,6 +15,7 @@ import { ThemeSwitch, restoreTheme } from "./shared/components/ThemeSwitch";
 import { Icon } from "./shared/components/Icon";
 import { showToast, ToastHost } from "./shared/components/Toast";
 import { Logo } from "./shared/brand/Logo";
+import { fitViewport } from "./shared/fitViewport";
 import "./shared/theme.css";
 
 restoreTheme();
@@ -177,6 +178,7 @@ function App() {
   );
 }
 
+fitViewport();
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

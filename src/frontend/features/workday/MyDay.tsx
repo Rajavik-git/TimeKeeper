@@ -385,7 +385,7 @@ export function MyDay({
           </button>
         </div>
       </div>
-      <p id="manual-time-unavailable" className="small muted">
+      <p id="manual-time-unavailable" className="sr-only">
         Manual time entry is not available yet.
       </p>
       {loadError && (
