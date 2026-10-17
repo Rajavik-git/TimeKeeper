@@ -4,20 +4,14 @@
   "version": "0.1.0",
   "identifier": "com.timekeepr.desktop",
   "build": {
-    "beforeDevCommand": {
-      "cwd": "..",
-      "script": "npm run dev:ui"
-    },
+    "beforeDevCommand": "npm run dev:ui",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": {
-      "cwd": "..",
-      "script": "npm run build"
-    },
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist/frontend"
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8787"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:8787"
     },
     "windows": [
       {
