@@ -4987,6 +4987,108 @@
           }
         }
       }
+    },
+    "/api/inbox/failed": {
+      "get": {
+        "summary": "List inbox commands that could not be applied, newest first",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FailedInboxCommand"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/failed/{file}/dismiss": {
+      "post": {
+        "summary": "Stop showing a failed inbox command once the lawyer has dealt with it",
+        "description": "Moves the file to inbox/dismissed/. Idempotent.",
+        "parameters": [
+          {
+            "name": "file",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dismissed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "status",
+                    "file"
+                  ],
+                  "properties": {
+                    "status": {
+                      "const": "dismissed"
+                    },
+                    "file": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7326,6 +7428,56 @@
                 }
               }
             }
+          }
+        }
+      },
+      "FailedInboxCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "kind",
+          "sessionId",
+          "occurredAt",
+          "error",
+          "message"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "File name in the inbox failed/ folder; use it to dismiss."
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "start",
+              "end",
+              null
+            ],
+            "description": "`null` when the file was not valid JSON."
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "occurredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the button was pressed."
+          },
+          "error": {
+            "type": "string",
+            "description": "Error code recorded when the command was refused."
+          },
+          "message": {
+            "type": "string"
           }
         }
       }

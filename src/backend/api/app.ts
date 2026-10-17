@@ -4,6 +4,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { coreRoutes } from './core-routes.js';
 import { AppError, TimeKeeperService } from '../application/service.js';
 import { errorHandler, readJson } from './http.js';
+import { folderInbox, inboxDir } from '../adapters/inbox/folder.js';
+import type { CommandInbox } from '../ports/index.js';
 import { DemoService } from '../application/demo.js';
 import { demoPort } from '../adapters/sqlite/demo.js';
 import { issueInvoice } from '../application/invoice.js';
@@ -18,8 +20,11 @@ const id = (value: string): number => {
   return result;
 };
 
-export function createApp(db: DatabaseSync) {
+export function createApp(db: DatabaseSync, options: { inbox?: CommandInbox } = {}) {
   const app = new Hono();
+  // The inbox folder is opened on first use, so tests and the demo create no folders unless the inbox routes are called.
+  let inbox = options.inbox;
+  const getInbox = () => inbox ??= folderInbox(inboxDir());
   const demo = new DemoService(demoPort(db), new TimeKeeperService(new SqliteRepository(db)));
   const assignment = assignmentPort(db);
   const invoice = invoicePort(db);
@@ -80,6 +85,6 @@ export function createApp(db: DatabaseSync) {
   app.post('/api/tasks', async c => c.json(demo.createTask(await readJson<Record<string, unknown>>(c))));
   app.post('/api/client-rules', async c => c.json(demo.createClientRule(await readJson<Record<string, unknown>>(c))));
   app.delete('/api/client-rules/:id', c => c.json(demo.removeClientRule(id(c.req.param('id')))));
-  app.route('/api', coreRoutes(db));
+  app.route('/api', coreRoutes(db, getInbox));
   return app;
 }

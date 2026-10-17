@@ -287,13 +287,13 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A11 | Replace `pending` refusals with `rule-not-decided` and `conflict`. | **Decided**, see [D4](#d4-error-codes-replacing-pending-for-refusals). Fixes [E1](#e1-undecided-rules-are-returned-as-successful-202-pending). |
 | A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
 | A13 | Canonical reads: `GET /api/clients`, `GET /api/cases` (filters `clientId`, `status`), `GET /api/settings`. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added) and [Clients, cases, and settings](#clients-cases-and-settings). Complements the writes in A5. |
-| A14 | Show the lawyer the inbox commands that could not be applied. | **Proposed, with an interface proposal.** See [A14. Failed inbox commands](#a14-failed-inbox-commands). |
+| A14 | Show the lawyer the inbox commands that could not be applied. | **API done; interface proposed.** See [A14. Failed inbox commands](#a14-failed-inbox-commands). |
 
 ### A14. Failed inbox commands
 
 **Problem.** When TimeKeeper reopens, it applies the start and end commands left in the inbox ([D8](#d8-synchronization-at-startup-through-a-local-inbox-folder)). A command that is refused (for example an end for an unknown session, or an end whose time is before its start) moves to `inbox/failed/` with its error. Today nobody sees it: the lawyer believes the session ended, while TimeKeeper still shows it as active, and the day's time is wrong.
 
-**API proposal (to build on the API branch):**
+**API (built on `mprifti42tech/api`, 2026-10-17; in the contract as `FailedInboxCommand`).** The interface can call these now:
 
 - `GET /api/inbox/failed` returns one entry per failed file, newest first:
 
@@ -311,6 +311,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
   `kind`, `sessionId`, and `occurredAt` are `null` when the file was not valid JSON.
 - `POST /api/inbox/failed/{file}/dismiss` moves the file to `inbox/dismissed/` once the lawyer has dealt with it, so it stops showing. Idempotent; `404` for an unknown file.
 - Callers: `ui` only. Files hold only IDs and times, never client information.
+- As built: `{file}` must be a single `<name>.json` (letters, digits, `.`, `_`, `-`); anything else, including paths with `..` and the `.error.json` files, is `400`. An entry whose error file is missing reports `error: "internal"`. Order is by the time the file moved to `failed/`, newest first. Code: `src/backend/application/inbox.ts`, `src/backend/adapters/inbox/folder.ts`; tests: `tests/integration/inbox-failed-api.test.ts`.
 
 **Interface proposal (for the interface owner):**
 

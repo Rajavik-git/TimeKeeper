@@ -5,6 +5,8 @@ import { AppError, TimeKeeperService } from '../application/service.js';
 import { addExpense, billingState, removeExpense } from '../application/invoice.js';
 import { invoicePort } from '../adapters/sqlite/invoice.js';
 import { readJson } from './http.js';
+import { dismissFailedCommand, listFailedCommands } from '../application/inbox.js';
+import type { CommandInbox } from '../ports/index.js';
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AppError('invalid-request','JSON object required');
@@ -29,7 +31,7 @@ const expectedRevision = (b: Record<string, unknown>): number | undefined =>
   b.expectedEffectiveRevision === undefined ? undefined : integer(b.expectedEffectiveRevision,'expectedEffectiveRevision');
 const input = async (c: {req:{json:()=>Promise<unknown>}}) => object(await readJson(c));
 
-export function coreRoutes(db: DatabaseSync): Hono {
+export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
   const router = new Hono();
   const service = new TimeKeeperService(new SqliteRepository(db));
   const billing = invoicePort(db);
@@ -43,6 +45,9 @@ export function coreRoutes(db: DatabaseSync): Hono {
     return c.json(service.listCases({...(clientId ? {clientId} : {}),...(status === undefined ? {} : {status})}));
   });
   router.get('/settings',c=>c.json(service.getSettings()));
+  // Inbox commands that could not be applied, for the interface notice (docs/API.md A14).
+  router.get('/inbox/failed',c=>c.json(listFailedCommands(inbox())));
+  router.post('/inbox/failed/:file/dismiss',c=>c.json(dismissFailedCommand(inbox(),c.req.param('file'))));
   router.get('/sessions/active',c=>c.json(service.activeSession()));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));

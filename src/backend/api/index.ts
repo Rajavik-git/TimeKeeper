@@ -28,7 +28,7 @@ const timer = setInterval(synchronize, 30_000);
 timer.unref();
 
 const server = serve({
-  fetch: createApp(db).fetch,
+  fetch: createApp(db, { inbox }).fetch,
   port,
   hostname: "127.0.0.1",
 });

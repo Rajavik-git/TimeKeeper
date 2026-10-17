@@ -1,8 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import Ajv2020 from "ajv/dist/2020.js";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { memoryDb } from "../../src/backend/adapters/sqlite/repository";
 import { createApp } from "../../src/backend/api/app";
+
+// A temporary inbox with one failed command, for the A14 routes (this test file only).
+const inboxForContract = mkdtempSync(join(tmpdir(), "timekeeper-contract-inbox-"));
+mkdirSync(join(inboxForContract, "failed"), { recursive: true });
+writeFileSync(join(inboxForContract, "failed", "end-contract.json"), JSON.stringify({ kind: "end", producerId: "pipe", commandId: "end-contract", sessionId: "s", occurredAt: "2026-10-16T18:00:00Z" }));
+writeFileSync(join(inboxForContract, "failed", "end-contract.error.json"), JSON.stringify({ error: "not-found", message: "target session not found" }));
+process.env.TIMEKEEPER_INBOX = inboxForContract;
+afterAll(() => rmSync(inboxForContract, { recursive: true, force: true }));
 
 const spec = JSON.parse(readFileSync("src/contracts/openapi.yaml", "utf8")) as {
   paths: Record<
@@ -58,6 +68,8 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
   } },
   'GET /api/sessions/active': {},
   'GET /api/health': {},
+  'GET /api/inbox/failed': {},
+  'POST /api/inbox/failed/{file}/dismiss': {path:'/api/inbox/failed/end-contract.json/dismiss'},
   'GET /api/clients': {},
   'GET /api/cases': {path:'/api/cases?clientId=1'},
   'GET /api/settings': {},
