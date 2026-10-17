@@ -11,18 +11,18 @@ use tauri_plugin_shell::{process::CommandChild, ShellExt};
 
 struct ApiSidecar(Mutex<Option<CommandChild>>);
 
-const PILL_WIDTH: u32 = 380;
-const PILL_HEIGHT: u32 = 58;
+const PILL_WIDTH: u32 = 340;
+const PILL_HEIGHT: u32 = 38;
 const NOTICE_HEIGHT: u32 = 270;
 const PANEL_HEIGHT: u32 = 560;
 
-fn position_pill(window: &tauri::WebviewWindow, height: u32) -> tauri::Result<()> {
+fn position_pill(window: &tauri::WebviewWindow, width: u32, height: u32) -> tauri::Result<()> {
     let monitor = window.primary_monitor()?;
-    window.set_size(LogicalSize::new(PILL_WIDTH, height))?;
+    window.set_size(LogicalSize::new(width, height))?;
     if let Some(monitor) = monitor {
         let size = monitor.size();
         let origin = monitor.position();
-        let width = (PILL_WIDTH as f64 * monitor.scale_factor()).round() as i32;
+        let width = (width as f64 * monitor.scale_factor()).round() as i32;
         window.set_position(PhysicalPosition::new(
             origin.x + ((size.width as i32 - width) / 2),
             origin.y + 16,
@@ -36,18 +36,23 @@ fn set_pill_expanded(
     window: tauri::WebviewWindow,
     expanded: bool,
     notification: bool,
+    content_width: Option<u32>,
+    content_height: Option<u32>,
 ) -> Result<(), String> {
     if window.label() != "pill" {
         return Err("Pill window required".into());
     }
-    let height = if expanded {
+    let fallback_height = if expanded {
         PANEL_HEIGHT
     } else if notification {
         NOTICE_HEIGHT
     } else {
         PILL_HEIGHT
     };
-    position_pill(&window, height).map_err(|error| error.to_string())
+
+    let width = content_width.unwrap_or(PILL_WIDTH).max(1);
+    let height = content_height.unwrap_or(fallback_height).max(PILL_HEIGHT);
+    position_pill(&window, width, height).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -89,7 +94,9 @@ fn main() {
             let pill = app
                 .get_webview_window("pill")
                 .expect("pill window configured");
-            position_pill(&pill, PILL_HEIGHT)?;
+
+            let _ = pill.set_shadow(false);
+            position_pill(&pill, PILL_WIDTH, PILL_HEIGHT)?;
             pill.show()?;
             let open = MenuItem::with_id(app, "open", "Open TimeKeeper", true, None::<&str>)?;
             let toggle_pill = MenuItem::with_id(app, "pill", "Show/Hide pill", true, None::<&str>)?;
@@ -111,7 +118,7 @@ fn main() {
                             let _ = if pill.is_visible().unwrap_or(false) {
                                 pill.hide()
                             } else {
-                                position_pill(&pill, PILL_HEIGHT).and_then(|_| pill.show())
+                                pill.show()
                             };
                         }
                     }

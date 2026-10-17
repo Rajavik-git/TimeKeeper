@@ -104,8 +104,28 @@ function Pill() {
   const todayAmount=state&&core?money(dayFees(state,core,pricedDay)):'—';
   useEffect(()=>{if(tauri&&setting)void getCurrentWindow().setAlwaysOnTop(setting.pill_always_on_top).catch(()=>setError('Unable to set pill position.'));},[setting?.pill_always_on_top]);
   useEffect(()=>{if(tauri&&state)void invoke('set_watch_enabled',{enabled:!paused}).catch(()=>setError('Unable to apply file-switch pause.'));},[!!state,paused,active?.id]);
-  useEffect(()=>{if(tauri)void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice)}).catch(()=>setError('Unable to resize the pill.'));},[expanded,notice,recent,showQuestionNotice]);
-  useEffect(()=>{if(emulator&&window.parent!==window)window.parent.postMessage({type:'timekeeper:pill-height',height:expanded?560:notice||recent||showQuestionNotice?290:54},window.location.origin);},[expanded,notice,recent,showQuestionNotice]);
+
+  useEffect(()=>{
+    if(!tauri&&!emulator)return;
+    const bar=document.querySelector<HTMLElement>('.pill-bar');
+    const content=[...document.querySelectorAll<HTMLElement>('.pill-panel,.pill-notice,.pill-error')];
+    let frame=0;
+    const resize=()=>{
+      window.cancelAnimationFrame(frame);
+      frame=window.requestAnimationFrame(()=>{
+        const contentWidth=Math.ceil(Math.max(bar?.offsetWidth??0,...content.map(element=>element.offsetWidth)));
+        const contentHeight=Math.ceil(Math.max(bar?.offsetHeight??0,...content.map(element=>element.offsetTop+element.offsetHeight)));
+        if(tauri)void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice),contentWidth,contentHeight})
+          .catch(()=>setError('Unable to resize the pill.'));
+        if(emulator&&window.parent!==window)window.parent.postMessage({type:'timekeeper:pill-height',height:contentHeight},window.location.origin);
+      });
+    };
+    const observer=new ResizeObserver(resize);
+    if(bar)observer.observe(bar);
+    content.forEach(element=>observer.observe(element));
+    resize();
+    return()=>{observer.disconnect();window.cancelAnimationFrame(frame);};
+  },[expanded,notice,recent,showQuestionNotice,error]);
   const showSwitch=useCallback(async(windowTitle:string,appName:string)=>{
     if(!coreRef.current?.activeSession||!windowTitle.trim()||!appName.trim()||previous.current===appName+':'+windowTitle)return;
     previous.current=appName+':'+windowTitle;

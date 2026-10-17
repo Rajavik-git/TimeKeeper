@@ -46,7 +46,7 @@ export function Desktop() {
   const [maxZ,setMaxZ] = useState(2);
   const zCounter = useRef(2);
   const [startOpen,setStartOpen] = useState(false);
-  const [pillHeight,setPillHeight] = useState(54);
+  const [pillHeight,setPillHeight] = useState(38);
   const pill = useRef<HTMLIFrameElement>(null);
   const lastFileFocus = useRef('');
   const drag = useRef<{id:string;startX:number;startY:number;originX:number;originY:number}|null>(null);
@@ -101,7 +101,8 @@ export function Desktop() {
     const onMessage=(event:MessageEvent)=>{
       if(event.origin!==window.location.origin||event.source!==pill.current?.contentWindow)return;
       if(event.data?.type==='timekeeper:open-app')openTimeKeeper();
-      if(event.data?.type==='timekeeper:pill-height'&&[54,290,560].includes(event.data.height))setPillHeight(event.data.height);
+      if(event.data?.type==='timekeeper:pill-height'&&Number.isFinite(event.data.height)&&event.data.height>=38&&event.data.height<=900)
+        setPillHeight(Math.ceil(event.data.height));
     };
     window.addEventListener('message',onMessage);
     return()=>window.removeEventListener('message',onMessage);
