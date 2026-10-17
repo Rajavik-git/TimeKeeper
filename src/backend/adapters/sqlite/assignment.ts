@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { AssignmentPort } from "../../ports/assignment.js";
-import { all, audit, insert, one, reprice, transaction, update } from "./repository.js";
+import { all, audit, insert, one, transaction, update } from "./repository.js";
 
 export function assignmentPort(db: DatabaseSync): AssignmentPort {
   return {
@@ -11,7 +11,6 @@ export function assignmentPort(db: DatabaseSync): AssignmentPort {
     updateTimeEntry: (id, values) => update(db, "time_entry", id, values),
     updateBlock: (id, values) => update(db, "block", id, values),
     addMarker: (values) => insert(db, "marker", values),
-    reprice: () => reprice(db),
     audit: (action, before, after, entryId, blockId, actor) =>
       audit(db, action, before, after, entryId, blockId, actor),
   };

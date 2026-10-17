@@ -40,6 +40,7 @@ export interface DemoPort {
   syncCatalog(): void;
   invoiceExport(id: number): InvoiceExport | undefined;
   canonicalPeriod(id: string): PeriodRecord | null;
+  canonicalPeriodForBlock(blockId: number): PeriodRecord | null;
   canonicalSession(id: string): SessionRecord | null;
   saveCanonicalPeriod(period: PeriodRecord, at: string): void;
   insertCanonicalPeriod(period: PeriodRecord, at: string): void;

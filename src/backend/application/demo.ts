@@ -6,6 +6,7 @@ import type { AssignmentPort } from '../ports/assignment.js';
 import type { PeriodRecord } from '../ports/repository.js';
 import { updateTimeEntry } from './assignment.js';
 import { changePeriod, effectiveDuration, validateTime } from '../domain/rules.js';
+import { AppError, TimeKeeperService } from './service.js';
 
 const demoDate = '2026-10-16';
 const required = (value: unknown, label: string) => {
@@ -14,7 +15,7 @@ const required = (value: unknown, label: string) => {
 };
 
 export class DemoService {
-  constructor(private readonly port: DemoPort) {}
+  constructor(private readonly port: DemoPort, private readonly core: TimeKeeperService) {}
 
   private get(table: DemoTable, id: number): DemoRow {
     const result = this.port.get(table, id);
@@ -41,8 +42,8 @@ export class DemoService {
   }
 
   private periodForEntry(entry: DemoRow): PeriodRecord {
-    const period = this.port.canonicalPeriod(String(entry.id)) ??
-      (entry.block_id == null ? null : this.port.canonicalPeriod(`excluded-${entry.block_id}`));
+    const period = entry.block_id == null ? this.port.canonicalPeriod(String(entry.id)) :
+      this.port.canonicalPeriodForBlock(Number(entry.block_id));
     if (!period) throw Error('Canonical work period not found');
     return period;
   }
@@ -51,9 +52,8 @@ export class DemoService {
     const prior = this.periodForEntry(entry);
     if (prior.billingStatus === 'billed' || prior.invoiceId !== null) throw Error('Billed work period cannot be edited');
     const caseId = entry.matter_id == null ? null : String(entry.matter_id);
-    let next = changePeriod(prior, {
-      caseId, assignmentOrigin: caseId === prior.caseId ? prior.assignmentOrigin : caseId ? 'lawyer' : 'unresolved',
-    });
+    if (caseId !== prior.caseId) throw new AppError('conflict','compatibility assignment is out of sync');
+    let next = prior;
     if (options.unvalidate) next = { ...next, validatedEffectiveRevision: null, timeValidatedAt: null };
     if (options.validate) {
       if (caseId === null || effectiveDuration(next) === null) throw Error('Case and duration required for approval');
@@ -64,25 +64,23 @@ export class DemoService {
       nonbillableReason: entry.reason as string | null, revision: prior.revision + 1,
     };
     this.port.saveCanonicalPeriod(next, new Date().toISOString());
-    if (next.assignmentRevision !== prior.assignmentRevision) {
-      for (const question of this.port.pendingQuestions(prior.id))
-        this.port.saveQuestion({ ...question, status: 'superseded' });
-      if (caseId === null) this.port.saveQuestion({
-        questionId: `demo-question-${prior.id}-${next.assignmentRevision}`, sessionId: next.sessionId,
-        periodId: next.id, expectedAssignmentRevision: next.assignmentRevision,
-        status: 'pending', responseCommandId: null, responseResultJson: null,
-      });
-    }
     return next;
   }
 
   updateEntry(id: number, body: Record<string, unknown>, assignment: AssignmentPort) {
     return this.port.transaction(() => {
-      // The existing assignment use case owns recognition and its audit. The
-      // outer transaction also commits the matching canonical period update.
-      const after = updateTimeEntry({ ...assignment, transaction: work => work() }, id, body);
+      const before = this.get('time_entry', id);
+      const prior = this.periodForEntry(before);
+      if ('matter_id' in body) {
+        if (body.matter_id === null) throw new AppError('invalid-request','use a period question to resolve or exclude work');
+        if (!Number.isSafeInteger(body.expected_assignment_revision) ||
+            body.expected_assignment_revision !== prior.assignmentRevision)
+          throw new AppError('conflict','stale assignment revision');
+        this.core.assignPeriod(prior.id,String(body.matter_id),prior.assignmentRevision,'lawyer');
+      }
+      const { expected_assignment_revision: _revision, ...legacyBody } = body;
+      const after = updateTimeEntry({ ...assignment, transaction: work => work() }, id, legacyBody);
       this.port.syncCatalog();
-      const prior = this.periodForEntry(after);
       const changedCase = ('matter_id' in body) &&
         (after.matter_id == null ? null : String(after.matter_id)) !== prior.caseId;
       this.saveEntryPeriod(after, {
@@ -155,19 +153,18 @@ export class DemoService {
         billable: true, reason: null, review_status: 'to_review', billing_status: 'to_bill', invoice_id: null,
       });
       this.port.update('block', id, { state: 'to_check' });
-      const period = this.port.canonicalPeriod(String(id)) ?? this.port.canonicalPeriod(`excluded-${id}`);
+      const period = this.port.canonicalPeriodForBlock(id);
       if (!period) throw Error('Canonical work period not found');
+      if (period.caseId !== null) this.port.update('time_entry', Number(entry.id), { matter_id: Number(period.caseId) });
+      this.port.update('block', id, { state: period.caseId ? 'assigned' : 'to_check', matter_id: period.caseId===null?null:Number(period.caseId) });
       const next = {
-        ...changePeriod(period, { caseId: null, assignmentOrigin: 'unresolved' }),
+        ...period,
         excluded: false, taskTypeId: Number(task.id), label: String(entry.label),
         billable: true, revision: period.revision + 1,
       };
       this.port.saveCanonicalPeriod(next, new Date().toISOString());
-      this.port.saveQuestion({
-        questionId: `demo-question-${next.id}-${next.assignmentRevision}`, sessionId: next.sessionId,
-        periodId: next.id, expectedAssignmentRevision: next.assignmentRevision,
-        status: 'pending', responseCommandId: null, responseResultJson: null,
-      });
+      if (next.caseId===null) this.core.askQuestion({questionId:`demo-question-${next.id}-${next.assignmentRevision}`,
+        sessionId:next.sessionId,periodId:next.id,expectedAssignmentRevision:next.assignmentRevision});
       this.port.audit('Block recovered', '', 'to assign', Number(entry.id), id);
       return this.get('time_entry', Number(entry.id));
     });
@@ -183,7 +180,7 @@ export class DemoService {
         date: body.date ?? demoDate, tenths_of_hour: body.tenths_of_hour,
         label: body.label || this.get('task', Number(body.task_id)).label,
         amount_cents: 0, rate_origin: this.port.rate(Number(body.matter_id)).origin,
-        billable: true, reason: null, review_status: 'approved', billing_status: 'to_bill', invoice_id: null,
+        billable: true, reason: null, review_status: 'to_review', billing_status: 'to_bill', invoice_id: null,
       });
       const date = String(entry.date);
       const sessionId = `demo-${date}`;
@@ -200,7 +197,7 @@ export class DemoService {
         id: String(entry.id), sessionId, caseId: String(entry.matter_id), initialCaseId: String(entry.matter_id),
         initialOrigin: 'lawyer', startedAt, endedAt, detectedDurationMs: null,
         durationOverrideMs: durationMs, assignmentOrigin: 'lawyer', assignmentRevision: 0,
-        effectiveRevision: 0, validatedEffectiveRevision: 0, timeValidatedAt: now,
+        effectiveRevision: 0, validatedEffectiveRevision: null, timeValidatedAt: null,
         billingStatus: 'unbilled', billedAt: null, revision: 0, appliedHourlyRateCents: null,
         appliedCurrency: null, taskTypeId: Number(entry.task_id), label: String(entry.label),
         billable: true, nonbillableReason: null, excluded: false, invoiceId: null,

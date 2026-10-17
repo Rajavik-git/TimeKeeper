@@ -35,7 +35,7 @@ export function issueInvoice(port: InvoicePort, snapshot: InvoiceSnapshot, at: s
     if (Object.keys(snapshot.revisions).length !== ids.size) throw new AppError('invalid-request','revision list does not match periods');
     const context=port.getRuleContext(caseId,[...ids]);
     for(const rule of context.rules) {
-      if(rule.type==='nonbillable_travel' && context.periods.some(period=>period.taskCode==='DEPL'))
+      if(rule.type==='nonbillable_travel' && context.periods.some(period=>ids.has(period.id)&&period.taskCode==='DEPL'))
         throw new AppError('conflict','client travel rule excludes a selected period');
       if(rule.type==='daily_research_cap') {
         const byDate=new Map<string,number>();

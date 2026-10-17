@@ -2,6 +2,15 @@ import createClient from "openapi-fetch";
 import type { paths, components } from "../../contracts/generated";
 export const api = createClient<paths>({ baseUrl: "__TAURI_INTERNALS__" in window ? "http://127.0.0.1:8787" : "" });
 export type State = components["schemas"]["State"];
+export type CoreState = {
+  activeSession: components["schemas"]["Session"] | null;
+  sessions: components["schemas"]["Session"][];
+  periods: components["schemas"]["WorkPeriod"][];
+  sources: components["schemas"]["PeriodSource"][];
+  questions: components["schemas"]["PendingQuestion"][];
+  coverageGaps: components["schemas"]["CoverageGap"][];
+  billing: components["schemas"]["BillingState"];
+};
 export type TimeEntry = components["schemas"]["time_entry"];
 export type Matter = components["schemas"]["matter"];
 export type Client = components["schemas"]["client"];
@@ -11,13 +20,14 @@ export type View =
   "desk" | "myDay" | "matters" | "preInvoices" | "source" | "settings";
 export type ScreenProps = {
   s: State;
+  core: CoreState;
   refresh: () => Promise<void>;
   action: <T>(
     promise: Promise<{ data?: T; error?: unknown }>,
   ) => Promise<T | undefined>;
   navigate: (view: View, matterId?: number) => void;
   selectedCase?: number;
-  source: (id: number) => void;
+  source: (id: string) => void;
 };
 export const money = (cts: number) =>
   new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(
@@ -45,10 +55,6 @@ export function label(s: State, id: number | null) {
 export function task(s: State, id: number | null) {
   return s.task.find((t) => t.id === id)?.label ?? "—";
 }
-export function price(s: State, id: number) {
-  return s.pricing[String(id)];
-}
-
 export function originLabel(origin: string): string {
   return (
     (

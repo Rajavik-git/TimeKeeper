@@ -214,13 +214,23 @@ export class TimeKeeperService {
       if (!p || p.sessionId !== input.sessionId) throw new AppError('not-found','target period not found');
       const existing = this.repo.question(input.questionId);
       if (existing) {
-        if (existing.periodId !== input.periodId || existing.expectedAssignmentRevision !== input.expectedAssignmentRevision) throw new AppError('conflict','question ID reused');
+        if (existing.sessionId !== input.sessionId || existing.periodId !== input.periodId || existing.expectedAssignmentRevision !== input.expectedAssignmentRevision) throw new AppError('conflict','question ID reused');
+        if (existing.status==='superseded') {
+          if (p.excluded || !canApplyQuestion(p,input.expectedAssignmentRevision)) throw new AppError('conflict','question target is stale');
+          this.repo.saveQuestion({...existing,status:'pending'});
+        }
         return existing.questionId;
       }
       const sameTarget=this.repo.allQuestions().find(q=>q.sessionId===input.sessionId && q.periodId===input.periodId &&
         q.expectedAssignmentRevision===input.expectedAssignmentRevision);
-      if(sameTarget) return sameTarget.questionId;
-      if (!canApplyQuestion(p,input.expectedAssignmentRevision)) throw new AppError('conflict','question target is stale');
+      if(sameTarget) {
+        if (sameTarget.status==='superseded') {
+          if (p.excluded || !canApplyQuestion(p,input.expectedAssignmentRevision)) throw new AppError('conflict','question target is stale');
+          this.repo.saveQuestion({...sameTarget,status:'pending'});
+        }
+        return sameTarget.questionId;
+      }
+      if (p.excluded || !canApplyQuestion(p,input.expectedAssignmentRevision)) throw new AppError('conflict','question target is stale');
       this.repo.saveQuestion({ ...input,status:'pending',responseCommandId:null,responseResultJson:null });
       return input.questionId;
     });
@@ -289,6 +299,9 @@ export class TimeKeeperService {
       this.repo.savePeriod(next,this.clock.now());
       if (changes.excluded === true) for (const question of this.repo.allQuestions().filter(q=>q.periodId===id && q.status==='pending'))
         this.repo.saveQuestion({...question,status:'superseded'});
+      if (changes.excluded===false && period.excluded && next.caseId===null)
+        this.askQuestion({questionId:`period:${id}:${next.assignmentRevision}`,sessionId:next.sessionId,
+          periodId:id,expectedAssignmentRevision:next.assignmentRevision});
       return view(next);
     });
   }
