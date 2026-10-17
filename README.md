@@ -10,6 +10,10 @@ The interface uses the monochrome Seal identity, a floating top menu, a larger r
 
 Node.js 22.13 or newer is required for development. From the repository root, run `npm ci`, `npm run db:reset`, then `npm run dev` to open the UI at `http://127.0.0.1:5173`. Run `npm test`, `npm run typecheck`, and `npm run build` to verify the package. `npm run contract:gen` refreshes generated API types. The browser smoke test at `tests/acceptance/smoke.py` covers five tabs, the three-level Cases navigation, the pill preview, and page height at 1440×900 and 1280×800 in a local Chromium with Python Playwright installed. Set `CAPTURE_DIR` to save light and dark screenshots. An existing local database retains its data until the demo reset endpoint is invoked.
 
+## Online demo
+
+The [TimeKeeper online demo](https://timekeeper-demo.vercel.app) uses fictional data. It runs the React interface and Node API on Vercel, with SQLite in temporary function storage. Data can reset when a function starts or is replaced; concurrent function instances can show different demo state. Use **Settings → Capture and invoices → Reset demo data** to restore the sample in the current instance. This shareable demo does not record a real screen or connect to Screenpipe. See the [deployment notes](docs/implementation/online-demo.md) for the storage limit.
+
 For Tauri development, run `npm run dev:server` separately, then `npm run desktop:dev`. On Windows, `npm run desktop:build` creates the Node API sidecar, checks its first-run demo database and `/api/state`, and builds an NSIS installer containing the backend. An installed Windows user does not need Node or npm: launching TimeKeeper starts the API, shows the floating pill, and leaves the main window accessible from the tray. See [desktop installation](docs/implementation/desktop.md). Native Windows and macOS acceptance, Screenpipe capture and event delivery, and installed-app behavior remain unverified.
 
 ## MVP behavior and retained demo extensions
