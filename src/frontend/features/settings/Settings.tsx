@@ -234,7 +234,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                     Number(client.vat_applicable),
                   ]).map((client) => (
                     <tr key={client.id}>
-                      <td>{client.name}</td>
+                      <td title={client.name}>{client.name}</td>
                       <td className="muted">
                         {client.type === "company" ? "Company" : "Individual"}
                       </td>
@@ -496,7 +496,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                         }
                       }}
                     >
-                      <td>{task.label}</td>
+                      <td title={task.label}>{task.label}</td>
                       <td>
                         {task.billable_by_default ? (
                           "Yes"
@@ -622,7 +622,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                             ?.name
                         }
                       </td>
-                      <td>
+                      <td title={rule.label}>
                         {rule.label}
                         <button
                           className="rule-delete"
