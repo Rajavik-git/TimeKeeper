@@ -42,7 +42,29 @@ function App() {
       sources:sources.data ?? [],questions:questions.data ?? [],coverageGaps:coverageGaps.data ?? [],billing:billing.data ?? {invoices:[],lines:[],expenses:[]}});
   };
   useEffect(() => {
-    refresh().catch((e) => showToast(String(e)));
+    let stopped = false;
+    const connect = async () => {
+      for (let attempt = 0; attempt < 20 && !stopped; attempt++) {
+        try {
+          await refresh();
+          return;
+        } catch (error) {
+          if (attempt === 19) showToast(String(error));
+          else await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      }
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") refresh().catch((error) => showToast(String(error)));
+    };
+    void connect();
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      stopped = true;
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
   }, []);
   const action = async <T,>(
     promise: Promise<{ data?: T; error?: unknown }>,

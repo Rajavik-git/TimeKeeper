@@ -1,15 +1,39 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
+use std::{
+    fs::OpenOptions,
+    io::Write,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc, Mutex,
+    },
+    time::Duration,
+};
 use tauri::{
     menu::{Menu, MenuItem},
     path::BaseDirectory,
     tray::TrayIconBuilder,
     LogicalSize, Manager, PhysicalPosition,
 };
-use tauri_plugin_shell::{process::CommandChild, ShellExt};
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_shell::{
+    process::{CommandChild, CommandEvent},
+    ShellExt,
+};
+
+#[cfg(windows)]
+mod window_watch;
 
 struct ApiSidecar(Mutex<Option<CommandChild>>);
+struct WatchState {
+    enabled: Arc<AtomicBool>,
+    stop: Arc<AtomicBool>,
+}
+
+#[tauri::command]
+fn set_watch_enabled(state: tauri::State<WatchState>, enabled: bool) {
+    state.enabled.store(enabled, Ordering::Relaxed);
+}
 
 const PILL_WIDTH: u32 = 340;
 const PILL_HEIGHT: u32 = 58;
@@ -59,10 +83,35 @@ fn open_my_day(app: tauri::AppHandle) -> Result<(), String> {
     window.set_focus().map_err(|error| error.to_string())
 }
 
+fn service_error(app: &tauri::AppHandle) {
+    app.dialog()
+        .message("TimeKeeper could not start its local service (port 8787 busy?)")
+        .kind(MessageDialogKind::Error)
+        .title("TimeKeeper")
+        .blocking_show();
+}
+
 fn main() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(main) = app.get_webview_window("main") {
+                if main.is_visible().unwrap_or(false) {
+                    let _ = main.set_focus();
+                    return;
+                }
+            }
+            if let Some(pill) = app.get_webview_window("pill") {
+                let _ = pill.show();
+                let _ = pill.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![set_pill_expanded, open_my_day])
+        .invoke_handler(tauri::generate_handler![
+            set_pill_expanded,
+            open_my_day,
+            set_watch_enabled
+        ])
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -75,6 +124,9 @@ fn main() {
             if !cfg!(debug_assertions) {
                 let data_dir = app.path().app_data_dir()?;
                 std::fs::create_dir_all(&data_dir)?;
+                let log_dir = app.path().app_log_dir()?;
+                std::fs::create_dir_all(&log_dir)?;
+                let log_path = log_dir.join("api.log");
                 let fallback_script = app.path().resolve("api.cjs", BaseDirectory::Resource)?;
                 let (mut events, child) = app
                     .shell()
@@ -82,9 +134,79 @@ fn main() {
                     .arg(fallback_script)
                     .env("TIMEKEEPER_DB", data_dir.join("timekeeper.db"))
                     .env("TIMEKEEPER_PORT", "8787")
-                    .spawn()?;
+                    .env("TIMEKEEPER_PARENT_PID", std::process::id().to_string())
+                    .spawn()
+                    .map_err(|error| {
+                        service_error(&app.handle());
+                        error
+                    })?;
                 app.manage(ApiSidecar(Mutex::new(Some(child))));
-                tauri::async_runtime::spawn(async move { while events.recv().await.is_some() {} });
+                let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+                tauri::async_runtime::spawn(async move {
+                    let mut waiting = true;
+                    while let Some(event) = events.recv().await {
+                        match event {
+                            CommandEvent::Stdout(line) => {
+                                if waiting
+                                    && String::from_utf8_lossy(&line)
+                                        .starts_with("TimeKeeper API: http://127.0.0.1:")
+                                {
+                                    let _ = ready_tx.send(true);
+                                    waiting = false;
+                                }
+                            }
+                            CommandEvent::Stderr(line) => {
+                                if let Ok(mut file) =
+                                    OpenOptions::new().create(true).append(true).open(&log_path)
+                                {
+                                    let _ = writeln!(
+                                        file,
+                                        "stderr: {}",
+                                        String::from_utf8_lossy(&line)
+                                    );
+                                }
+                            }
+                            CommandEvent::Terminated(status) => {
+                                if let Ok(mut file) =
+                                    OpenOptions::new().create(true).append(true).open(&log_path)
+                                {
+                                    let _ = writeln!(
+                                        file,
+                                        "terminated: code={:?} signal={:?}",
+                                        status.code, status.signal
+                                    );
+                                }
+                                if waiting {
+                                    let _ = ready_tx.send(false);
+                                }
+                                break;
+                            }
+                            CommandEvent::Error(error) => {
+                                if let Ok(mut file) =
+                                    OpenOptions::new().create(true).append(true).open(&log_path)
+                                {
+                                    let _ = writeln!(file, "process error: {error}");
+                                }
+                                if waiting {
+                                    let _ = ready_tx.send(false);
+                                }
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                });
+                if ready_rx.recv_timeout(Duration::from_secs(15)) != Ok(true) {
+                    if let Some(state) = app.try_state::<ApiSidecar>() {
+                        if let Ok(mut child) = state.0.lock() {
+                            if let Some(child) = child.take() {
+                                let _ = child.kill();
+                            }
+                        }
+                    }
+                    service_error(&app.handle());
+                    return Err(std::io::Error::other("API sidecar failed to start").into());
+                }
             }
             let pill = app
                 .get_webview_window("pill")
@@ -119,12 +241,26 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
+            let watch = WatchState {
+                enabled: Arc::new(AtomicBool::new(true)),
+                stop: Arc::new(AtomicBool::new(false)),
+            };
+            #[cfg(windows)]
+            window_watch::start(
+                app.handle().clone(),
+                watch.enabled.clone(),
+                watch.stop.clone(),
+            );
+            app.manage(watch);
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("TimeKeeper failed to build");
     app.run(|app, event| {
         if let tauri::RunEvent::Exit = event {
+            if let Some(state) = app.try_state::<WatchState>() {
+                state.stop.store(true, Ordering::Relaxed);
+            }
             if let Some(state) = app.try_state::<ApiSidecar>() {
                 if let Ok(mut child) = state.0.lock() {
                     if let Some(child) = child.take() {
