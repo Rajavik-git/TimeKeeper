@@ -4479,6 +4479,35 @@
           }
         }
       }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "Report that the API is ready",
+        "description": "Used by the launcher and Tauri to wait until TimeKeeper can receive commands.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6534,6 +6563,18 @@
           },
           "conflictId": {
             "type": "string"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "ok"
           }
         }
       }

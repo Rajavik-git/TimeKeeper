@@ -78,6 +78,7 @@ Expected callers: `ui` (React), `workflow` (scoped MCP commands used by Screenpi
 
 | Method and path | Callers | Purpose | Responses declared |
 | --- | --- | --- | --- |
+| `GET /api/health` | launcher, ui | `{"status":"ok"}` once the API can receive requests ([A1](#missing-endpoints-and-rules)). | 200, 500 |
 | `GET /api/sessions` | ui, chat | List sessions. | 200, 500 |
 | `GET /api/sessions/active` | ui, chat, workflow | Active session or `null`. | 200, 500 |
 | `GET /api/sessions/{id}` | ui, chat | One session. | 200, 400, 404, 500 |
@@ -257,7 +258,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 
 | ID | Item | Notes |
 | --- | --- | --- |
-| A1 | `GET /api/health` returning `{"status":"ok"}`. | Lets the launcher and Tauri detect API readiness. Today it exists only on the second server ([E10](#e10-a-second-server-with-its-own-routes)). |
+| A1 | `GET /api/health` returning `{"status":"ok"}`. | **Done.** Lets the launcher and Tauri detect API readiness. When D8 synchronization is built, it must finish before this route answers. |
 | A2 | Revision guard on `validate-time` and `duration-override`: an `expectedEffectiveRevision` field, with `409` on mismatch. | Prevents validating or overriding a period that changed after the lawyer saw it. Periods already expose `effectiveRevision`. |
 | A3 | Bulk validation: `POST /api/work-periods/validate-time` with a list of `{id, expectedEffectiveRevision}`, all or nothing. | Canonical replacement for the demo "approve day" and "approve case" routes. |
 | A4 | Filters on list endpoints: `sessionId`, `caseId`, `from`, `to` on work periods; `periodId` on sources; `status` on questions; `sessionId`, `from`, `to` on coverage gaps. | Lists currently return everything. Chat and day views need ranges. |

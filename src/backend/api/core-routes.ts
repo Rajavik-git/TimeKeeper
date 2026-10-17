@@ -26,6 +26,8 @@ export function coreRoutes(db: DatabaseSync): Hono {
   const service = new TimeKeeperService(new SqliteRepository(db));
   const billing = invoicePort(db);
   // Errors propagate to the application's single handler (src/backend/api/http.ts).
+  // Readiness for the launcher and Tauri (docs/API.md A1). Answering means the API and its database are open.
+  router.get('/health',c=>c.json({status:'ok'}));
   router.get('/sessions/active',c=>c.json(service.activeSession()));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));
