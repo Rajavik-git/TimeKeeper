@@ -18,7 +18,7 @@ function storedClientSort(): ClientSort {
 const recentStorageKey = 'timekeeper-recent-cases';
 function storedRecent(): number[] {
   try {
-    const ids = JSON.parse(localStorage.getItem(recentStorageKey) ?? '[1,5,3]');
+    const ids = JSON.parse(localStorage.getItem(recentStorageKey) ?? '[]');
     return Array.isArray(ids) ? ids.filter((id): id is number => Number.isInteger(id)).slice(0, 3) : [];
   } catch { return []; }
 }
@@ -46,7 +46,7 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   const [markerValue, setMarkerValue] = useState('');
   const [showMarkerForm, setShowMarkerForm] = useState(false);
   const [markerType, setMarkerType] = useState<'case_number'|'opposing_party'|'file'|'email'|'domain'|'keyword'>('keyword');
-  const [tab, setTab] = useState<'time'|'markers'|'history'>('time');
+  const [tab, setTab] = useState<'time'|'markers'>('time');
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchClients, setSearchClients] = useState<Client[]>([]);
@@ -56,7 +56,8 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   const [clientSort, setClientSort] = useState<ClientSort>(storedClientSort);
   const [expandedBillingClients, setExpandedBillingClients] = useState<Set<number>>(() => new Set());
   const [notice, setNotice] = useState<{ message: string; undo?: () => void } | null>(null);
-  const [validating, setValidating] = useState(false);
+  const [validatingIds, setValidatingIds] = useState<string[]>([]);
+  const validating = validatingIds.length > 0;
   const [savingMarker, setSavingMarker] = useState(false);
   const [creatingCase, setCreatingCase] = useState(false);
   const [caseMenuOpen, setCaseMenuOpen] = useState(false);
@@ -105,6 +106,7 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   }, [searchOpen]);
   useEffect(() => {
     if (!caseMenuOpen) return;
+    caseMenuRef.current?.querySelector<HTMLButtonElement>('.case-overflow-menu button')?.focus();
     const outside = (event: PointerEvent) => { if (!caseMenuRef.current?.contains(event.target as Node)) setCaseMenuOpen(false); };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setCaseMenuOpen(false); };
     document.addEventListener('pointerdown', outside);
@@ -133,7 +135,7 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   };
   const validatePeriods = async (ids: string[]) => {
     if (validating || !ids.length) return;
-    setValidating(true);
+    setValidatingIds(ids);
     showNotice(`Validating ${ids.length} period${ids.length === 1 ? '' : 's'}…`);
     let count = 0;
     try {
@@ -146,7 +148,7 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
     } catch {
       showNotice(count ? `${count} of ${ids.length} periods validated` : 'Validation failed. Try again.');
     } finally {
-      setValidating(false);
+      setValidatingIds([]);
     }
   };
   const breadcrumb = currentClient && <nav className="case-breadcrumb" aria-label="Case breadcrumb">
@@ -277,13 +279,17 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
               const pendingIds = metrics.periods.filter(period => !period.timeValidated).map(period => period.id);
               return <div key={item.id}><Icon name="alert" small/><span><span><strong>{client?.name}</strong> · {item.title} <MatterReference value={item.reference}/></span><small>{reasons(item,metrics)}</small>
                 {(metrics.budgetPercent ?? 0) >= 85 && <span className="bar"><span style={{width:`${Math.min(metrics.budgetPercent ?? 0,100)}%`}}/></span>}</span>
-                <span className="case-attention-actions">{pendingIds.length > 0 && <button className="btn sm attn" disabled={validating} onClick={() => void validatePeriods(pendingIds)}>{validating ? 'Validating…' : `Validate ${pendingIds.length}`}</button>}<button className="btn sm" onClick={() => openCase(item)}>Open</button></span></div>;
+                <span className="case-attention-actions">{pendingIds.length > 0 && <button className="btn sm attn" disabled={validating} onClick={() => void validatePeriods(pendingIds)}>{pendingIds.some(id => validatingIds.includes(id)) ? 'Validating…' : `Validate ${pendingIds.length}`}</button>}<button className="btn sm" onClick={() => openCase(item)}>Open</button></span></div>;
             }) : <p className="case-empty">All caught up. <button onClick={() => navigate('myDay')}>Review My day</button></p>}</div>
           </section>
           <section className="card"><div className="card-h"><div className="t"><h2>To bill by client</h2><p>Unbilled work. Click a client to open it.</p></div></div>
             <div className="case-scroll bar-list">{[...clients].sort((a,b) => b.metrics.toBill-a.metrics.toBill).map(({item,metrics}) => {
               const expanded = expandedBillingClients.has(item.id);
-              const cases = metrics.cases.map(matter => ({matter,metrics:caseMetrics(s,core,matter)})).sort((a,b) => b.metrics.toBill-a.metrics.toBill || a.matter.title.localeCompare(b.matter.title,'en-US'));
+              const cases = metrics.cases.map(matter => {
+                const unbilled = matter.mode === 'flat_fee' ? [] : core.periods.filter(period => period.caseId === String(matter.id) && period.billable && !period.excluded && period.billingStatus === 'unbilled');
+                return {matter,metrics:caseMetrics(s,core,matter),unbilledMinutes:summarizeWork(unbilled,core.sources).roundedMinutes};
+              }).sort((a,b) => b.metrics.toBill-a.metrics.toBill || a.matter.title.localeCompare(b.matter.title,'en-US'));
+              const unbilledClientMinutes = cases.reduce((sum,row) => sum + row.unbilledMinutes,0);
               return <div className="bill-client-group" key={item.id}>
                 <div className="bill-client-head">
                   <button type="button" className="bill-expand" aria-label={`${expanded?'Collapse':'Expand'} cases for ${item.name}`} aria-expanded={expanded} aria-controls={`bill-cases-${item.id}`} onClick={() => setExpandedBillingClients(previous => {
@@ -293,13 +299,11 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
                     <strong className="bar-client-name">{item.name}</strong>
                     <span className="bar"><span style={{width:`${metrics.toBill*100/maxToBill}%`}}/></span>
                     <span className={`bar-amount${metrics.toBill === 0 ? ' case-zero' : ''}`}>{metrics.toBill === 0 ? '—' : money(metrics.toBill)}</span>
-                    <span className="bar-time">{formatRoundedMinutes(metrics.hourlyTime)}</span>
+                    <span className="bar-time">{formatRoundedMinutes(unbilledClientMinutes)}</span>
                   </button>
                 </div>
                 <div className="bill-case-list" id={`bill-cases-${item.id}`} role="group" aria-label={`Cases for ${item.name}`} hidden={!expanded}>
-                  {cases.map(({matter,metrics:caseTotals}) => {
-                    const unbilled = matter.mode === 'flat_fee' ? [] : core.periods.filter(period => period.caseId===String(matter.id) && period.billable && !period.excluded && period.billingStatus==='unbilled');
-                    const unbilledMinutes = summarizeWork(unbilled,core.sources).roundedMinutes;
+                  {cases.map(({matter,metrics:caseTotals,unbilledMinutes}) => {
                     return <button type="button" className="bill-case-row" key={matter.id} title={matter.title} onClick={() => openCase(matter)}>
                       <span className="bill-case-name"><strong>{matter.title}</strong><MatterReference value={matter.reference}/></span>
                       <span className="bar"><span style={{width:`${caseTotals.toBill*100/maxToBill}%`}}/></span>
@@ -357,31 +361,27 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
     ];
     const clientNameMarker = visibleValue(currentClient.name) ? {value:currentClient.name,type:'Client name',badge:false} : null;
     const markerCount = builtInMarkers.length + markers.length + (clientNameMarker ? 1 : 0);
-    const exports = s.source_export.filter(item => {
-      try { const ids = JSON.parse(item.time_entry_ids) as unknown; return Array.isArray(ids) && ids.some(id => s.time_entry.some(entry => String(entry.id) === String(id) && entry.matter_id === currentCase.id)); }
-      catch { return false; }
-    }).sort((a,b) => b.created_at.localeCompare(a.created_at));
     body = <>
       {breadcrumb}<div className="ph cases-detail-header"><div className="t"><h1>{currentCase.title} <MatterReference value={currentCase.reference}/></h1><p>{currentClient.name} · {currentCase.category}</p></div><div className="actions"><button className="btn primary" onClick={() => navigate('preInvoices', currentCase.id)}><Icon name="pre" small/>Pre-invoice</button><button className="btn" onClick={() => showNotice('Case editing is not available in this demo.')}><Icon name="edit" small/>Edit case</button><div className="case-overflow" ref={caseMenuRef}><button type="button" className="btn case-overflow-trigger" aria-label="More case actions" aria-expanded={caseMenuOpen} aria-controls="case-overflow-menu" onClick={() => setCaseMenuOpen(open => !open)}><MoreIcon/></button>{caseMenuOpen && <div className="case-overflow-menu" id="case-overflow-menu"><button type="button" onClick={() => {setCaseMenuOpen(false);setPack(true);}}><DownIcon/>Export source pack</button></div>}</div></div></div>
-      {stats([['Time recorded', formatRoundedMinutes(m.time), `${lines.length} periods`], ['To bill', money(m.toBill), 'Before expenses'], ['Not billable', formatRoundedMinutes(m.nonBillable), `Value ${money(Math.round(m.nonBillable * m.rate.rateCents / 60))}`], [currentCase.mode === 'flat_fee' ? 'Flat fee used' : 'Budget used', m.budgetPercent === null ? '—' : percent(m.budgetPercent), m.budget ? `${money(m.spent)} of ${money(m.budget)}` : 'No budget set']])}
+      {stats([['Time recorded', formatRoundedMinutes(m.time), `${lines.length} periods`], ['To bill', currentCase.mode === 'flat_fee' ? 'Flat fee' : money(m.toBill), 'Before expenses'], ['Not billable', formatRoundedMinutes(m.nonBillable), `Value ${money(Math.round(m.nonBillable * m.rate.rateCents / 60))}`], [currentCase.mode === 'flat_fee' ? 'Flat fee used' : 'Budget used', m.budgetPercent === null ? '—' : percent(m.budgetPercent), m.budget ? `${money(m.spent)} of ${money(m.budget)}` : 'No budget set']])}
       <section className="card case-facts-card"><dl className="facts case-facts"><div><dt>Pricing</dt><dd>{currentCase.mode === 'flat_fee' ? `Flat fee ${money(currentCase.flat_fee_cents ?? 0)}` : `${formatRate(m.rate.rateCents)} · ${m.rate.origin === 'matter' ? 'case rate' : m.rate.origin === 'client' ? 'client rate' : 'base rate'}`}</dd></div>
         {visibleValue(currentCase.opposing_party) && <div><dt>Opposing party</dt><dd>{currentCase.opposing_party}</dd></div>}{visibleValue(currentCase.case_number) && <div><dt>Case number</dt><dd>{currentCase.case_number}</dd></div>}
         <div><dt>Opened</dt><dd>{shortDate(currentCase.opened_on)} {currentCase.opened_on.slice(0,4)}</dd></div></dl>
         {m.budgetPercent !== null && <div className={`card-b budget${m.budgetPercent >= 100 ? ' case-budget-danger' : m.budgetPercent >= 85 ? ' case-budget-warn' : ''}`}><div className="row between"><span>{currentCase.mode === 'flat_fee' ? 'Flat fee used' : 'Budget used'}</span><span>{money(m.spent)} <span className="case-budget-muted">of {money(m.budget ?? 0)}</span> · {percent(m.budgetPercent)}</span></div><div className="bar"><span style={{width:`${Math.min(m.budgetPercent,100)}%`}}/></div>{m.budgetPercent >= 85 && <span className="flag"><Icon name="alert" small/>Above 85%. Let the client know.</span>}</div>}
       </section>
       <section className="card cases-fill case-detail-list"><div className="toolbar"><div className="tabs" role="tablist" aria-label="Case sections"><button role="tab" aria-selected={tab === 'time'} onClick={() => setTab('time')}>Time ({lines.length})</button><button role="tab" aria-selected={tab === 'markers'} onClick={() => setTab('markers')}>Markers ({markerCount})</button></div>
-        <div className="case-toolbar-actions">{tab === 'time' && m.pending > 0 && <button className="btn sm attn" disabled={validating} onClick={() => void validatePeriods(m.periods.filter(period => !period.timeValidated).map(period => period.id))}>{validating ? 'Validating…' : `Validate all (${m.pending})`}</button>}{tab === 'markers' && <button className="btn sm" onClick={() => setShowMarkerForm(value => !value)}><Icon name="plus" small/>Add marker</button>}</div></div>
+        <div className="case-toolbar-actions">{tab === 'time' && m.pending > 0 && <button className="btn sm attn" disabled={validating} onClick={() => void validatePeriods(m.periods.filter(period => !period.timeValidated).map(period => period.id))}>{validatingIds.length === m.pending ? 'Validating…' : `Validate all (${m.pending})`}</button>}{tab === 'markers' && <button className="btn sm" onClick={() => setShowMarkerForm(value => !value)}><Icon name="plus" small/>Add marker</button>}</div></div>
         {tab === 'time' ? <div className="tbl"><table><thead><tr>{sortedHeading('Date',0,true)}{sortedHeading('Work performed',1)}{sortedHeading('Duration',2,true,true)}{sortedHeading('Amount',3,true,true)}{sortedHeading('Status',4)}{sortedHeading('Billing',5)}<th scope="col">Actions</th></tr></thead><tbody>
-          {lines.map(line => <tr key={line.id} className={core.sources.some(record => record.workPeriodId === line.id) ? 'click' : ''} tabIndex={core.sources.some(record => record.workPeriodId === line.id) ? 0 : undefined} aria-label={core.sources.some(record => record.workPeriodId === line.id) ? `View sources for ${line.label}` : undefined} onClick={() => {if(core.sources.some(record => record.workPeriodId === line.id)) source(line.id);}} onKeyDown={event => {if ((event.key === 'Enter' || event.key === ' ') && core.sources.some(record => record.workPeriodId === line.id)) {event.preventDefault();source(line.id);}}}>
+          {lines.map(line => <tr key={line.id} className={core.sources.some(record => record.workPeriodId === line.id) ? 'click' : ''} tabIndex={core.sources.some(record => record.workPeriodId === line.id) ? 0 : undefined} onClick={() => {if(core.sources.some(record => record.workPeriodId === line.id)) source(line.id);}} onKeyDown={event => {if (event.target !== event.currentTarget) return;if ((event.key === 'Enter' || event.key === ' ') && core.sources.some(record => record.workPeriodId === line.id)) {event.preventDefault();source(line.id);}}}>
             <td>{shortDate(line.startedAt)}</td><td className="wrap">{periodLabel(line.label,currentCase.reference)}<span className="sub">{s.task.find(task => task.id === line.taskTypeId)?.label ?? 'Work period'}</span></td>
             <td className="r num">{formatPreciseDuration(effectiveMs(line))}</td><td className="r num">{line.billingStatus === 'billed' ? 'In invoice' : currentCase.mode === 'flat_fee' ? 'Flat fee' : line.billable && effectiveMs(line) !== null ? money(Math.round(effectiveMs(line)! * m.rate.rateCents / 3600000)) : '—'}</td>
             <td>{line.timeValidated ? <span className="st ok"><i/>Validated</span> : <span className="st warn"><i/>To validate</span>}</td><td>{line.billable ? line.billingStatus === 'billed' ? <span className="st billed"><i/>Billed</span> : <span className="st"><i/>Unbilled</span> : <span className="st"><i/>Not billable</span>}</td>
-            <td><span className="case-rowact">{!line.timeValidated && <button className="btn sm attn" disabled={validating} onClick={event => {event.stopPropagation();void validatePeriods([line.id]);}}>{validating ? 'Validating…' : 'Validate'}</button>}</span></td>
-          </tr>)}{!lines.length && <tr><td colSpan={7} className="case-empty">No time recorded yet. <button onClick={() => navigate('myDay')}>Open My day</button></td></tr>}</tbody></table></div> : tab === 'markers' ? <><div className="card-b muted marker-intro">Names, files and words that tell TimeKeeper this work belongs to this case.</div><div className="tbl case-marker-table"><table><thead><tr>{sortedHeading('Marker',0)}{sortedHeading('Type',1)}<th scope="col">Actions</th></tr></thead><tbody>
+            <td><span className="case-rowact">{!line.timeValidated && <button className="btn sm attn" disabled={validating} onClick={event => {event.stopPropagation();void validatePeriods([line.id]);}}>{validatingIds.includes(line.id) ? 'Validating…' : 'Validate'}</button>}</span></td>
+          </tr>)}{!lines.length && <tr><td colSpan={7} className="case-empty">No time recorded yet. <button onClick={() => navigate('myDay')}>Open My day</button></td></tr>}</tbody></table></div> : <><div className="card-b muted marker-intro">Names, files and words that tell TimeKeeper this work belongs to this case.</div><div className="tbl case-marker-table"><table><thead><tr>{sortedHeading('Marker',0)}{sortedHeading('Type',1)}<th scope="col">Actions</th></tr></thead><tbody>
             {builtInMarkers.map(marker => <tr key={`builtin-${marker.type}`}><td>{marker.badge ? <span className="case-ref-badge">{marker.value}</span> : marker.value}</td><td>{marker.type}</td><td/></tr>)}
             {markers.map(marker => <tr key={marker.id}><td title={marker.value}>{marker.value}</td><td>{marker.type === 'opposing_party' ? 'Opposing party' : marker.type.replace(/_/g,' ').replace(/\b\w/g, letter => letter.toUpperCase())}{marker.learned ? ' · learned from you' : ''}</td><td><span className="case-rowact"><button className="btn sm" disabled={savingMarker} aria-label={`Remove ${marker.value}`} onClick={async () => {setSavingMarker(true); showNotice('Removing marker…'); try {const response = await api.DELETE('/api/markers/{id}', {params:{path:{id:marker.id}}}); if (response.error) showNotice('Could not remove marker.'); else {await refresh();showNotice('Marker removed');}} catch {showNotice('Could not remove marker.');} finally {setSavingMarker(false);}}}>Remove</button></span></td></tr>)}
             {!markerCount && <tr><td colSpan={3} className="case-empty">No markers yet. <button onClick={() => setShowMarkerForm(true)}>Add a marker</button></td></tr>}
-          </tbody></table></div>{showMarkerForm && <div className="card-b row"><select className="field" aria-label="Marker type" value={markerType} onChange={event => setMarkerType(event.target.value as typeof markerType)}>{(['case_number','opposing_party','file','email','domain','keyword'] as const).map(type => <option key={type} value={type}>{type}</option>)}</select><input className="field grow" aria-label="New marker" placeholder="Name, file, keyword…" value={markerValue} onChange={event => setMarkerValue(event.target.value)}/><button className="btn sm" disabled={savingMarker || !markerValue.trim()} onClick={async () => {if(markerValue.trim()) {setSavingMarker(true);showNotice('Adding marker…');try {const response = await api.POST('/api/markers',{body:{matter_id:currentCase.id,type:markerType,value:markerValue.trim()}});if(response.error) showNotice('Could not add marker.');else {await refresh();setMarkerValue('');setShowMarkerForm(false);showNotice('Marker added');}} catch {showNotice('Could not add marker.');} finally {setSavingMarker(false);}}}}>{savingMarker ? 'Adding…' : 'Add marker'}</button></div>}</> : <div className="case-scroll card-b">{exports.length ? exports.map(item => <p key={item.id}>Source pack created {shortDate(item.created_at)} · SHA-256 {item.sha256}</p>) : <p className="case-empty">No source packs yet. <button onClick={() => setPack(true)}>Export source pack</button></p>}</div>}
+          </tbody></table></div>{showMarkerForm && <div className="card-b row"><select className="field" aria-label="Marker type" value={markerType} onChange={event => setMarkerType(event.target.value as typeof markerType)}>{(['case_number','opposing_party','file','email','domain','keyword'] as const).map(type => <option key={type} value={type}>{type}</option>)}</select><input className="field grow" aria-label="New marker" placeholder="Name, file, keyword…" value={markerValue} onChange={event => setMarkerValue(event.target.value)}/><button className="btn sm" disabled={savingMarker || !markerValue.trim()} onClick={async () => {if(markerValue.trim()) {setSavingMarker(true);showNotice('Adding marker…');try {const response = await api.POST('/api/markers',{body:{matter_id:currentCase.id,type:markerType,value:markerValue.trim()}});if(response.error) showNotice('Could not add marker.');else {await refresh();setMarkerValue('');setShowMarkerForm(false);showNotice('Marker added');}} catch {showNotice('Could not add marker.');} finally {setSavingMarker(false);}}}}>{savingMarker ? 'Adding…' : 'Add marker'}</button></div>}</>}
       </section>
     </>;
   }

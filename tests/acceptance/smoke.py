@@ -102,6 +102,7 @@ with sync_playwright() as p:
     page.get_by_role('navigation', name='Case breadcrumb').get_by_role('button', name='Cases').click()
     page.locator('.bill-client-group').first.locator('.bill-expand').click()
     page.locator('.bill-client-group').first.locator('.bill-case-row').first.click()
+    page.get_by_role('button', name='More case actions').click()
     assert page.get_by_role('button', name='Export source pack').is_visible()
     page.get_by_role('navigation', name='Case breadcrumb').get_by_role('button', name='Cases').click()
     page.get_by_role('searchbox', name='Search a client or a case').fill('Dawson')
