@@ -57,8 +57,6 @@ export function createApp(db: DatabaseSync) {
   app.post('/api/matters', async c => c.json(demo.createCase(await readJson<Record<string, unknown>>(c))));
   app.post('/api/markers', async c => c.json(demo.addMarker(await readJson<Record<string, unknown>>(c))));
   app.delete('/api/markers/:id', c => c.json(demo.removeMarker(id(c.req.param('id')))));
-  app.post('/api/expenses', async c => c.json(demo.addExpense(await readJson<Record<string, unknown>>(c))));
-  app.delete('/api/expenses/:id', c => c.json(demo.removeExpense(id(c.req.param('id')))));
   app.post('/api/invoices', async c =>
     c.json(issueInvoice(invoice, await readJson<InvoiceSnapshot>(c), new Date().toISOString())));
   app.get('/api/invoices/:id/csv', c => c.json(demo.invoiceCsv(id(c.req.param('id')))));

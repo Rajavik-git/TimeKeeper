@@ -47,6 +47,4 @@ export interface DemoPort {
   insertCanonicalPeriod(period: PeriodRecord, at: string): void;
   pendingQuestions(periodId: string): QuestionRecord[];
   saveQuestion(question: QuestionRecord): void;
-  insertCanonicalExpense(expense: DemoRow): void;
-  removeCanonicalExpense(expense: DemoRow): void;
 }

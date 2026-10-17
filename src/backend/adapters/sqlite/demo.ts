@@ -4,7 +4,6 @@ import { all, audit, insert, one, rate, reset, state, transaction, update } from
 import { recognizeBlock } from './recognition.js';
 import { syncDemoCatalog } from './catalog.js';
 import { SqliteRepository } from './core-repository.js';
-import { AppError } from '../../ports/errors.js';
 
 type RawRow = Record<string, string | number | null>;
 
@@ -60,19 +59,5 @@ export function demoPort(db: DatabaseSync): DemoPort {
     pendingQuestions: periodId => canonical.allQuestions().filter(question =>
       question.periodId === periodId && question.status === 'pending'),
     saveQuestion: question => canonical.saveQuestion(question),
-    insertCanonicalExpense: expense => {
-      db.prepare(`INSERT INTO expenses(id,case_id,date,label,type,amount_cents,invoice_id)
-        VALUES (?,?,?,?,?,?,NULL)`).run(Number(expense.id), String(expense.matter_id),
-        String(expense.date), String(expense.label), String(expense.type), Number(expense.amount_cents));
-    },
-    removeCanonicalExpense: expense => {
-      const canonicalExpense = db.prepare('SELECT * FROM expenses WHERE id=?').get(Number(expense.id)) as RawRow | undefined;
-      if (!canonicalExpense || String(canonicalExpense.case_id) !== String(expense.matter_id) ||
-          canonicalExpense.date !== expense.date || canonicalExpense.label !== expense.label ||
-          canonicalExpense.type !== expense.type || canonicalExpense.amount_cents !== expense.amount_cents)
-        throw new AppError('conflict', 'Canonical expense does not match');
-      if (canonicalExpense.invoice_id !== null) throw new AppError('conflict', 'Expense already billed');
-      db.prepare('DELETE FROM expenses WHERE id=?').run(Number(expense.id));
-    },
   };
 }

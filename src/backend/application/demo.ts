@@ -279,30 +279,6 @@ export class DemoService {
     });
   }
 
-  addExpense(body: Record<string, unknown>) {
-    return this.port.transaction(() => {
-      const item = this.port.insert('expense', {
-        matter_id: body.matter_id, date: body.date ?? demoDate,
-        label: required(body.label, 'Label'), type: body.type,
-        amount_cents: body.amount_cents, invoice_id: null,
-      });
-      this.port.insertCanonicalExpense(item);
-      this.port.audit('Expense added', '', JSON.stringify(item));
-      return item;
-    });
-  }
-
-  removeExpense(id: number) {
-    return this.port.transaction(() => {
-      const item = this.get('expense', id);
-      if (item.invoice_id) throw new AppError('conflict', 'Expense already billed');
-      this.port.removeCanonicalExpense(item);
-      this.port.delete('expense', id);
-      this.port.audit('Expense removed', JSON.stringify(item));
-      return { deleted: true };
-    });
-  }
-
   invoiceCsv(id: number) {
     const invoice = this.port.invoiceExport(id);
     if (!invoice) throw new AppError('not-found', 'Not found');

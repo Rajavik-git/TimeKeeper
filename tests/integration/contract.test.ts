@@ -50,16 +50,6 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
     body: { matter_id: 1, type: "keyword", value: "new term" },
   },
   "DELETE /api/markers/{id}": { path: "/api/markers/1" },
-  "POST /api/expenses": {
-    body: {
-      matter_id: 1,
-      date: "2026-10-16",
-      label: "Filing",
-      type: "expense",
-      amount_cents: 1000,
-    },
-  },
-  "DELETE /api/expenses/{id}": { path: "/api/expenses/1" },
   "POST /api/invoices": { body: {
     caseId:2,type:'final',periodIds:['7','8'],revisions:{'7':0,'8':0},billedMinutes:66,
     rateCents:30000,rateOrigin:'client',feesCents:33000,subtotalCents:33000,

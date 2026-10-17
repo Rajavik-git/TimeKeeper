@@ -163,7 +163,6 @@ Canonical reads ([A13](#why-a12-and-a13-were-added)). String IDs, camelCase fiel
 | `POST /api/blocks/{id}/recover` | Restore an excluded block. |
 | `POST /api/blocks/{id}/close` | Close a block. |
 | `POST /api/day/approve`, `POST /api/matters/{id}/approve` | Approve a day or a case. |
-| `POST /api/expenses`, `DELETE /api/expenses/{id}` | Demo expense routes ([E9](#e9-two-routes-for-expenses)). |
 | `GET /api/sources/{id}`, `POST /api/sources/{id}/export` | Demo source detail and source pack export. |
 | `POST /api/pauses`, `PATCH /api/pauses/{id}` | Pauses. Not in the requirements. |
 
@@ -240,6 +239,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E9. Two routes for expenses
 
 - **Severity:** Low.
+- **Status:** Fixed on `mprifti42tech/api`. The interface only called `/api/billing/expenses`, so the demo `/api/expenses` routes were removed, with their now-unused demo service methods (`addExpense`, `removeExpense`) and port helpers. Expenses added through the billing route are not written to the demo `expense` table or the audit log; the interface already used that route.
 - **Where:** `app.ts:53-54` (`/api/expenses`, through the demo service) and `core-routes.ts:44-50` (`/api/billing/expenses`, through the invoice service).
 - **What goes wrong:** two write paths for the same data can diverge in validation and behavior.
 - **Suggested fix:** keep one route and one service, and point the interface at it.
@@ -325,7 +325,7 @@ These are naming and style changes, not defects. They can wait until the demo ro
 | C5 | `PATCH /api/work-periods/{id}/details` | `PATCH /api/work-periods/{id}` | Plain field edits on the resource itself. |
 | C6 | `POST /api/questions/answer` | `POST /api/questions/{questionId}/answer` | The target question appears in the path like other actions. |
 | C7 | `GET /api/invoices/{id}/csv` returning JSON `{csv}` | Return `text/csv` with a download file name. | Browsers and tools can save it directly. |
-| C8 | `/api/billing/expenses` | `/api/expenses`, after [E9](#e9-two-routes-for-expenses) leaves one route. | Shorter, matches other collections. |
+| C8 | `/api/billing/expenses` | `/api/expenses`, now that [E9](#e9-two-routes-for-expenses) left one route. | Shorter, matches other collections. |
 | C9 | Integer IDs for mockup records | Opaque string IDs everywhere. Invoice numbers stay separate from IDs. | One ID convention. |
 | C10 | `GET /api/state` | Remove once screens use resource reads. | One large response couples every screen to every table. |
 

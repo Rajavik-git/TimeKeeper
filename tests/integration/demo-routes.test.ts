@@ -199,8 +199,9 @@ it('aligns legacy duration, manual time and expenses with canonical records', as
     };
     expect(period).toEqual({ case_id: '1', duration_override_ms: 3600000, time_validation_status: 'unvalidated' });
 
-    const added = await app.request('/api/expenses', {
-      method: 'POST', ...json({ matter_id: 1, date: '2026-10-16', label: 'Demo filing', type: 'expense', amount_cents: 1234 }),
+    // Expenses use the billing route the interface calls (the demo /api/expenses route was removed, docs/API.md E9).
+    const added = await app.request('/api/billing/expenses', {
+      method: 'POST', ...json({ caseId: '1', date: '2026-10-16', label: 'Demo filing', type: 'expense', amountCents: 1234 }),
     });
     expect(added.status).toBe(200);
     const expense = await added.json() as { id: number };
@@ -208,7 +209,7 @@ it('aligns legacy duration, manual time and expenses with canonical records', as
       case_id: string; amount_cents: number;
     };
     expect(canonical).toEqual({ case_id: '1', amount_cents: 1234 });
-    expect((await app.request(`/api/expenses/${expense.id}`, { method: 'DELETE' })).status).toBe(200);
+    expect((await app.request(`/api/billing/expenses/${expense.id}`, { method: 'DELETE' })).status).toBe(200);
     expect(db.prepare('SELECT id FROM expenses WHERE id=?').get(expense.id)).toBeUndefined();
   } finally { db.close(); }
 });
