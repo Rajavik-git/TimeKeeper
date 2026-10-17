@@ -5,6 +5,13 @@ import './Desktop.css';
 type DemoFile = (typeof documents)[number];
 type WindowType = 'explorer' | 'file' | 'timekeeper';
 type DesktopWindow = { id: string; type: WindowType; file?: DemoFile; x: number; y: number; z: number; minimized: boolean };
+type PillPoint = {x:number;y:number};
+const pillPositionKey='timekeeper:emulator-pill-position';
+function storedPillPoint():PillPoint|null {
+  try {const point=JSON.parse(localStorage.getItem(pillPositionKey)??'null');
+    return point&&Number.isFinite(point.x)&&Number.isFinite(point.y)?point:null;
+  }catch{return null;}
+}
 const folders = [
   '2025-031 Dawson v Martin', '2026-004 Divorce - Bennett',
   '2026-009 Commercial lease - Dawson', '2026-012 Bylaws - Lumen Inc',
@@ -47,7 +54,10 @@ export function Desktop() {
   const zCounter = useRef(2);
   const [startOpen,setStartOpen] = useState(false);
   const [pillHeight,setPillHeight] = useState(38);
+  const [pillPoint,setPillPoint] = useState<PillPoint|null>(storedPillPoint);
+  const desktop = useRef<HTMLElement>(null);
   const pill = useRef<HTMLIFrameElement>(null);
+  const pillDrag = useRef<{screenX:number;screenY:number;point:PillPoint}|null>(null);
   const lastFileFocus = useRef('');
   const drag = useRef<{id:string;startX:number;startY:number;originX:number;originY:number}|null>(null);
   const nextZ = () => { const z=++zCounter.current;setMaxZ(z);return z; };
@@ -97,15 +107,54 @@ export function Desktop() {
     const y=Math.max(0,Math.min(desktop.clientHeight-frame.offsetHeight-53,value.originY+(event.clientY-value.startY)/zoom));
     setWindows(items=>items.map(item=>item.id===value.id?{...item,x,y}:item));
   };
+  const dimensions=()=>({width:desktop.current?.clientWidth??1280,height:(desktop.current?.clientHeight??800)-53});
+  const clampPill=(point:PillPoint):PillPoint=>{
+    const {width,height}=dimensions();
+    let y=Math.max(0,Math.min(height-38,point.y));
+    const belowMax=height-pillHeight,aboveMin=pillHeight-38;
+    if(y>belowMax&&y<aboveMin)y=y-belowMax<aboveMin-y?Math.max(0,belowMax):Math.min(height-38,aboveMin);
+    return {x:Math.max(0,Math.min(width-380,point.x)),y};
+  };
+  const currentPillPoint=():PillPoint=>{
+    if(pillPoint)return pillPoint;
+    return {x:((desktop.current?.clientWidth??1280)-380)/2,y:0};
+  };
+  const placePill=(point:PillPoint,save=true)=>{
+    const next=clampPill(point);setPillPoint(next);
+    if(save)localStorage.setItem(pillPositionKey,JSON.stringify(next));
+  };
+  const movePill=(screenX:number,screenY:number)=>{
+    const started=pillDrag.current,screen=desktop.current;
+    if(!started||!screen)return;
+    const zoom=screen.getBoundingClientRect().width/screen.clientWidth;
+    placePill({x:started.point.x+(screenX-started.screenX)/zoom,
+      y:started.point.y+(screenY-started.screenY)/zoom});
+  };
   useEffect(()=>{
     const onMessage=(event:MessageEvent)=>{
       if(event.origin!==window.location.origin||event.source!==pill.current?.contentWindow)return;
       if(event.data?.type==='timekeeper:open-app')openTimeKeeper();
       if(event.data?.type==='timekeeper:pill-height'&&Number.isFinite(event.data.height)&&event.data.height>=38&&event.data.height<=900)
         setPillHeight(Math.ceil(event.data.height));
+      if(event.data?.type==='timekeeper:pill-drag-start'&&Number.isFinite(event.data.screenX)&&Number.isFinite(event.data.screenY))
+        pillDrag.current={screenX:event.data.screenX,screenY:event.data.screenY,point:currentPillPoint()};
+      if(event.data?.type==='timekeeper:pill-drag-move')movePill(event.data.screenX,event.data.screenY);
+      if(event.data?.type==='timekeeper:pill-drag-end'){
+        movePill(event.data.screenX,event.data.screenY);pillDrag.current=null;
+      }
+      if(event.data?.type==='timekeeper:pill-nudge'){
+        if(event.data.reset){pillDrag.current=null;localStorage.removeItem(pillPositionKey);setPillPoint(null);}
+        else if(Number.isFinite(event.data.dx)&&Number.isFinite(event.data.dy)){
+          const point=currentPillPoint();placePill({x:point.x+event.data.dx,y:point.y+event.data.dy});
+        }
+      }
     };
+    const onPointerMove=(event:globalThis.PointerEvent)=>movePill(event.screenX,event.screenY);
+    const onPointerUp=(event:globalThis.PointerEvent)=>{movePill(event.screenX,event.screenY);pillDrag.current=null;};
     window.addEventListener('message',onMessage);
-    return()=>window.removeEventListener('message',onMessage);
+    window.addEventListener('pointermove',onPointerMove);
+    window.addEventListener('pointerup',onPointerUp);
+    return()=>{window.removeEventListener('message',onMessage);window.removeEventListener('pointermove',onPointerMove);window.removeEventListener('pointerup',onPointerUp);};
   });
   useEffect(()=>{
     const syncTheme=()=>pill.current?.contentWindow?.postMessage({type:'timekeeper:theme',theme:document.documentElement.dataset.theme??'auto'},window.location.origin);
@@ -114,9 +163,14 @@ export function Desktop() {
     syncTheme();
     return()=>observer.disconnect();
   },[]);
+  const placed=pillPoint?clampPill(pillPoint):null;
+  const screenBottom=dimensions().height;
+  const pillAbove=!!placed&&pillHeight>38&&placed.y+pillHeight>screenBottom&&placed.y>=pillHeight-38;
+  const frameTop=placed?(pillAbove?placed.y-(pillHeight-38):placed.y):0;
+  useEffect(()=>{pill.current?.contentWindow?.postMessage({type:'timekeeper:pill-placement',above:pillAbove},window.location.origin);},[pillAbove,pillHeight]);
   const displayed = windows.filter(item=>!item.minimized);
   const sorted = [...windows].sort((a,b)=>a.z-b.z);
-  return <section className="em-desktop" aria-label="Windows desktop emulator">
+  return <section ref={desktop} className="em-desktop" aria-label="Windows desktop emulator">
     <div className="em-wallpaper" aria-hidden="true"><span className="em-ribbon one"/><span className="em-ribbon two"/><span className="em-ribbon three"/></div>
     <div className="em-icons">
       <button className="em-desktop-icon" onClick={()=>{openExplorer();setStartOpen(false)}}><FolderIcon/><span>Cases</span></button>
@@ -141,7 +195,10 @@ export function Desktop() {
       {item.type==='file'&&item.file&&<div className={`em-document-app ${item.file.type}`}><div className="em-document-toolbar"><span>{item.file.type==='docx'?'Home　 Insert　 Layout　 Review　 View':item.file.type==='pdf'?'All tools　 Edit　 Convert　 Sign':'Home　 Send / Receive　 View'}</span><span>{item.file.type==='pdf'?'100%　▾':'Saved locally'}</span></div><div className="em-document-scroll"><DocumentPage file={item.file}/></div><div className="em-document-status">{item.file.type==='eml'?'Message': 'Page 1 of 1'} <span>{item.file.type==='docx'?'English (United States)':item.file.type==='pdf'?'100%':'Fictional demo message'}</span></div></div>}
       {item.type==='timekeeper'&&<iframe className="em-app-frame" title="TimeKeeper inside the desktop" src="/?embedded=1"/>}
     </section>)}
-    <iframe ref={pill} className="em-pill-frame" style={{height:pillHeight}} onLoad={()=>pill.current?.contentWindow?.postMessage({type:'timekeeper:theme',theme:document.documentElement.dataset.theme??'auto'},window.location.origin)} title="TimeKeeper desk pill" src="/pill.html?emulator=1"/>
+    <iframe ref={pill} className="em-pill-frame" style={{height:pillHeight,...(placed?{left:placed.x,top:frameTop,transform:'none'}:{})}} onLoad={()=>{
+      pill.current?.contentWindow?.postMessage({type:'timekeeper:theme',theme:document.documentElement.dataset.theme??'auto'},window.location.origin);
+      pill.current?.contentWindow?.postMessage({type:'timekeeper:pill-placement',above:pillAbove},window.location.origin);
+    }} title="TimeKeeper desk pill" src="/pill.html?emulator=1"/>
     {startOpen&&<div className="em-start-menu"><strong>Good morning, Claire</strong><button onClick={()=>{openExplorer();setStartOpen(false)}}><FolderIcon small/> File Explorer</button><button onClick={()=>{openTimeKeeper();setStartOpen(false)}}><span className="em-app-icon small">T</span> TimeKeeper</button></div>}
     <footer className="em-taskbar"><button title="Start" aria-label="Start menu" onClick={()=>setStartOpen(!startOpen)}><WinMark/></button><button title="File Explorer" aria-label="File Explorer" onClick={()=>openExplorer()}><FolderIcon small/></button><button title="Word" aria-label="Word" onClick={()=>{const file=sorted.filter(value=>value.file?.type==='docx').at(-1)?.file??documents.find(value=>value.name===demoSteps[0][1]);if(file)openFile(file)}}><span className="em-file-icon docx small">W</span></button><button title="Acrobat" aria-label="Acrobat" onClick={()=>{const file=sorted.filter(value=>value.file?.type==='pdf').at(-1)?.file??documents.find(value=>value.type==='pdf');if(file)openFile(file)}}><span className="em-file-icon pdf small">PDF</span></button><button title="Outlook" aria-label="Outlook" onClick={()=>{const file=sorted.filter(value=>value.file?.type==='eml').at(-1)?.file??documents.find(value=>value.type==='eml');if(file)openFile(file)}}><span className="em-file-icon eml small">✉</span></button>
       <div className="em-task-open">{sorted.map(item=><button key={item.id} className={item.minimized?'minimized':''} title={item.type==='file'?item.file?.name:item.type} onClick={()=>item.minimized?focus(item):minimize(item.id)}>{item.type==='explorer'?<FolderIcon small/>:item.type==='file'?<FileIcon file={item.file!} small/>:<span className="em-app-icon small">T</span>}</button>)}</div>
