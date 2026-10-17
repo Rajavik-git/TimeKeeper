@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { api, shortDate, type ScreenProps, type State } from "../../api/client";
-import { SourcePackDialog } from "../../shared/components/SourcePackDialog";
+import { ActivitySourcePackDialog } from "./ActivitySourcePackDialog";
 import { effectiveMs, formatPreciseDuration } from "../../calculations/billing";
 import "./Activity.css";
 
@@ -150,7 +150,10 @@ export function Source({ s, core, selected, action }: Props) {
             disabled={!matter}
             onClick={() => setPack(true)}
           >
-            ↓&nbsp; Export source pack
+            <svg className="i sm" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 4v12M6 10l6 6 6-6M4 20h16" />
+            </svg>
+            Export source pack
           </button>
         </div>
       </div>
@@ -202,7 +205,7 @@ export function Source({ s, core, selected, action }: Props) {
               ))}
             </div>
             {byDate.map(([date, rows]) => (
-              <>
+              <Fragment key={date}>
                 <span className="activity-date" key={`${date}-date`}>
                   {shortDate(date)}
                 </span>
@@ -294,7 +297,7 @@ export function Source({ s, core, selected, action }: Props) {
                     );
                   })}
                 </div>
-              </>
+              </Fragment>
             ))}
           </div>
         </div>
@@ -325,7 +328,8 @@ export function Source({ s, core, selected, action }: Props) {
             </div>
             <div className="activity-summary">
               <span className={status === "Validated" ? "ok" : "pending"}>
-                ●&nbsp; {status}
+                <i aria-hidden="true" />
+                {status}
               </span>
               <b>
                 {time}
@@ -367,8 +371,8 @@ export function Source({ s, core, selected, action }: Props) {
                         {block?.app}
                       </span>
                       <div className="activity-source-actions">
-                        <span>
-                          ●&nbsp;{" "}
+                        <span className="activity-source-status">
+                          <i aria-hidden="true" />
                           {item.available
                             ? "Available"
                             : "Unavailable in screenpipe"}
@@ -379,12 +383,15 @@ export function Source({ s, core, selected, action }: Props) {
                             checked={
                               canonical?.validationStatus === "validated"
                             }
-                            disabled={
-                              !canonical ||
-                              canonical.validationStatus === "validated"
+                            disabled={!canonical}
+                            aria-disabled={
+                              canonical?.validationStatus === "validated"
                             }
                             onChange={() => {
-                              if (canonical)
+                              if (
+                                canonical &&
+                                canonical.validationStatus !== "validated"
+                              )
                                 void action(
                                   api.POST(
                                     "/api/sources/{instanceId}/{contentType}/{externalId}/validate",
@@ -454,8 +461,9 @@ export function Source({ s, core, selected, action }: Props) {
         </section>
       </div>
       {pack && matter && (
-        <SourcePackDialog
+        <ActivitySourcePackDialog
           s={s}
+          core={core}
           matterId={matter.id}
           initialPeriodId={selectedEntry.id}
           action={action}

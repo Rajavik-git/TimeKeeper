@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, type ScreenProps } from "../../api/client";
+import { Icon } from "../../shared/components/Icon";
 import "./Settings.css";
 
 type Tab = "clients" | "rates" | "tasks" | "rules" | "prefs" | "pill";
@@ -128,7 +129,14 @@ export function Settings({ s, action, navigate }: ScreenProps) {
   );
   const addButton = (label: string) => (
     <button className="btn sm" onClick={() => setAdd((value) => !value)}>
-      {add ? "Cancel" : `＋ ${label}`}
+      {add ? (
+        "Cancel"
+      ) : (
+        <>
+          <Icon name="plus" small />
+          {label}
+        </>
+      )}
     </button>
   );
   return (
@@ -205,7 +213,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                             )
                           }
                         >
-                          ···
+                          <Icon name="more" small />
                         </button>
                       </td>
                     </tr>
@@ -734,6 +742,21 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   }
                 />
               </div>
+            </section>
+            <section className="settings-card">
+              {cardHead(
+                "Demo data",
+                "Restore the fictional sample data.",
+                <button
+                  className="btn sm"
+                  onClick={async () => {
+                    if (confirm("Reset the demo?"))
+                      await action(api.POST("/api/demo/reset"));
+                  }}
+                >
+                  Reset demo data
+                </button>,
+              )}
             </section>
           </>
         )}
