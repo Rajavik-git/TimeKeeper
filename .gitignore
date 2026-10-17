@@ -23,6 +23,7 @@ build/
 # Tauri and Rust generated output
 /src-tauri/target/
 /src-tauri/gen/schemas/
+/src-tauri/binaries/
 
 # Test output and logs
 coverage/

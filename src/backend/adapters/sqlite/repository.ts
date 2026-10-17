@@ -1,11 +1,21 @@
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 const projectRoot = process.cwd();
 import { refreshDemoRecognition } from "./recognition.js";
 import { seedCanonicalDemo } from "./demo-core.js";
 import type { components } from "../../../contracts/generated.js";
 import { chooseRate } from "../../domain/pricing.js";
+
+// The sidecar bundle substitutes these constants with the SQL files at build time.
+declare const __TIMEKEEPER_SCHEMA_SQL__: string | undefined;
+declare const __TIMEKEEPER_SEED_SQL__: string | undefined;
+const schemaSql = () => typeof __TIMEKEEPER_SCHEMA_SQL__ === "undefined"
+  ? readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/schema.sql"), "utf8")
+  : __TIMEKEEPER_SCHEMA_SQL__;
+const seedSql = () => typeof __TIMEKEEPER_SEED_SQL__ === "undefined"
+  ? readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/seed.sql"), "utf8")
+  : __TIMEKEEPER_SEED_SQL__;
 
 export const tables = [
   "firm",
@@ -44,7 +54,22 @@ const bools = new Set([
 export function openDb(
   path = resolve(projectRoot, process.env.TIMEKEEPER_DB ?? "data/timekeeper.db"),
 ) {
+  mkdirSync(dirname(path), { recursive: true });
+  const firstRun = !existsSync(path);
   const db = new DatabaseSync(path);
+  if (firstRun) {
+    try {
+      db.exec(schemaSql());
+      db.exec(seedSql());
+      refreshDemoRecognition(db);
+      seedCanonicalDemo(db);
+      return db;
+    } catch (error) {
+      db.close();
+      rmSync(path, { force: true });
+      throw error;
+    }
+  }
   const settingColumns=new Set((db.prepare('PRAGMA table_info(setting)').all() as Array<{name:string}>).map(row=>row.name));
   if(settingColumns.size){
     if(!settingColumns.has('pill_always_on_top')) db.exec("ALTER TABLE setting ADD COLUMN pill_always_on_top INTEGER NOT NULL DEFAULT 1 CHECK(pill_always_on_top IN (0,1))");
@@ -56,8 +81,8 @@ export function openDb(
 }
 export function memoryDb() {
   const db = new DatabaseSync(":memory:");
-  db.exec(readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/schema.sql"), "utf8"));
-  db.exec(readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/seed.sql"), "utf8"));
+  db.exec(schemaSql());
+  db.exec(seedSql());
   refreshDemoRecognition(db);
   seedCanonicalDemo(db);
   return db;
@@ -71,7 +96,7 @@ export function reset(db: DatabaseSync) {
     "task_types", "sessions", "cases", "clients", "settings",
   ]) db.exec(`DELETE FROM ${table}`);
   for (const t of [...tables].reverse()) db.exec(`DELETE FROM ${t}`);
-  db.exec(readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/seed.sql"), "utf8"));
+  db.exec(seedSql());
   refreshDemoRecognition(db);
   seedCanonicalDemo(db);
 }
