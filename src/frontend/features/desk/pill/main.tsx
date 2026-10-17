@@ -107,21 +107,24 @@ function Pill() {
   useEffect(()=>{if(tauri&&state)void invoke('set_watch_enabled',{enabled:!paused}).catch(()=>setError('Unable to apply file-switch pause.'));},[!!state,paused,active?.id]);
   useEffect(()=>{
     if(!tauri)return;
-    const content=[...document.querySelectorAll<HTMLElement>('.pill-panel,.pill-notice')];
+    const bar=document.querySelector<HTMLElement>('.pill-bar');
+    const content=[...document.querySelectorAll<HTMLElement>('.pill-panel,.pill-notice,.pill-error')];
     let frame=0;
     const resize=()=>{
       window.cancelAnimationFrame(frame);
       frame=window.requestAnimationFrame(()=>{
-        const contentHeight=Math.max(58,...content.map(element=>Math.ceil(element.offsetTop+element.offsetHeight+8)));
-        void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice),contentHeight})
+        const contentWidth=Math.ceil(Math.max(bar?.offsetWidth??0,...content.map(element=>element.offsetWidth)));
+        const contentHeight=Math.ceil(Math.max(bar?.offsetHeight??0,...content.map(element=>element.offsetTop+element.offsetHeight)));
+        void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice),contentWidth,contentHeight})
           .catch(()=>setError('Unable to resize the pill.'));
       });
     };
     const observer=new ResizeObserver(resize);
+    if(bar)observer.observe(bar);
     content.forEach(element=>observer.observe(element));
     resize();
     return()=>{observer.disconnect();window.cancelAnimationFrame(frame);};
-  },[expanded,notice,recent,showQuestionNotice]);
+  },[expanded,notice,recent,showQuestionNotice,error]);
   const showSwitch=useCallback(async(windowTitle:string,appName:string)=>{
     if(!coreRef.current?.activeSession||!windowTitle.trim()||!appName.trim()||previous.current===appName+':'+windowTitle)return;
     previous.current=appName+':'+windowTitle;

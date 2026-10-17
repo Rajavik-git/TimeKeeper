@@ -19,7 +19,7 @@
         "url": "pill.html",
         "title": "TimeKeeper",
         "width": 340,
-        "height": 58,
+        "height": 38,
         "resizable": false,
         "decorations": false,
         "shadow": false,
