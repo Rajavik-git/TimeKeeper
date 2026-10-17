@@ -34,7 +34,6 @@ export function updateTimeEntry(port: AssignmentPort, id: number, body: Record<s
         }
       }
     }
-    port.reprice();
     const result = port.timeEntry(id);
     if (!result) throw Error("Not found");
     port.audit("Time entry updated", JSON.stringify(before), JSON.stringify(result), id,

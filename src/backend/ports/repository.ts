@@ -1,0 +1,62 @@
+import type { PeriodState } from '../domain/rules.js';
+
+export interface SessionRecord { id: string; startedAt: string; endedAt: string | null; revision: number }
+export interface PeriodRecord extends PeriodState {
+  id: string; sessionId: string; startedAt: string; endedAt: string | null; initialCaseId: string | null; initialOrigin: 'unresolved' | 'automatic' | 'lawyer';
+  billingStatus: 'unbilled' | 'billed'; billedAt: string | null; revision: number;
+  appliedHourlyRateCents?: number | null; appliedCurrency?: string | null;
+  taskTypeId?: number | null; label?: string; billable?: boolean; nonbillableReason?: string | null;
+  excluded?: boolean; demoApp?: string | null; demoWindowTitle?: string | null; demoConfidence?: number | null;
+  invoiceId?: number | null;
+}
+export interface QuestionRecord {
+  questionId: string; sessionId: string; periodId: string;
+  expectedAssignmentRevision: number; status: 'pending' | 'answered' | 'superseded';
+  responseCommandId: string | null; responseResultJson: string | null;
+}
+export interface CommandRecord {
+  producerId: string; commandId: string; kind: 'start' | 'end';
+  payloadFingerprint: string; sessionId: string; status: 'pending' | 'applied' | 'rejected';
+  prerequisiteId: string | null; payloadJson: string; resultJson: string | null;
+}
+export interface SourceRecord {
+  id: string; workPeriodId: string | null; instanceId: string; contentType: string;
+  externalId: string; recordedAt: string; ingestedAt: string;
+  validationStatus: 'unvalidated' | 'validated'; validatedAt: string | null; availabilityStatus: 'unknown' | 'available' | 'unavailable'; availabilityCheckedAt: string | null;
+}
+export interface CoverageGap { id:string; sessionId:string; startedAt:string; endedAt:string; status:'pending'|'failed' }
+export interface Repository {
+  transaction<T>(work: () => T): T;
+  activeSession(): SessionRecord | null;
+  listSessions(): SessionRecord[];
+  session(id: string): SessionRecord | null;
+  insertSession(session: SessionRecord, now: string): void;
+  endSession(id: string, endedAt: string, now: string): void;
+  command(producerId: string, commandId: string): CommandRecord | null;
+  saveCommand(command: CommandRecord, now: string): void;
+  pendingDependents(producerId: string, prerequisiteId: string): CommandRecord[];
+  period(id: string): PeriodRecord | null;
+  activePeriod(sessionId: string): PeriodRecord | null;
+  periodAt(sessionId: string, at: string): PeriodRecord | null;
+  nextPeriodAfter(sessionId: string, at: string): PeriodRecord | null;
+  listPeriods(sessionId: string): PeriodRecord[];
+  allPeriods(): PeriodRecord[];
+  insertPeriod(period: PeriodRecord, now: string): void;
+  savePeriod(period: PeriodRecord, now: string): void;
+  caseExists(id: string): boolean;
+  createClient(id: string, name: string, now: string): void;
+  createCase(id: string, clientId: string, reference: string, title: string, hourlyRateCents: number | null, now: string): void;
+  setGlobalRate(rateCents: number, currency: string, workspaceId: string, now: string): void;
+  rateForCase(id: string): { caseRateCents: number | null; clientRateCents?: number | null; globalRateCents: number | null } | null;
+  clientForCase(id: string): string | null;
+  question(id: string): QuestionRecord | null;
+  allQuestions(): QuestionRecord[];
+  saveQuestion(question: QuestionRecord): void;
+  sourceByIdentity(instanceId: string, contentType: string, externalId: string): SourceRecord | null;
+  listSources(periodId: string): SourceRecord[];
+  allSources(): SourceRecord[];
+  coverageGaps(): CoverageGap[];
+  insertSource(source: SourceRecord): void;
+  saveSource(source: SourceRecord): void;
+  insertConflict(id: string, periodId: string, expectedRevision: number, startedAt: string, endedAt: string | null, sourceReferencesJson: string): void;
+}
