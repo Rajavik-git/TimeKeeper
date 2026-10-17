@@ -18,7 +18,7 @@ For Tauri development, run `npm run dev:server` separately, then `npm run deskto
 
 The installed desktop sidecar uses the computer's local calendar date for Today, month comparisons, and new default dates. The fictional September–October 16, 2026 history retains its original dates, including after Reset demo data; older days remain available in the calendar. The web demo and development API continue to use October 16, 2026 as Today.
 
-The Windows shell also provides a filtered active-window change event for document and work apps, plus a separate watcher pause command. The pill window follows the exact width and height of its visible content, without a native border or shadow. Its pill, panel, and notifications use translucent light/dark glass surfaces with inset hairlines, and the page outside those shapes remains transparent. Pausing the watcher does not control Screenpipe recording; see the [desktop implementation](docs/implementation/desktop.md).
+The Windows shell also provides a filtered active-window change event for document and work apps, plus a separate watcher pause command. The pill window follows the exact width and height of its visible content, without a native border or shadow. Its pill, panel, and notifications use translucent light/dark glass surfaces with inset hairlines, and the page outside those shapes remains transparent. The collapsed pill offers one-click Pause/Resume; choosing a case in a pill prompt applies it immediately, closes the prompt, and offers a guarded five-second Undo. Pausing the watcher does not control Screenpipe recording; see the [desktop implementation](docs/implementation/desktop.md).
 
 ## MVP behavior and retained demo extensions
 

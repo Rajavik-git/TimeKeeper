@@ -70,6 +70,8 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
   'GET /api/sessions/active': {},
   'POST /api/recognize': {body:{windowTitle:'2025-031 Opposition Brief v3.docx',appName:'Word'}},
   'POST /api/periods/switch': {body:{caseId:'1',windowTitle:'2025-031 Opposition Brief v3.docx',appName:'Word',at:'2026-10-16T16:43:00Z'}},
+  'POST /api/pill/decision': {body:{kind:'assign',periodId:'13',caseId:'5',expectedAssignmentRevision:0}},
+  'POST /api/pill/undo': {body:{}},
   'GET /api/sessions': {},
   'GET /api/work-periods': {},
   'GET /api/sources': {},
@@ -145,13 +147,19 @@ describe("OpenAPI response contract", () => {
         try {
           const app = createApp(db),
             fixture = cases[key];
+          let body=fixture.body;
+          if(key==='POST /api/pill/undo') {
+            const decision=await app.request('/api/pill/decision',{method:'POST',headers:{'content-type':'application/json'},
+              body:JSON.stringify(cases['POST /api/pill/decision'].body)});
+            body={undoToken:(await decision.json()).undoToken};
+          }
           const response = await app.request(fixture.path ?? path, {
             method: method.toUpperCase(),
             headers: { "content-type": "application/json" },
             body:
-              fixture.body === undefined
+              body === undefined
                 ? undefined
-                : JSON.stringify(fixture.body),
+                : JSON.stringify(body),
           });
           const documentedStatus=operation.responses['200'] ? 200 : 202;
           expect(response.status, await response.clone().text()).toBe(documentedStatus);

@@ -109,6 +109,10 @@ export class SqliteRepository implements Repository {
       p.taskTypeId ?? null,p.label ?? '',p.billable === false ? 0 : 1,p.nonbillableReason ?? null,p.excluded ? 1 : 0,p.demoApp ?? null,p.demoWindowTitle ?? null,p.demoConfidence ?? null,p.invoiceId ?? null,p.id);
     this.syncDemoPeriod(p);
   }
+  deletePeriod(id: string): void {
+    this.db.prepare('DELETE FROM pending_questions WHERE work_period_id=?').run(id);
+    this.db.prepare('DELETE FROM work_periods WHERE id=?').run(id);
+  }
   private syncDemoPeriod(p: PeriodRecord): void {
     // The imported demo tables are compatibility projections of canonical review state.
     if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='time_entry'").get()) return;

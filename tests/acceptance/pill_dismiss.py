@@ -47,22 +47,18 @@ with sync_playwright() as playwright:
     assert prompt.get_by_role('button',name='Confirm').evaluate('(el) => getComputedStyle(el).opacity')=='1'
     assert prompt.get_by_label('Other case').input_value()==''
     assert prompt.get_by_label('Other case').locator('option').first.inner_text()=='Choose a case…'
-    use_case=prompt.get_by_role('button',name='Use case')
-    assert use_case.is_disabled()
+    assert prompt.get_by_role('button',name='Use case').count()==0
     prompt.get_by_label('Other case').select_option('1')
-    assert use_case.is_enabled()
-    bar.click()
     prompt.wait_for(state='hidden')
+    page.get_by_role('button',name='Undo last choice').click()
+    page.get_by_text('Choice undone').wait_for()
     assert len(page.request.get(f'{base}/api/work-periods').json())==before
 
     selector.select_option('2025-031 Opposition Brief v3.docx')
     prompt.wait_for()
     prompt.get_by_role('button',name='Confirm',exact=False).click()
     prompt.wait_for(state='hidden')
-    recent=page.get_by_role('status',name='New work period')
-    recent.wait_for()
-    recent.get_by_role('button',name='Dismiss').click()
-    recent.wait_for(state='hidden')
+    assert page.get_by_role('status',name='New work period').count()==0
     assert page.get_by_role('status').count()==0
     after=page.request.get(f'{base}/api/work-periods').json()
     assert len(after)==before+1
