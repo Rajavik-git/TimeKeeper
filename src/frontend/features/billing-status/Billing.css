@@ -27,7 +27,7 @@
 .page .billing-overview::-webkit-scrollbar { width:6px; }
 .page .billing-scroll-cue { position:sticky;bottom:8px;display:flex;align-items:center;gap:6px;margin:8px 8px 0 auto;padding:5px 10px;border:1px solid var(--line-2);border-radius:var(--r-md);background:var(--surface);color:var(--ink-2);box-shadow:var(--shadow);font-size:var(--fs-xs); }
 .page .billing-scroll-cue:hover { background:var(--hover);border-color:var(--ink-2); }
-.page .billing-cards { flex:none;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));grid-auto-rows:1fr;gap:12px; }
+.page .billing-cards { flex:none;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:1fr;gap:12px; }
 .page .billing-card { padding:12px 16px;gap:10px;min-height:0;transition:border-color .12s,box-shadow .12s; }
 .page .billing-card:hover { border-color:var(--line-2); }
 .page .billing-card-head { gap:0;line-height:1.5;padding-bottom:.75px; }
