@@ -16,4 +16,6 @@ For development, run `npm run dev:server` in one terminal and `npm run desktop:d
 
 The pill polls the local API for the active session, current work period, and pending questions. Its compact state shows the current period's effective duration; the expanded state shows session and period timing, case selection, and unresolved questions. A case change uses the canonical period assignment route or the guarded question-answer route. The pill cannot pause Screenpipe or close a period until those provider workflows are implemented, so those controls are disabled.
 
+On Windows, the desktop shell checks the foreground window every 1.5 seconds and emits `active-window-changed` to the pill when its title or executable name changes. Empty titles and TimeKeeper's own windows are ignored. The `set_watch_enabled` Tauri command pauses or resumes this watcher; it does not pause Screenpipe recording. The watcher is not built on other platforms. The pill's event handling and case-change notification are implemented separately.
+
 Linux verification covers the bundled API and a local SEA serving `/api/state` from a newly seeded temporary database. The Windows workflow checks the Windows sidecar before packaging. Native installer launch, tray behavior, WebView loading, and macOS behavior still require platform acceptance. The current icons are placeholders.

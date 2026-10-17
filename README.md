@@ -12,6 +12,8 @@ Node.js 22.13 or newer is required for development. From the repository root, ru
 
 For Tauri development, run `npm run dev:server` separately, then `npm run desktop:dev`. On Windows, `npm run desktop:build` creates the Node API sidecar, checks its first-run demo database and `/api/state`, and builds an NSIS installer containing the backend. An installed Windows user does not need Node or npm: launching TimeKeeper waits for the local API, shows the floating pill, and leaves the main window accessible from the tray. The app reconnects when the API starts or its window regains focus. See [desktop installation](docs/implementation/desktop.md). Native Windows and macOS acceptance, Screenpipe capture and event delivery, and installed-app behavior remain unverified.
 
+The Windows shell also provides a local active-window change event for the pill and a separate watcher pause command. This does not control Screenpipe recording; see the [desktop implementation](docs/implementation/desktop.md).
+
 ## MVP behavior and retained demo extensions
 
 - Explicit API commands start and end sessions. The active session survives closing the interface, and duplicate commands preserve the original boundaries.
