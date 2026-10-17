@@ -279,7 +279,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A3 | Bulk validation: `POST /api/work-periods/validate-time` with a list of `{id, expectedEffectiveRevision}`, all or nothing. | **Done.** Canonical replacement for the demo "approve day" and "approve case" routes. If one period cannot be validated, none is, and that period's error is returned. **For the interface:** `MyDay.tsx` currently validates one request per period and accepts partial success ("x of y validated"); switching to this route makes the result all or nothing. |
 | A4 | Filters on list endpoints. | **Done.** All optional query parameters; dates are `YYYY-MM-DD` and compare the start day. `GET /api/work-periods`: `date`, `from`, `to`, `clientId`, `caseId`, `sessionId`. `GET /api/sources`: `periodId`. `GET /api/coverage-gaps`: `date`, `from`, `to`, `sessionId`. `GET /api/questions`: `date`, `status` (`pending`, `answered`, `superseded`; other values are `400`), `sessionId`. The `date` filters and the first five work-period filters came from `mvp` (`2747b4b`). |
 | A5 | Writes for clients, cases, and settings. | **Decided (2026-10-17): use the existing routes**; no new write endpoints. Create and edit through `POST /api/clients`, `PATCH /api/client/{id}`, `POST /api/matters`, `PATCH /api/matter/{id}`, `PATCH /api/firm/{id}` (global hourly rate as `base_rate_cents`), and `PATCH /api/setting/{id}`. These go through application services and keep the canonical records that `GET /api/clients`, `/api/cases`, and `/api/settings` return in sync. **Why:** only the lawyer creates clients and cases, through the interface that already uses these routes; the workflow and JEV must never create a case ([requirements](REQUIREMENTS.md#sessions-and-desktop-lifecycle)); and a second set of write routes would duplicate behavior, as [E9](#e9-two-routes-for-expenses) did for expenses. Covered by `tests/integration/catalog-writes.test.ts` and `catalog-sync.test.ts`. Plural and English path names remain later cleanups ([C1, C2](#possible-later-cleanups)). |
-| A6 | Reconstruction conflict endpoints: list and resolve. | **Open.** Conflicts are stored, but the lawyer's resolution action is undefined ([design review](DESIGN_REVIEW.md)). |
+| A6 | Reconstruction conflict endpoints: list and resolve. | **Open, reduced by [D9](#d9-only-past-days-can-be-validated).** Conflicts are stored, but the lawyer's resolution action is undefined ([design review](DESIGN_REVIEW.md)). With D9, today's periods are never validated, so conflicts remain only for periods the lawyer **corrected** during the day, or for rare very late evidence. Two gaps if it is built: the stored conflict does not record the proposed case (only the time), and nothing marks a conflict `resolved`. Proposed minimal version: store the proposed case, `GET /api/reconstruction-conflicts`, and `POST /api/reconstruction-conflicts/{id}/dismiss`; splitting stays out until billed-period editing (README decision 8) is agreed. |
 | A7 | Read-only chat tools use existing read endpoints. | **Decided**, see [D3](#d3-read-only-chat-uses-existing-read-endpoints). Needs the A4 filters. |
 | A8 | No local access control for the hackathon. | **Decided**, see [D1](#d1-no-local-access-token-for-the-hackathon). |
 | A9 | Command delivery while TimeKeeper is closed. | **Decided**, see [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder). Not built yet. |
@@ -502,6 +502,21 @@ The same synchronization may also run on a timer while TimeKeeper is open, so a 
 - In TimeKeeper: an inbox adapter (`src/backend/adapters/inbox/`) behind a port, and a startup worker (`src/backend/workers/`) that runs steps 1 to 4 before readiness ([AGENTS.md](../AGENTS.md) rule 4).
 - In the pipe: the fallback write when the API does not answer.
 - Tests: end written while closed is applied at startup with its original time; duplicate files; end before start; invalid file; crash between apply and move.
+
+### D9. Only past days can be validated
+
+Decided by the team leader on 2026-10-17. This is a business rule: [requirements](REQUIREMENTS.md) must be updated by their author; until then this section records it.
+
+- **Rule:** the lawyer validates the time of a day only after that day is over. Periods of today, and periods still running, cannot be validated. Undoing a validation ([D2](#d2-undo-a-validation-through-the-same-endpoint)) stays allowed.
+- **Details:**
+  1. "Day" is the lawyer's **local** calendar day, from the time zone of the computer running TimeKeeper, not UTC.
+  2. A period belongs to the day it **starts**. A period from 23:30 to 00:30 belongs to the first day and can be validated the next morning.
+  3. A period with no end yet is never validated, even if it started on a past day.
+  4. Enforced by the service for every caller: `POST /api/work-periods/{id}/validate-time` and the bulk `POST /api/work-periods/validate-time` return `409 conflict` with `only past days can be validated` or `a running period cannot be validated`. A bulk request with one such period changes nothing.
+- **Why:** a lawyer reviews a day once it is complete. It also prevents most reconstruction conflicts ([A6](#missing-endpoints-and-rules)): late evidence usually arrives during the day, and the startup synchronization ([D8](#d8-synchronization-at-startup-through-a-local-inbox-folder)) catches up missed recordings before the lawyer can validate the previous day.
+- **Demo:** the demo data is dated 2026-10-16, which is in the past, so demo periods can still be validated.
+- **For the interface:** disable or hide "validate" and "approve day" for today and for running periods, so the lawyer does not hit the `409`.
+- **Tests:** `tests/integration/validation-day.test.ts` (today refused, next day accepted, a period crossing midnight, a running period, bulk, undo). `tests/integration/service.test.ts` now uses a clock on the day after its periods and ends a period before validating it.
 
 ## Open questions
 

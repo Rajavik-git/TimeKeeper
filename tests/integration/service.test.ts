@@ -7,7 +7,8 @@ import { summarize } from '../../src/frontend/calculations/summary.js';
 const repos: SqliteRepository[]=[];
 function fixture() {
   const repo=new SqliteRepository(new DatabaseSync(':memory:')); repos.push(repo);
-  const now='2026-10-17T09:00:00Z';
+  // The day after the fixture periods: only past days can be validated (docs/API.md D9).
+  const now='2026-10-18T09:00:00Z';
   repo.db.prepare('INSERT INTO clients(id,name,created_at,updated_at) VALUES (?,?,?,?)').run('client','Fictional Client',now,now);
   for(const id of ['A','B']) repo.db.prepare('INSERT INTO cases(id,client_id,reference,title,created_at,updated_at) VALUES (?,?,?,?,?,?)').run(id,'client',id,`Fictional ${id}`,now,now);
   return {repo,service:new TimeKeeperService(repo,{now:()=>now})};
@@ -69,6 +70,7 @@ it('rejects stale answers, preserves manual corrections, and protects reviewed s
   const {repo,service}=fixture();service.start(start());
   service.openPeriod({id:'p',sessionId:'s1',caseId:null,startedAt:'2026-10-17T09:00:00Z',origin:'unresolved',mode:'current'});
   service.assignPeriod('p','B',0,'lawyer');
+  service.end(end()); // a running period cannot be validated (D9)
   service.setDurationOverride('p',720000); service.validatePeriod('p');
   expect(()=>service.answerQuestion({questionId:'period:p',sessionId:'s1',periodId:'p',expectedAssignmentRevision:0,caseId:'A',responseCommandId:'late'})).toThrowError(/stale/);
   expect(()=>service.assignPeriod('p','A',1,'automatic')).toThrowError(/manual/);
@@ -88,6 +90,7 @@ it('keeps source review, time review and billing separate; marks missing evidenc
   service.setDurationOverride('p',600000); service.validateSource('fake','ocr','f1');
   expect(service.getPeriod('p').timeValidated).toBe(false);
   expect(()=>service.setBillingStatus('p','billed')).toThrow(/time validation/);
+  service.end(end()); // a running period cannot be validated (D9)
   service.validatePeriod('p');expect(service.getPeriod('p').billingStatus).toBe('unbilled');
   service.setBillingStatus('p','billed');
   service.setSourceAvailability('fake','ocr','f1','unavailable');
@@ -108,6 +111,7 @@ it('accepts late in-bound evidence but excludes post-end evidence',()=>{
 it('invalidates detected-duration changes and preserves identical replay after validation',()=>{
   const {service}=fixture();service.start(start());
   service.openPeriod({id:'p',sessionId:'s1',caseId:'A',startedAt:'2026-10-17T09:00:00Z',origin:'automatic',mode:'current'});
+  service.end(end()); // a running period cannot be validated (D9)
   service.setDetectedDuration('p',720000); service.validatePeriod('p');
   service.setDetectedDuration('p',900000);expect(service.getPeriod('p').timeValidated).toBe(false);
   service.validatePeriod('p'); const revision=service.getPeriod('p').effectiveRevision;
@@ -139,9 +143,10 @@ it('preserves a committed start when a dependent end is invalid',()=>{
 it('protects historical splits, permits current transitions, and rejects evidence outside a period',()=>{
   const {repo,service}=fixture();service.start(start());
   service.openPeriod({id:'p1',sessionId:'s1',caseId:'A',startedAt:'2026-10-17T09:00:00Z',origin:'automatic',mode:'current'});
-  service.setDurationOverride('p1',600000);service.validatePeriod('p1');
+  service.setDurationOverride('p1',600000);
   const current=service.openPeriod({id:'p2',sessionId:'s1',caseId:'B',startedAt:'2026-10-17T10:00:00Z',origin:'automatic',mode:'current'});
   expect(current).toMatchObject({id:'p2',caseId:'B'});
+  service.validatePeriod('p1'); // validated once p2 has closed it (D9)
   const recovered=service.openPeriod({id:'late',sessionId:'s1',caseId:'B',startedAt:'2026-10-17T09:30:00Z',origin:'automatic',mode:'recovery'});
   expect(recovered).toMatchObject({status:'pending',conflictId:'late'});
   expect(repo.db.prepare('SELECT count(*) AS n FROM work_periods').get()).toMatchObject({n:2});

@@ -12,6 +12,11 @@ const fingerprint = (value: unknown): string => createHash('sha256').update(JSON
 function assertTime(value: string): void {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) || !Number.isFinite(Date.parse(value))) throw new AppError('invalid-request', 'UTC timestamp required');
 }
+/** Calendar day of a UTC timestamp in the computer's local time zone, as YYYY-MM-DD (docs/API.md D9). */
+function localDay(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 /** Optional guard (docs/API.md A2): the caller states which effective revision it saw; a newer one means the period changed. */
 function assertEffectiveRevision(p: PeriodRecord, expected: number | undefined): void {
   if (expected !== undefined && p.effectiveRevision !== expected) throw new AppError('conflict','stale effective revision');
@@ -340,6 +345,9 @@ export class TimeKeeperService {
     return this.repo.transaction(() => {
       const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
       assertEffectiveRevision(p,expectedEffectiveRevision);
+      // docs/API.md D9: only finished periods of past days, in the lawyer's local time, can be validated.
+      if (p.endedAt === null) throw new AppError('conflict','a running period cannot be validated');
+      if (localDay(p.startedAt) >= localDay(this.clock.now())) throw new AppError('conflict','only past days can be validated');
       if (p.caseId === null || (p.durationOverrideMs ?? p.detectedDurationMs) === null)
         throw new AppError('conflict','case and effective duration are required before time validation');
       const next = { ...validateTime(p,this.clock.now()),revision:p.revision+1 };
