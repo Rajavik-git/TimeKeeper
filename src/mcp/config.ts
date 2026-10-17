@@ -22,6 +22,8 @@ export function depsFromEnv(env: NodeJS.ProcessEnv = process.env): SessionDeps {
       enabled: !/^(0|false|off|no)$/i.test(env.TIMEKEEPER_TAB_DETECTION ?? ''),
       bun: findBun(env),
       apiBase,
+      // A Screenpipe pipe run kills its process tree on exit; on Windows, start the watcher outside it.
+      launch: env.TIMEKEEPER_TAB_LAUNCH === 'spawn' || process.platform !== 'win32' ? 'spawn' : 'wmi',
     }),
     ...(launchCommand ? {
       launch: async () => {

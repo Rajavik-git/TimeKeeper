@@ -103,7 +103,8 @@ function print(r: CheckResult) {
   if (!tk) console.log("  applied: false (no assignment was changed)");
 }
 
-const timekeeperApi = env("TIMEKEEPER_API_URL") || `http://127.0.0.1:${env("TIMEKEEPER_PORT") || 8787}/api`;
+// --api comes first: a watcher started through WMI on Windows does not inherit the caller's environment.
+const timekeeperApi = arg("--api") || env("TIMEKEEPER_API_URL") || `http://127.0.0.1:${env("TIMEKEEPER_PORT") || 8787}/api`;
 
 // --apply (implied by --session-bound): send confirmed changes to the TimeKeeper session through its MCP server.
 const apply = (flag("--apply") || sessionBound) && !/^(0|false|off|no)$/i.test(env("TIMEKEEPER_APPLY"));

@@ -7,7 +7,8 @@ import { startTabDetection } from '../../src/mcp/tab-detection.js';
 
 const dirs: string[] = [];
 const tempDir = () => { const d = mkdtempSync(join(tmpdir(), 'tk-tab-')); dirs.push(d); return d; };
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
+// Windows keeps a folder busy briefly while a process started in it exits.
+afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }); });
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const deadPid = 2 ** 22 - 3; // far above typical PID ranges
@@ -77,9 +78,32 @@ describe('startTabDetection', () => {
     const r = await startTabDetection(opts(dir));
     expect(r).toMatchObject({ status: 'started', log: join(dir, 'watch.log') });
     let started: any = null;
-    for (let i = 0; i < 100 && !started; i++) {
+    // Process start can take several seconds while the whole suite runs in parallel.
+    for (let i = 0; i < 400 && !started; i++) {
       try { started = JSON.parse(readFileSync(join(dir, 'started.json'), 'utf8')); } catch { await new Promise(res => setTimeout(res, 50)); }
     }
-    expect(started).toEqual({ args: ['--session-bound'], api: 'http://tk/api' });
-  });
+    expect(started).toEqual({ args: ['--session-bound', '--api', 'http://tk/api'], api: 'http://tk/api' });
+    // Let the background process exit so the temporary folder can be removed.
+    const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    for (let i = 0; i < 100 && alive((r as any).pid); i++) await new Promise(res => setTimeout(res, 100));
+  }, 30_000);
+
+  it.skipIf(process.platform !== 'win32')('on Windows, starts the watcher through WMI with the API address as an argument', async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, '.env'), 'TYPESAFE_API_KEY=k\nJEV_ALLOWED_FIELDS=observation.window_title\n');
+    writeFileSync(join(dir, 'jev-check.ts'),
+      "require('node:fs').writeFileSync('started.json', JSON.stringify({ args: process.argv.slice(2), ppid: process.ppid }));\n");
+    const r = await startTabDetection({ ...opts(dir), launch: 'wmi' });
+    expect(r).toMatchObject({ status: 'started', pid: expect.any(Number) });
+    let started: any = null;
+    for (let i = 0; i < 200 && !started; i++) {
+      try { started = JSON.parse(readFileSync(join(dir, 'started.json'), 'utf8')); } catch { await new Promise(res => setTimeout(res, 50)); }
+    }
+    expect(started?.args).toEqual(['--session-bound', '--api', 'http://tk/api']);
+    // Its parent is the hidden cmd.exe created by WMI, not this test process.
+    expect(started?.ppid).toBe((r as any).pid);
+    // Let the hidden process exit so the temporary folder can be removed.
+    const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    for (let i = 0; i < 100 && alive((r as any).pid); i++) await new Promise(res => setTimeout(res, 100));
+  }, 30_000);
 });
