@@ -31,7 +31,6 @@ with sync_playwright() as playwright:
     assert len(switched) == 1, switched
     assert switched[0]["caseId"] == "1"
     if capture_dir:
-        page.get_by_role("status", name="New work period").get_by_role("button", name="Dismiss").click()
         page.get_by_role("button", name="TimeKeeper, toggle panel").click()
         panel = page.get_by_label("TimeKeeper panel")
         if not panel.is_visible(): page.get_by_role("button", name="TimeKeeper, toggle panel").click()
@@ -53,7 +52,6 @@ with sync_playwright() as playwright:
     assert not re.search(r"Confirm · \d+s", low.inner_text())
     if capture_dir:
         page.goto(f"{base}/pill.html?theme=dark")
-        page.get_by_role("status", name="Which case").get_by_role("button", name="Dismiss").click()
         page.get_by_role("button", name="TimeKeeper, toggle panel").click()
         panel = page.get_by_label("TimeKeeper panel")
         if not panel.is_visible(): page.get_by_role("button", name="TimeKeeper, toggle panel").click()

@@ -85,7 +85,7 @@ with sync_playwright() as playwright:
     window.get_by_role('button',name='Close window').click()
     window.wait_for(state='hidden')
     page.get_by_role('group',name='Theme').get_by_role('button',name='Dark').click()
-    page.wait_for_function("() => getComputedStyle(document.querySelector('.em-pill-frame').contentDocument.documentElement).getPropertyValue('--pill').trim() === '#FAFAFA'")
+    page.wait_for_function("() => { const root=document.querySelector('.em-pill-frame').contentDocument.documentElement; return root.dataset.theme==='dark' && getComputedStyle(root).getPropertyValue('--glass').includes('20,20,23'); }")
     page.get_by_role('group',name='Theme').get_by_role('button',name='Light').click()
     assert not errors, errors
     browser.close()

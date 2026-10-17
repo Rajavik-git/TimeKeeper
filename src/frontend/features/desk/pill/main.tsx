@@ -113,7 +113,6 @@ function Pill() {
   const pricedDay=day.map(period=>period.id===current?.id&&periodMs!==null?{...period,durationOverrideMs:periodMs}:period);
   const todayAmount=state&&core?money(dayFees(state,core,pricedDay)):'—';
   useEffect(()=>{if(tauri&&setting)void getCurrentWindow().setAlwaysOnTop(setting.pill_always_on_top).catch(()=>setError('Unable to set pill position.'));},[setting?.pill_always_on_top]);
-  useEffect(()=>{if(tauri&&state)void invoke('set_watch_enabled',{enabled:!paused}).catch(()=>setError('Unable to apply file-switch pause.'));},[!!state,paused,active?.id]);
 
   useEffect(()=>{
     if(!tauri&&!emulator)return;
@@ -127,7 +126,7 @@ function Pill() {
         const contentHeight=Math.ceil(Math.max(bar?.offsetHeight??0,...content.map(element=>element.offsetTop+element.offsetHeight)));
         if(tauri)void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice),contentWidth,contentHeight})
           .catch(()=>setError('Unable to resize the pill.'));
-        if(emulator&&window.parent!==window)window.parent.postMessage({type:'timekeeper:pill-height',height:contentHeight},window.location.origin);
+        if(emulator&&window.parent!==window)window.parent.postMessage({type:'timekeeper:pill-height',height:contentHeight+12},window.location.origin);
       });
     };
     const observer=new ResizeObserver(resize);
