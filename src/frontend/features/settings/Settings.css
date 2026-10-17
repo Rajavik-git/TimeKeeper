@@ -12,14 +12,15 @@
 .settings-crumbs {
   grid-column: 1/-1;
   grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13.5px;
   color: var(--muted);
   position: relative;
   top: -4px;
 }
-.settings-crumbs span {
-  padding: 0 9px;
-}
+.settings-crumbs svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; }
 .settings-crumbs b {
   font-weight: 500;
   color: var(--ink);
@@ -48,6 +49,7 @@
   padding: 0 10px;
   font-size: 15px;
 }
+.settings-nav button[aria-current="true"]:hover { background: var(--active); }
 .page:has(.settings-content) > .settings-content {
   grid-column: 2;
   grid-row: 3;
@@ -123,6 +125,8 @@
   border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
+.settings-table td.muted { font-size: 15px; }
+.settings-table td.settings-empty { color: var(--muted); text-align: center; }
 .settings-table tbody tr:last-child td {
   border-bottom: 0;
 }
@@ -134,13 +138,21 @@
   font-variant-numeric: tabular-nums;
 }
 .settings-table .more {
-  border: 0;
-  background: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--surface);
   color: var(--muted);
-  padding: 0 4px;
+  padding: 0;
   float: right;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
+.settings-table .more .i { width: 16px; height: 16px; }
+.settings-table .more:hover { background: var(--hover); color: var(--ink); }
 .settings-table .rule-delete {
   opacity: 0;
 }
@@ -166,6 +178,7 @@
 .settings-form .input {
   height: 38px;
 }
+.settings-form #prefix { font-family: var(--m); font-size: 13.5px; }
 .settings-form .check {
   display: flex;
   align-items: center;
@@ -277,6 +290,8 @@
 }
 .settings-rates .settings-table td:nth-child(1) {
   width: 40px;
+  color: var(--muted);
+  font-size: 15px;
 }
 .settings-rates .settings-table td:nth-child(2) {
   width: 22.5%;
@@ -286,4 +301,35 @@
 }
 .settings-rules .settings-table th:nth-child(1) {
   width: 25%;
+}
+.settings-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 100;
+  transform: translateX(-50%);
+  padding: 9px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13.5px;
+  font-weight: 600;
+  animation: settings-toast-in 140ms ease-out both;
+}
+@keyframes settings-toast-in { from { opacity: 0; transform: translate(-50%, 6px) scale(.98); } }
+.page:has(.settings-content) :is(button, input, select),
+.settings-table tbody tr { transition: background-color 140ms ease-out, border-color 140ms ease-out, color 140ms ease-out, opacity 140ms ease-out, transform 140ms ease-out; }
+.page:has(.settings-content) button:active { transform: scale(.98); }
+.page:has(.settings-content) :is(button, input, select):focus-visible,
+.settings-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.page:has(.settings-content) :is(button, input, select):disabled { opacity: .45; pointer-events: none; }
+.settings-table td { overflow: hidden; text-overflow: ellipsis; }
+.settings-content, .settings-table { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+.settings-card h2, .settings-head h1 { text-wrap: balance; letter-spacing: -.02em; }
+.settings-table td, .settings-form .input { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-toast { animation: none; }
+  .page:has(.settings-content) :is(button, input, select), .settings-table tbody tr { transition: none; }
 }

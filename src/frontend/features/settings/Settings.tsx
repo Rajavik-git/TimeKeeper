@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type ScreenProps } from "../../api/client";
 import { Icon } from "../../shared/components/Icon";
 import "./Settings.css";
@@ -44,6 +44,19 @@ export function Settings({ s, action, navigate }: ScreenProps) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [amount, setAmount] = useState("");
+  const [toast, setToast] = useState("");
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+  const saved = async (operation: Promise<unknown>) => {
+    setToast("Saving…");
+    setToast((await operation) !== undefined ? "Saved" : "");
+  };
+  const blurOnEnter = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") event.currentTarget.blur();
+  };
   const [ruleClient, setRuleClient] = useState(s.client[0]?.id ?? 0);
   const [ruleType, setRuleType] = useState<
     "daily_research_cap" | "nonbillable_travel"
@@ -83,7 +96,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
       }
     >
       <button
-        onClick={() =>
+        onClick={() => {
           setSorts((old) => {
             const prior = old[table];
             const next = {
@@ -102,8 +115,9 @@ export function Settings({ s, action, navigate }: ScreenProps) {
             };
             rememberedSorts = next;
             return next;
-          })
-        }
+          });
+          setToast(`Sorted by ${label}`);
+        }}
       >
         {label}
         {sorts[table]?.column === column
@@ -141,8 +155,16 @@ export function Settings({ s, action, navigate }: ScreenProps) {
   );
   return (
     <>
+      {toast && (
+        <div className="settings-toast" role="status">
+          {toast}
+        </div>
+      )}
       <div className="settings-crumbs">
-        Settings <span>›</span>{" "}
+        Settings{" "}
+        <svg viewBox="0 0 14 14" aria-hidden="true">
+          <path d="m5 3 4 4-4 4" />
+        </svg>{" "}
         <b>{tabs.find((item) => item[0] === tab)?.[1]}</b>
       </div>
       <div className="ph settings-head">
@@ -186,6 +208,16 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   </tr>
                 </thead>
                 <tbody>
+                  {s.client.length === 0 && (
+                    <tr>
+                      <td className="settings-empty" colSpan={6}>
+                        No clients yet.{" "}
+                        <button className="link" onClick={() => setAdd(true)}>
+                          Add a client
+                        </button>
+                      </td>
+                    </tr>
+                  )}
                   {sorted(s.client, sorts.clients, (client) => [
                     client.name,
                     client.type,
@@ -205,7 +237,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                       <td>{client.vat_applicable ? "Yes" : "None"}</td>
                       <td>
                         <button
-                          className="more"
+                          className="more iconbtn"
                           aria-label={`Edit ${client.name}`}
                           onClick={() =>
                             setEditClient(
@@ -247,10 +279,13 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                       (s.client.find((item) => item.id === editClient)
                         ?.rate_cents ?? 0) / 100
                     }
+                    onKeyDown={blurOnEnter}
                     onBlur={(event) =>
-                      patchClient(editClient, {
-                        rate_cents: cents(event.target.value),
-                      })
+                      void saved(
+                        patchClient(editClient, {
+                          rate_cents: cents(event.target.value),
+                        }),
+                      )
                     }
                   />
                 </label>
@@ -366,8 +401,11 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   id="base-rate"
                   key={s.firm[0].base_rate_cents}
                   defaultValue={(s.firm[0].base_rate_cents / 100).toFixed(2)}
+                  onKeyDown={blurOnEnter}
                   onBlur={(event) =>
-                    patchFirm({ base_rate_cents: cents(event.target.value) })
+                    void saved(
+                      patchFirm({ base_rate_cents: cents(event.target.value) }),
+                    )
                   }
                 />
                 <label htmlFor="base-unit">Unit</label>
@@ -420,6 +458,16 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   </tr>
                 </thead>
                 <tbody>
+                  {s.task.length === 0 && (
+                    <tr>
+                      <td className="settings-empty" colSpan={3}>
+                        No tasks yet.{" "}
+                        <button className="link" onClick={() => setAdd(true)}>
+                          Add a task
+                        </button>
+                      </td>
+                    </tr>
+                  )}
                   {sorted(s.task, sorts.tasks, (task) => [
                     task.label,
                     Number(task.billable_by_default),
@@ -533,6 +581,16 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   </tr>
                 </thead>
                 <tbody>
+                  {s.client_rule.length === 0 && (
+                    <tr>
+                      <td className="settings-empty" colSpan={2}>
+                        No client rules yet.{" "}
+                        <button className="link" onClick={() => setAdd(true)}>
+                          Add a rule
+                        </button>
+                      </td>
+                    </tr>
+                  )}
                   {sorted(s.client_rule, sorts.rules, (rule) => [
                     s.client.find((item) => item.id === rule.client_id)?.name ??
                       "",
@@ -722,8 +780,11 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   id="prefix"
                   key={s.setting[0].invoice_prefix}
                   defaultValue={s.setting[0].invoice_prefix}
+                  onKeyDown={blurOnEnter}
                   onBlur={(event) =>
-                    patchSetting({ invoice_prefix: event.target.value })
+                    void saved(
+                      patchSetting({ invoice_prefix: event.target.value }),
+                    )
                   }
                 />
                 <label htmlFor="next">Next number</label>
@@ -737,8 +798,11 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                     4,
                     "0",
                   )}
+                  onKeyDown={blurOnEnter}
                   onBlur={(event) =>
-                    patchSetting({ next_number: Number(event.target.value) })
+                    void saved(
+                      patchSetting({ next_number: Number(event.target.value) }),
+                    )
                   }
                 />
               </div>

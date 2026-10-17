@@ -39,6 +39,7 @@ export function ActivitySourcePackDialog({
     "audit",
   ]);
   const [receipt, setReceipt] = useState("");
+  const [busy, setBusy] = useState(false);
   if (!matter) return null;
   const toggleOption = (value: string) =>
     setOptions((current) =>
@@ -53,28 +54,35 @@ export function ActivitySourcePackDialog({
         : [...current, id],
     );
   const create = async () => {
-    const result = await action(
-      api.POST("/api/cases/{id}/source-pack", {
-        params: { path: { id: matterId } },
-        body: {
-          scope,
-          options,
-          ...(scope === "invoice" ? { invoiceId } : {}),
-          ...(scope === "period" ? { from, to } : {}),
-          ...(scope === "chosen" ? { periodIds: selected } : {}),
-        },
-      }),
-    );
-    if (result) {
-      setReceipt(result.export.sha256);
-      const url = URL.createObjectURL(
-        new Blob([result.payload], { type: "application/json;charset=utf-8" }),
+    setBusy(true);
+    try {
+      const result = await action(
+        api.POST("/api/cases/{id}/source-pack", {
+          params: { path: { id: matterId } },
+          body: {
+            scope,
+            options,
+            ...(scope === "invoice" ? { invoiceId } : {}),
+            ...(scope === "period" ? { from, to } : {}),
+            ...(scope === "chosen" ? { periodIds: selected } : {}),
+          },
+        }),
       );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `source-pack-${matter.reference}-${result.export.id}.json`;
-      link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      if (result) {
+        setReceipt(result.export.sha256);
+        const url = URL.createObjectURL(
+          new Blob([result.payload], {
+            type: "application/json;charset=utf-8",
+          }),
+        );
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `source-pack-${matter.reference}-${result.export.id}.json`;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      }
+    } finally {
+      setBusy(false);
     }
   };
   const option = (value: Scope, label: string, detail?: React.ReactNode) => (
@@ -253,6 +261,7 @@ export function ActivitySourcePackDialog({
               className="btn primary"
               onClick={() => void create()}
               disabled={
+                busy ||
                 (scope === "invoice" && !invoiceId) ||
                 (scope === "chosen" && !selected.length)
               }
@@ -260,7 +269,7 @@ export function ActivitySourcePackDialog({
               <svg className="i sm" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 4v12M6 10l6 6 6-6M4 20h16" />
               </svg>
-              Create source pack
+              {busy ? "Creating…" : "Create source pack"}
             </button>
           </div>
         </div>
