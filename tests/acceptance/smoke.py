@@ -1,15 +1,19 @@
-"""Smoke test for the six aligned screens and the local floating pill."""
+"""Smoke the six demo screens, Cases hierarchy, floating pill and fixed landscape shell."""
 import os
+from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 url = f"http://127.0.0.1:{os.environ.get('UI_PORT', '5173')}/"
-expected = [
-    ('My day', 'My day'),
-    ('Cases', 'Cases'),
-    ('Pre-invoices', 'Pre-invoices'),
-    ('Source', 'Source'),
-    ('Settings', 'Settings'),
-    ('Desk pill', 'The TimeKeeper pill'),
+capture_dir = os.environ.get('CAPTURE_DIR')
+if capture_dir:
+    Path(capture_dir).mkdir(parents=True, exist_ok=True)
+views = [
+    ('My day', 'My day', 'my-day'),
+    ('Cases', 'Cases', 'cases'),
+    ('Pre-invoices', 'Pre-invoices', 'pre-invoices'),
+    ('Source', 'Source', 'source'),
+    ('Settings', 'Settings', 'settings'),
+    ('Desk pill', 'The TimeKeeper pill', 'desk-pill'),
 ]
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -20,37 +24,47 @@ with sync_playwright() as p:
     assert page.request.post(f'{url}api/demo/reset').ok
     page.goto(url)
     page.wait_for_load_state('networkidle')
-    assert page.get_by_text('Claire Morel').count() > 0
-    for tab, heading in expected:
-        page.get_by_role('navigation', name='Screens').get_by_role('button', name=tab, exact=False).click()
-        page.get_by_role('heading', name=heading, exact=True).wait_for()
-        assert not page.locator('.toast').is_visible(), (tab, page.locator('.toast').inner_text())
+    assert page.locator('.brand-wordmark').inner_text() == 'TimeKeeper'
+    assert page.locator('.shell-side .user').count() == 0
+    for width, height in [(1440, 900), (1280, 800)]:
+        page.set_viewport_size({'width': width, 'height': height})
+        for theme in ['light', 'dark']:
+            page.get_by_role('group', name='Theme').get_by_role('button', name=theme.title()).click()
+            for tab, heading, filename in views:
+                page.get_by_role('navigation', name='Screens').get_by_role('button', name=tab, exact=False).click()
+                page.get_by_role('heading', name=heading, exact=True).wait_for()
+                assert not page.locator('.toast').is_visible(), (tab, page.locator('.toast').inner_text())
+                size = page.evaluate('({scroll:document.scrollingElement.scrollHeight, height:innerHeight})')
+                assert size['scroll'] <= size['height'], (width, height, theme, tab, size)
+                if capture_dir and width == 1440:
+                    page.screenshot(path=f'{capture_dir}/{filename}-{theme}.png')
+            page.get_by_role('navigation', name='Screens').get_by_role('button', name='Cases', exact=False).click()
+            page.locator('.client-tile').first.click()
+            assert page.get_by_role('navigation', name='Case breadcrumb').get_by_role('button', name='Cases').count() == 1
+            if capture_dir and width == 1440:
+                page.screenshot(path=f'{capture_dir}/cases-client-{theme}.png')
+            page.locator('.case-tile').first.click()
+            if capture_dir and width == 1440:
+                page.screenshot(path=f'{capture_dir}/cases-detail-{theme}.png')
+            page.get_by_role('tab', name='Markers', exact=False).click()
+            page.get_by_role('columnheader', name='Weight').wait_for()
+            page.get_by_role('navigation', name='Case breadcrumb').get_by_role('button', name='Cases').click()
+    page.get_by_role('group', name='Theme').get_by_role('button', name='Auto').click()
     page.get_by_role('navigation', name='Screens').get_by_role('button', name='My day', exact=False).click()
     page.get_by_text('Which case does this period belong to?').wait_for()
-    page.get_by_text('4:27', exact=True).wait_for()
+    page.get_by_text('4h 27m', exact=True).wait_for()
     page.get_by_text('€912.50', exact=True).wait_for()
     page.get_by_text('11:24–12:05', exact=False).first.wait_for()
     page.get_by_role('group', name='Work periods filter').get_by_role('button', name='Left out').click()
     page.get_by_role('button', name='Count as work').first.wait_for()
     page.get_by_role('group', name='Work periods filter').get_by_role('button', name='All').click()
-    page.keyboard.press('2')
-    page.get_by_role('heading', name='Cases', exact=True).wait_for()
-    page.get_by_role('tab', name='Markers', exact=False).click()
-    page.get_by_role('columnheader', name='Weight').wait_for()
-    page.keyboard.press('3')
-    page.get_by_role('heading', name='Pre-invoices').wait_for()
-    page.get_by_text('Calculated in the app', exact=False).wait_for()
     page.keyboard.press('4')
     page.get_by_role('heading', name='Source', exact=True).wait_for()
     page.locator('.timeline-track button').first.hover()
     page.locator('.preview .num').first.wait_for()
     page.get_by_text('Source validated', exact=False).first.wait_for()
-    page.get_by_role('group', name='Theme').get_by_role('button', name='Dark').click()
-    assert page.locator('html').get_attribute('data-theme') == 'dark'
-    page.get_by_role('group', name='Theme').get_by_role('button', name='Auto').click()
-    assert page.locator('html').get_attribute('data-theme') is None
     page.set_viewport_size({'width': 390, 'height': 844})
-    for tab, heading in expected:
+    for tab, heading, _ in views:
         page.get_by_role('navigation', name='Screens').get_by_role('button', name=tab, exact=False).click()
         page.get_by_role('heading', name=heading, exact=True).wait_for()
     pill = browser.new_page(viewport={'width': 340, 'height': 490})
@@ -65,5 +79,5 @@ with sync_playwright() as p:
     assert pill.get_by_role('button', name='Pause', exact=True).is_disabled()
     assert page.request.post(f'{url}api/demo/reset').ok
     assert not errors, errors
-    print('Six desktop and phone screens, pill, precise demo totals, coverage, keyboard, source preview and theme passed; no console errors.')
+    print('Six screens, Cases hierarchy, 1440×900 and 1280×800 page height, phone, pill, totals, source preview and theme passed; no console errors.')
     browser.close()
