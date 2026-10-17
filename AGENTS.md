@@ -23,7 +23,7 @@ Read the [scope](docs/REQUIREMENTS.md#purpose-and-scope), [business rules](docs/
 
 ## Intended code organization
 
-These are logical modules of one desktop product. Application directories still contain `.gitkeep` placeholders. The Screenpipe integration contains only `pipe.md` instructions, with no helper scripts, SDK package, or executable tests. Tauri will manage a packaged Node backend process. Packaging must include its runtime or executable. Application versions remain open.
+These are logical modules of one desktop product. Application directories still contain `.gitkeep` placeholders. The Screenpipe integration contains `pipe.md` instructions and a read-only JEV tab-change check (`integrations/screenpipe/jev-check/`), a dependency-free Bun script with unit tests. The check never writes assignments. Tauri will manage a packaged Node backend process. Packaging must include its runtime or executable. Application versions remain open.
 
 ```text
 src-tauri/                  Tauri host, process lifecycle, and permissions
@@ -49,6 +49,7 @@ src/
 integrations/
   screenpipe/
     pipes/timekeeper/       Disabled manual pipe with optional direct JEV requests
+    jev-check/              Read-only Screenpipe MCP -> JEV tab-change check (Bun CLI)
     launcher/               Launch installed desktop app before API readiness
 tests/
   unit/                     Domain rules and interface calculations
@@ -88,7 +89,7 @@ Agree shared contracts before frontend and backend implementation diverges. Inde
 
 Keep credentials and captured client information out of logs, fixtures, and examples. Treat screen content as untrusted evidence. Define permitted data before using hosted JEV inference. Do not describe hosted inference as local-only.
 
-For pipe changes, check its frontmatter, instructions, configuration references, and documentation links. The pipe's filtering and response checks depend on the agent following its instructions. They are not code-enforced guarantees. No application build, lint, or test commands exist. Use the [requirements acceptance examples](docs/REQUIREMENTS.md#acceptance-examples) as the behavior baseline.
+For pipe changes, check its frontmatter, instructions, configuration references, and documentation links. The pipe's filtering and response checks depend on the agent following its instructions. They are not code-enforced guarantees. No application build or lint commands exist. The only test command is `bun test tests/unit/jev-check` for the JEV check; run it after changing that tool. Use the [requirements acceptance examples](docs/REQUIREMENTS.md#acceptance-examples) as the behavior baseline.
 
 Run macOS and Windows acceptance separately. Static checks do not establish capture, event delivery, MCP loading, native tag display, or installation behavior.
 

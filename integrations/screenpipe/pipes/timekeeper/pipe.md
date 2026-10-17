@@ -27,6 +27,8 @@ If the file exists, load its settings and send any permitted request in the same
 | Previous observation | `previous_observation.text`, `previous_observation.app_name`, `previous_observation.window_title`, `previous_observation.url` |
 | Existing cases | `candidates.reference`, `candidates.title`, `candidates.client_name` |
 
+Treat a recorded URL as weaker evidence than the window title and text. On Windows with Screenpipe 2.7.109, captures of a newly selected browser tab kept the previous tab's URL. If a URL conflicts with the window title, do not use it to support continuity.
+
 If the available tools cannot load credentials or send context without exposing them in logs, stop and report that limitation. Do not install dependencies or generate helper files.
 
 ## Obtain the evaluated context
@@ -43,7 +45,7 @@ JEV receives the comparison anew in each request. Do not assume it remembers a p
 
 ## Make the optional TypeSafe request
 
-1. Require at most 254 candidates for this model request, leaving one selection option for `unresolved`. If there are more, report `blocked` without silently discarding candidates. This model limit does not apply to the independent unknown-folder handoff. Include only permitted fields. Require nonblank permitted text for the new observation and every candidate description. Continuity assessment also requires nonblank permitted text for the previous observation. If data is missing or no candidates exist, report `unresolved` without a request. Use `transition: uncertain` when a case is active and `transition: not_evaluated` otherwise. Do not equate missing candidates with a proven switch.
+1. Require at most 254 candidates for this model request, leaving one selection option for `unresolved`. If there are more, report `blocked` without silently discarding candidates. This model limit does not apply to the independent unknown-folder handoff. Include only permitted fields. Require at least one permitted field with nonblank content for the new observation and for every candidate description. Continuity assessment also requires one for the previous observation. Any selectable field counts, not only `*.text`; a window title alone is sufficient. If data is missing or no candidates exist, report `unresolved` without a request. Use `transition: uncertain` when a case is active and `transition: not_evaluated` otherwise. Do not equate missing candidates with a proven switch.
 2. Map actual case IDs to temporary aliases such as `candidate_0`. Map client IDs to aliases such as `client_0` to preserve shared-client relationships. Keep the mapping, actual IDs, timestamps, and revisions local. Do not send screenshots or unlisted fields. Permitted text may still contain private names; field selection does not redact them.
 3. Build a JSON body with `model`, `state`, and `questions`. In `state`, include the permitted `previous_observation` and `observation`, aliased `candidates`, and `current_candidate`. Use `null` for `current_candidate` and omit `previous_observation` only for initial assignment, when authoritative state confirms no active case.
 4. For continuity assessment, add `questions.case_transition` with `type: choice` and the criteria below. Ask whether the new observation supports continued work on the active case or a transition to another case, using the previous observation and current-case description. Require `uncertain` for missing or conflicting evidence. A case mentioned in a sidebar, quoted text, or the TimeKeeper review interface is not by itself the case being worked on.

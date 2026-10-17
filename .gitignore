@@ -30,6 +30,9 @@ playwright-report/
 test-results/
 *.log
 
+# Local case catalogue for the JEV check (may contain client information)
+/integrations/screenpipe/jev-check/cases.json
+
 # Local application data
 /data/
 /recordings/

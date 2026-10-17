@@ -120,17 +120,27 @@ On macOS, `xcode-select -p` checks the selected developer-tools directory. On Wi
 
 ### Optional JEV integration for Screenpipe
 
-The integration consists of [pipe.md](integrations/screenpipe/pipes/timekeeper/pipe.md). Its instructions let the Screenpipe agent ask JEV whether the active case changed and, if so, which existing case matches. There is no helper script, SDK, package install, or separate skill import. JEV is optional: without the installed pipe's `.env`, the workflow skips JEV. See the [pipe workflow](docs/ARCHITECTURE.md#jev-pipe-workflow).
+The integration consists of [pipe.md](integrations/screenpipe/pipes/timekeeper/pipe.md). Its instructions let the Screenpipe agent ask JEV whether the active case changed and, if so, which existing case matches. The pipe needs no helper script, SDK, package install, or separate skill import. To run the chain Screenpipe → MCP → JEV → result from a terminal, use the read-only [JEV tab-change check](integrations/screenpipe/jev-check/README.md). JEV is optional: without the installed pipe's `.env`, the workflow skips JEV. See the [pipe workflow](docs/ARCHITECTURE.md#jev-pipe-workflow).
 
 JEV has no workflow memory. Each comparison includes the active case, its previous observation, and the newer observation. `same_case` returns `no_change`; `uncertain` does not switch the assignment. For a supported switch, the workflow identifies a unique existing destination automatically and returns `identified` with `applied: false`. It sends an unresolved-switch request through MCP only when no unique destination matches. Read-only MCP case queries remain allowed.
 
 Missing previous evidence means uncertain, not unchanged. Initial assignment, operational failures, and incomplete lookups do not trigger the switch request. The scoped MCP tool does not exist yet; a qualifying unresolved switch returns `blocked` with delivery `not_sent` while the tool is unavailable.
 
 1. Start Screenpipe with its local API available.
-2. Import the pipe with Screenpipe's [local pipe installation](https://docs.screenpipe.com/scheduled-tasks). In bash, replace the absolute source path below. This command requires Bun, or `SCREENPIPE_CLI` set to an available Screenpipe CLI command.
+2. Import the pipe with Screenpipe's [local pipe installation](https://docs.screenpipe.com/scheduled-tasks), using the CLI installed with your Screenpipe release rather than an unpinned package. The desktop app keeps it under `~/.screenpipe/cli/<version>/`. Replace the absolute source path below.
+
+   In bash:
 
    ```sh
-   cd "$(mktemp -d)" && ${SCREENPIPE_CLI:-bun x screenpipe@latest} pipe install "/ABSOLUTE/PATH/TimeKeeper/integrations/screenpipe/pipes/timekeeper"
+   SCREENPIPE_CLI="$HOME/.screenpipe/cli/<version>/screenpipe"
+   cd "$(mktemp -d)" && "$SCREENPIPE_CLI" pipe install "/ABSOLUTE/PATH/TimeKeeper/integrations/screenpipe/pipes/timekeeper"
+   ```
+
+   In PowerShell:
+
+   ```powershell
+   $cli = "$env:USERPROFILE\.screenpipe\cli\<version>\screenpipe.exe"
+   Push-Location (New-Item -ItemType Directory -Path (Join-Path $env:TEMP ([guid]::NewGuid()))); & $cli pipe install "C:\ABSOLUTE\PATH\TimeKeeper\integrations\screenpipe\pipes\timekeeper"; Pop-Location
    ```
 
 3. If you want to use JEV, create `~/.screenpipe/pipes/timekeeper/.env` in a local editor with these settings. Preserve any existing credentials.
@@ -163,18 +173,22 @@ Field filtering and response checks are agent instructions, not code-enforced gu
 | `observation.text` | Recorded screen text, such as accessibility text or OCR output. |
 | `observation.app_name` | Name of the application associated with the observation. |
 | `observation.window_title` | Title of the recorded window. |
-| `observation.url` | Page URL associated with the observation, when available. |
+| `observation.url` | Page URL associated with the observation, when available. It can be stale; see the note below. |
 | `candidates.reference` | Reference of each candidate case. |
 | `candidates.title` | Title of each candidate case. |
 | `candidates.client_name` | Name of the client associated with each candidate case. |
 
-For example, this selection permits both window titles, case references, and case titles:
+For example, this selection permits screen text and window titles from both observations, case references, and case titles:
 
 ```dotenv
-JEV_ALLOWED_FIELDS=previous_observation.window_title,observation.window_title,candidates.reference,candidates.title
+JEV_ALLOWED_FIELDS=previous_observation.text,previous_observation.window_title,observation.text,observation.window_title,candidates.reference,candidates.title
 ```
 
-Select only fields approved for your deployment. Previous-observation fields require explicit selection; permission for `observation.` fields does not include them. A comparison needs at least one permitted field containing text from each observation. Initial assignment needs only the newer observation. Every candidate also needs at least one permitted descriptive field containing text. Missing required content or an unsupported selection prevents a request.
+This selection sends recorded screen text to TypeSafe. A narrower selection is permitted but less reliable. In a synthetic test with `jev-1.13.0`, window titles alone produced `same_case` for a switch to an unknown folder and for an ambiguous inbox, which would silently keep the previous case. See the [design review](docs/DESIGN_REVIEW.md).
+
+Select only fields approved for your deployment. Previous-observation fields require explicit selection; permission for `observation.` fields does not include them. A comparison needs at least one permitted nonblank field from each observation; any selectable field counts, so the window-title example above is sufficient.
+
+URL fields are weaker evidence than window titles. On Windows with Screenpipe 2.7.109, captures of a newly selected browser tab kept the previous tab's URL, which can wrongly suggest that work continued on the same page. Initial assignment needs only the newer observation. Every candidate also needs at least one permitted descriptive field containing text. Missing required content or an unsupported selection prevents a request.
 
 The pipe instructs the agent to exclude screenshots, actual case and client IDs, timestamps, and assignment revisions. It uses temporary aliases for case and client IDs. Selecting a field does not redact private information within its text. See the [configuration and data boundary](docs/ARCHITECTURE.md#jev-configuration-and-data-boundary) for the full contract.
 
