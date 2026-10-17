@@ -1,9 +1,48 @@
-node_modules/
-dist/
-*.db
-*.db-*
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local configuration and signing secrets
 .env
 .env.*
 !.env.example
-.DS_Store
+!.env.template
+*.key
+*.pem
+*.pfx
+*.p12
+
+# Node dependencies and build output
+node_modules/
+dist/
+build/
+.cache/
+*.tsbuildinfo
+
+# Tauri and Rust generated output
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# Test output and logs
 coverage/
+playwright-report/
+test-results/
+*.log
+
+# Local application data
+/data/
+/recordings/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite3-journal
+*.db
+*.db-*
+*.db-wal
+*.db-shm
+*.db-journal
