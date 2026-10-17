@@ -9,6 +9,7 @@ import { Source } from "./features/workday/Source";
 import { Settings } from "./features/settings/Settings";
 import { ThemeSwitch, restoreTheme } from "./shared/components/ThemeSwitch";
 import { Icon } from "./shared/components/Icon";
+import { showToast, ToastHost } from "./shared/components/Toast";
 import { Logo } from "./shared/brand/Logo";
 import "./shared/theme.css";
 
@@ -27,7 +28,7 @@ function App() {
   const [view, setView] = useState<View>(new URLSearchParams(window.location.search).get('view')==='desk'?'desk':'myDay');
   const [sourceId, setSourceId] = useState('');
   const [selectedCase, setSelectedCase] = useState<number>();
-  const [message, setMessage] = useState("");
+  const [returnFocusId, setReturnFocusId] = useState<string | null>(null);
   const refresh = async () => {
     const [legacy, active, sessions, periods, sources, questions, billing, coverageGaps] = await Promise.all([
       api.GET('/api/state'), api.GET('/api/sessions/active'), api.GET('/api/sessions'),
@@ -40,11 +41,12 @@ function App() {
       sources:sources.data ?? [],questions:questions.data ?? [],coverageGaps:coverageGaps.data ?? [],billing:billing.data ?? {invoices:[],lines:[],expenses:[]}});
   };
   useEffect(() => {
-    refresh().catch((e) => setMessage(String(e)));
+    refresh().catch((e) => showToast(String(e)));
   }, []);
   const action = async <T,>(
     promise: Promise<{ data?: T; error?: unknown }>,
   ): Promise<T | undefined> => {
+    showToast('Working…');
     try {
       const r = await promise;
       if (r.error)
@@ -54,13 +56,15 @@ function App() {
             : JSON.stringify(r.error),
         );
       await refresh();
+      showToast('Saved');
       return r.data;
     } catch (e) {
-      setMessage(String(e));
+      showToast(String(e));
       return undefined;
     }
   };
   const navigate = (v: View, matterId?: number) => {
+    if (view === 'source' && v === 'myDay' && sourceId) setReturnFocusId(sourceId);
     if (matterId) setSelectedCase(matterId);
     else if (v === 'matters' || v === 'preInvoices') setSelectedCase(undefined);
     setView(v);
@@ -71,6 +75,7 @@ function App() {
   };
   const source = (id: string) => {
     setSourceId(id);
+    setReturnFocusId(null);
     navigate("source");
   };
   useEffect(() => {
@@ -115,18 +120,14 @@ function App() {
             <ThemeSwitch />
           </div>
         </header>
-        {message && (
-          <div className="toast" role="status" onClick={() => setMessage("")}>
-            {message} ×
-          </div>
-        )}
-        <div className="page">
+        <ToastHost />
+        <main id="main" className="page">
           {!props ? (
             <p>Loading local data…</p>
           ) : view === "desk" ? (
             <Desk {...props} />
           ) : view === "myDay" ? (
-            <MyDay {...props} />
+            <MyDay {...props} returnFocusId={returnFocusId} onFocusReturned={() => setReturnFocusId(null)} />
           ) : view === "matters" ? (
             <Cases {...props} />
           ) : view === "preInvoices" ? (
@@ -136,7 +137,7 @@ function App() {
           ) : (
             <Settings {...props} />
           )}
-        </div>
+        </main>
       </div>
     </div>
   );

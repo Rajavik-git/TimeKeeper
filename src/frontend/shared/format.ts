@@ -13,6 +13,7 @@ export const rate = (cents: number) => `$${whole.format(Math.round(cents / 100))
 export const percent = (value: number) => `${whole.format(Math.round(value))}%`;
 export const shortDate = (value: string) => short.format(parseDate(value));
 export const longDate = (value: string) => long.format(parseDate(value)).replace(',', '');
+export const auditDate = (value: string) => `${shortDate(value)}, ${value.slice(11, 16)}`;
 export function minutes(value: number): string {
   if (!Number.isSafeInteger(value) || value < 0) throw Error('Invalid duration');
   const hours = Math.floor(value / 60);

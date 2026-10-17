@@ -3,9 +3,10 @@ import { api, shortDate, type ScreenProps, type State } from '../../api/client';
 import { Card } from '../../shared/components/Card';
 import { SourcePackDialog } from '../../shared/components/SourcePackDialog';
 import { effectiveMs, formatPreciseDuration } from '../../calculations/billing';
+import { auditDate } from '../../shared/format';
 
 type Props=ScreenProps & {selected:string};
-export function Source({s,core,selected,action}:Props) {
+export function Source({s,core,selected,action,navigate}:Props) {
   const [clientId,setClientId]=useState('');
   const [caseId,setCaseId]=useState('');
   const [activity,setActivity]=useState<State>(s);
@@ -35,7 +36,7 @@ export function Source({s,core,selected,action}:Props) {
   const recognized=marker&&matter ? `Recognized from ${matter.reference} (window title) and ${owner?.name} (screen ${source?.timestamp??'—'}).` : 'Case assignment follows the recorded observation.';
   return <>
     <div className="ph"><div className="t"><h1>Activity</h1><p>Recorded work and the observations behind each period.</p></div>
-      <div className="actions activity-filters"><select className="field" aria-label="Filter by client" value={clientId} onChange={event=>{setClientId(event.target.value);setCaseId('');setPicked(null)}}><option value="">All clients</option>{s.client.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+      <div className="actions activity-filters"><button className="btn" onClick={()=>navigate('myDay')}>Back to My day</button><select className="field" aria-label="Filter by client" value={clientId} onChange={event=>{setClientId(event.target.value);setCaseId('');setPicked(null)}}><option value="">All clients</option>{s.client.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
         <select className="field" aria-label="Filter by case" value={caseId} onChange={event=>{setCaseId(event.target.value);setPicked(null)}}><option value="">{clientId?'All their cases':'All cases'}</option>{s.matter.filter(m=>!clientId||String(m.client_id)===clientId).map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select>
         <button className="btn" disabled={!selectedEntry?.matter_id} onClick={()=>setPack(true)}>Export source pack</button></div></div>
     <Card className="activity-timeline" style={{'--activity-days':byDate.length} as React.CSSProperties}><div className="row between"><h2>Timeline</h2><div className="activity-legend"><span className="legend-validated">Validated</span><span className="legend-pending">To validate</span><span>Not billable</span><span>No case</span></div></div>
@@ -55,7 +56,7 @@ export function Source({s,core,selected,action}:Props) {
     {selectedEntry&&block?<div className="activity-lower"><Card className="activity-detail"><div className="row between"><div><h2>{selectedEntry.label}</h2><p className="small muted">{owner?.name??'No case'} · {matter?.title??'Unassigned'} · {shortDate(selectedEntry.date)} · {block.start_time}–{block.end_time}</p></div><span>{formatPreciseDuration(period?effectiveMs(period):null)} · {period?.timeValidated?'Validated':'To validate'}</span></div>
       <div className="recognized-strip">{recognized}</div>
       <div className="activity-sources"><h3>Sources</h3>{sources.length?sources.map((item,index)=>{const canonical=core.sources.find(x=>x.id===String(item.id));return <div className="activity-source-row" key={item.id}><button className={`btn small ${frame===index?'primary':''}`} onClick={()=>setFrame(index)}>{item.timestamp} · {item.type==='audio'?'Call transcript':'Screen capture'}</button><span>{item.excerpt}</span><label className="row small"><input type="checkbox" checked={canonical?.validationStatus==='validated'} disabled={!canonical||canonical.validationStatus==='validated'} onChange={()=>{if(canonical)void action(api.POST('/api/sources/{instanceId}/{contentType}/{externalId}/validate',{params:{path:{instanceId:canonical.instanceId,contentType:canonical.contentType,externalId:canonical.externalId}},body:{}}))}}/>Source validated</label></div>}):<p>No recorded source for this period.</p>}</div></Card>
-      <Card className="activity-audit"><h2>Audit trail</h2>{audit.map(item=><div className="audit-row" key={item.id}><span className="small muted">{item.timestamp} · {item.actor==='TimeKeepr'?'TimeKeeper':item.actor}</span><b>{item.action}</b><span className="small muted">{[item.before,item.after].filter(Boolean).join(' → ').replace(/(?:confidence|probability|p\s*=)\s*[^·]+(?:·\s*)?/gi,'').replace(/(?:frame_id|chunk_id)\s*\d+/gi,'').trim()}</span></div>)}</Card></div>:<Card><h2>No activity recorded</h2><p>Choose another client or case.</p></Card>}
+      <Card className="activity-audit"><h2>Audit trail</h2>{audit.map(item=><div className="audit-row" key={item.id}><span className="small muted">{auditDate(item.timestamp)} · {item.actor==='TimeKeepr'?'TimeKeeper':item.actor}</span><b>{item.action}</b><span className="small muted">{[item.before,item.after].filter(Boolean).join(' → ').replace(/(?:confidence|probability|p\s*=)\s*[^·]+(?:·\s*)?/gi,'').replace(/(?:frame_id|chunk_id)\s*\d+/gi,'').trim()}</span></div>)}</Card></div>:<Card><h2>No activity recorded</h2><p>Choose another client or case.</p></Card>}
     {pack&&selectedEntry?.matter_id&&<SourcePackDialog s={s} matterId={selectedEntry.matter_id} initialPeriodId={selectedEntry.id} action={action} close={()=>setPack(false)}/>}
   </>;
 }
