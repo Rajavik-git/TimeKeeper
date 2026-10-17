@@ -86,6 +86,7 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
   'POST /api/work-periods/{id}/assignment': {path:'/api/work-periods/13/assignment',body:{caseId:'5',expectedAssignmentRevision:0,origin:'lawyer'}},
   'POST /api/work-periods/{id}/duration-override': {path:'/api/work-periods/14/duration-override',body:{durationMs:600000}},
   'POST /api/work-periods/{id}/detected-duration': {path:'/api/work-periods/14/detected-duration',body:{durationMs:600000}},
+  'POST /api/work-periods/validate-time': {body:{periods:[{id:'14'}]}},
   'POST /api/work-periods/{id}/validate-time': {path:'/api/work-periods/14/validate-time',body:{}},
   'POST /api/work-periods/{id}/billing-status': {path:'/api/work-periods/14/billing-status',body:{status:'unbilled'}},
   'POST /api/questions/answer': {body:{questionId:'demo-question-13',sessionId:'demo-2026-10-16',periodId:'13',expectedAssignmentRevision:0,caseId:'5',responseCommandId:'answer-13'}},

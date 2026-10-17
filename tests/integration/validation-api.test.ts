@@ -51,6 +51,45 @@ describe('revision guard on time validation and duration override (docs/API.md A
   }));
 });
 
+describe('bulk time validation (docs/API.md A3)', () => {
+  const unvalidated = (db: DatabaseSync, withCase: boolean) => (db.prepare(`SELECT id FROM work_periods
+    WHERE billing_status='unbilled' AND case_id IS ${withCase ? 'NOT ' : ''}NULL
+    AND (validated_effective_revision IS NULL OR validated_effective_revision != effective_revision)
+    AND COALESCE(duration_override_ms, detected_duration_ms) IS NOT NULL ORDER BY id LIMIT 2`).all() as { id: string }[]).map(r => r.id);
+
+  it('validates several periods and answers in request order', () => withApp(async (call, db) => {
+    const ids = unvalidated(db, true).reverse();
+    expect(ids.length).toBe(2);
+    const result = await call('/api/work-periods/validate-time', { periods: ids.map(id => ({ id })) });
+    expect(result.status).toBe(200);
+    expect(result.body.map((p: { id: string }) => p.id)).toEqual(ids);
+    for (const period of result.body) expect(period.timeValidated).toBe(true);
+  }));
+
+  it('changes nothing when one period cannot be validated', () => withApp(async (call, db) => {
+    const [ready] = unvalidated(db, true), [noCase] = unvalidated(db, false);
+    const result = await call('/api/work-periods/validate-time', { periods: [{ id: ready }, { id: noCase }] });
+    expect(result.status).toBe(409);
+    expect(result.body.error).toBe('conflict');
+    expect((await call(`/api/work-periods/${ready}`)).body.timeValidated).toBe(false);
+  }));
+
+  it('applies the revision guard to each period', () => withApp(async (call, db) => {
+    const [id] = unvalidated(db, true);
+    const period = (await call(`/api/work-periods/${id}`)).body;
+    const result = await call('/api/work-periods/validate-time', { periods: [{ id, expectedEffectiveRevision: period.effectiveRevision + 1 }] });
+    expect(result.status).toBe(409);
+  }));
+
+  it('rejects duplicate IDs, an empty list, and a missing list', () => withApp(async call => {
+    for (const body of [{ periods: [{ id: '14' }, { id: '14' }] }, { periods: [] }, {}]) {
+      const result = await call('/api/work-periods/validate-time', body);
+      expect(result.status, JSON.stringify(body)).toBe(400);
+      expect(result.body.error).toBe('invalid-request');
+    }
+  }));
+});
+
 describe('undo a validation (docs/API.md D2)', () => {
   it('removes time validation, and repeating it changes nothing', () => withApp(async call => {
     await call('/api/work-periods/14/validate-time', {});

@@ -5089,6 +5089,78 @@
           }
         }
       }
+    },
+    "/api/work-periods/validate-time": {
+      "post": {
+        "summary": "Validate the time of several work periods, all or nothing",
+        "description": "Used by \"approve day\" and \"approve case\". If any period cannot be validated, nothing changes and that error is returned. Duplicate IDs are 400.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidatePeriods"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The validated periods, in request order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkPeriod"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, or the rule needed for this action is not decided yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7397,6 +7469,37 @@
               "imported",
               "unchanged"
             ]
+          }
+        }
+      },
+      "ValidatePeriods": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "periods"
+        ],
+        "properties": {
+          "periods": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "expectedEffectiveRevision": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Optional guard, as on the single validate-time route."
+                }
+              }
+            }
           }
         }
       }

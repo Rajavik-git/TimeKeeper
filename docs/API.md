@@ -98,7 +98,8 @@ Expected callers: `ui` (React), `workflow` (scoped MCP commands used by Screenpi
 | `POST /api/work-periods/{id}/assignment` | ui, workflow | Assign a case, guarded by `expectedAssignmentRevision`. | 200, 400, 404, 409, 500 |
 | `POST /api/work-periods/{id}/detected-duration` | workflow | Set the detected duration. | 200, 400, 404, 409, 500 |
 | `POST /api/work-periods/{id}/duration-override` | ui | Set or remove (`null`) the lawyer's duration. | 200, 400, 404, 409, 500 |
-| `POST /api/work-periods/{id}/validate-time` | ui | Validate the current effective time. | 200, 400, 404, 409, 500 |
+| `POST /api/work-periods/{id}/validate-time` | ui | Validate the current effective time. Optional `expectedEffectiveRevision` ([A2](#missing-endpoints-and-rules)); `{"validated": false}` removes the validation ([D2](#d2-undo-a-validation-through-the-same-endpoint)). | 200, 400, 404, 409, 500 |
+| `POST /api/work-periods/validate-time` | ui | Validate several periods all or nothing ([A3](#missing-endpoints-and-rules)). Body `{"periods": [{"id", "expectedEffectiveRevision"?}]}`, 1 to 500, no duplicates; answers the validated periods in request order. | 200, 400, 404, 409, 500 |
 | `POST /api/work-periods/{id}/billing-status` | ui | `billed` or `unbilled`. | 200, 400, 404, 409, 500 |
 
 #### Questions, sources, and coverage
@@ -273,7 +274,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | --- | --- | --- |
 | A1 | `GET /api/health` returning `{"status":"ok"}`. | **Done.** Lets the launcher and Tauri detect API readiness. When D8 synchronization is built, it must finish before this route answers. |
 | A2 | Revision guard on `validate-time` and `duration-override`: an `expectedEffectiveRevision` field, with `409` on mismatch. | **Done.** Prevents validating or overriding a period that changed after the lawyer saw it. The field is **optional** so the current interface, which sends `{}`, keeps working; the guard only protects calls that send it. **For the interface:** send the `effectiveRevision` of the period on screen in `PreInvoices.tsx`, `Cases.tsx`, and `MyDay.tsx`. |
-| A3 | Bulk validation: `POST /api/work-periods/validate-time` with a list of `{id, expectedEffectiveRevision}`, all or nothing. | Canonical replacement for the demo "approve day" and "approve case" routes. |
+| A3 | Bulk validation: `POST /api/work-periods/validate-time` with a list of `{id, expectedEffectiveRevision}`, all or nothing. | **Done.** Canonical replacement for the demo "approve day" and "approve case" routes. If one period cannot be validated, none is, and that period's error is returned. **For the interface:** `MyDay.tsx` currently validates one request per period and accepts partial success ("x of y validated"); switching to this route makes the result all or nothing. |
 | A4 | Filters on list endpoints. | **Done.** All optional query parameters; dates are `YYYY-MM-DD` and compare the start day. `GET /api/work-periods`: `date`, `from`, `to`, `clientId`, `caseId`, `sessionId`. `GET /api/sources`: `periodId`. `GET /api/coverage-gaps`: `date`, `from`, `to`, `sessionId`. `GET /api/questions`: `date`, `status` (`pending`, `answered`, `superseded`; other values are `400`), `sessionId`. The `date` filters and the first five work-period filters came from `mvp` (`2747b4b`). |
 | A5 | Canonical client, case, and global-rate endpoints using `createClient`, `createCase`, and `setGlobalRate`, which exist in `service.ts:123-136` but are not exposed. | Today configuration goes through the demo routes only. |
 | A6 | Reconstruction conflict endpoints: list and resolve. | **Open.** Conflicts are stored, but the lawyer's resolution action is undefined ([design review](DESIGN_REVIEW.md)). |

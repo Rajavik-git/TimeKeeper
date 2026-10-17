@@ -104,6 +104,16 @@ export function coreRoutes(db: DatabaseSync): Hono {
       mode:b.mode === 'current' || b.mode === 'recovery' ? b.mode : (()=>{throw new AppError('invalid-request','mode required')})()});
     return c.json(result,'status' in result && result.status === 'pending' ? 202 : 200);
   });
+  // Bulk time validation for "approve day" and "approve case" (docs/API.md A3): all or nothing.
+  router.post('/work-periods/validate-time',async c=>{
+    const b=await input(c);
+    if (!Array.isArray(b.periods) || b.periods.length === 0 || b.periods.length > 500)
+      throw new AppError('invalid-request','periods must list between 1 and 500 work periods');
+    return c.json(service.validatePeriods(b.periods.map(value=>{
+      const p=object(value);
+      return {id:string(p.id,'id'),...(p.expectedEffectiveRevision === undefined ? {} : {expectedEffectiveRevision:integer(p.expectedEffectiveRevision,'expectedEffectiveRevision')})};
+    })));
+  });
   router.post('/work-periods/manual',async c=>{
     const b=await input(c);
     return c.json(service.createManualPeriod({sessionId:string(b.sessionId,'sessionId'),caseId:string(b.caseId,'caseId'),

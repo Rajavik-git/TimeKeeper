@@ -320,6 +320,11 @@ export class TimeKeeperService {
       return view(next);
     });
   }
+  /** Validates several periods all or nothing (docs/API.md A3). Results keep the order of the input. */
+  validatePeriods(targets: { id: string; expectedEffectiveRevision?: number }[]): PeriodView[] {
+    if (new Set(targets.map(t => t.id)).size !== targets.length) throw new AppError('invalid-request','duplicate period ID');
+    return this.repo.transaction(() => targets.map(t => this.validatePeriod(t.id,t.expectedEffectiveRevision)));
+  }
   /** Removes the lawyer's time validation (docs/API.md D2). Idempotent; refused on billed periods. */
   unvalidatePeriod(id: string, expectedEffectiveRevision?: number): PeriodView {
     return this.repo.transaction(() => {

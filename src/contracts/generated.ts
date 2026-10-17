@@ -2687,6 +2687,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/work-periods/validate-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate the time of several work periods, all or nothing
+         * @description Used by "approve day" and "approve case". If any period cannot be validated, nothing changes and that error is returned. Duplicate IDs are 400.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ValidatePeriods"];
+                };
+            };
+            responses: {
+                /** @description The validated periods, in request order */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkPeriod"][];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Conflict, or the rule needed for this action is not decided yet */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3210,6 +3289,13 @@ export interface components {
             id: string;
             /** @enum {string} */
             status: "imported" | "unchanged";
+        };
+        ValidatePeriods: {
+            periods: {
+                id: string;
+                /** @description Optional guard, as on the single validate-time route. */
+                expectedEffectiveRevision?: number;
+            }[];
         };
     };
     responses: never;
