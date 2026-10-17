@@ -39,5 +39,26 @@ Chat-calculated summaries, reusable folder learning, and advanced currency behav
 | [Screenpipe event research](docs/SCREENPIPE_EVENTS.md) | Trigger mechanisms and release verification gates. |
 | [Design review](docs/DESIGN_REVIEW.md) | Remaining risks and implementation checkpoints. |
 | [Contributor instructions](AGENTS.md) | Code organization, dependency rules, and working practices. |
+| [Mockup gap](docs/MOCKUP_GAP.md) | Differences between the validated mockup and the requirements. |
 
 The requirements define product behavior. The architecture and database documents explain its intended implementation. Research evidence does not establish runtime support in an installed release.
+
+## Decisions to make
+
+The team builds from the validated mockup's structure, inside the code organization above. These decisions block parts of the MVP. Each line gives a proposed option for discussion; none is agreed until the authoritative document records it. See the [mockup gap](docs/MOCKUP_GAP.md) and the [design review](docs/DESIGN_REVIEW.md) for details.
+
+| Priority | Decision | Proposed option |
+| --- | --- | --- |
+| 1 | Product scope: keep invoice preparation, client rates, flat fees, budgets, and client rules from the mockup, or keep the requirements' billed/unbilled status only. | Keep pre-invoices without numbered invoice issuing; keep case and global rates only. |
+| 2 | Folder identification. | Match the case reference, case title, or a known folder or file name in the window title, file path, or URL. Otherwise, create an unresolved period and ask the lawyer. |
+| 3 | Duration derivation from observations. | A period runs from one case transition to the next. A gap of more than five minutes without observations is shown as missing coverage and not counted. |
+| 4 | End command while TimeKeeper is closed. | The Screenpipe pipe writes commands to a local inbox folder; TimeKeeper imports them in order at startup. |
+| 5 | Billing unit and where amounts are calculated. | Follow the requirements: precise milliseconds, minute rounding on combined totals, amounts calculated in React. |
+| 6 | Review states in the interface. | Follow the requirements: separate time validation, source validation, and billing status. |
+| 7 | Applied rate snapshot. | Fix the rate when a period is marked billed. |
+| 8 | Editing a billed period. | Not allowed until the period is marked unbilled again. |
+| 9 | Periods counted in each total. | Count every period with an effective duration; show the validated share separately. |
+| 10 | Manual periods without evidence (hearing, meeting, travel). | Allow them, marked as manual, with time validation required. |
+| 11 | Automatic recognition with weighted markers and learning. | Use markers for suggestions only; the lawyer confirms. Defer learning. |
+| 12 | Desk pill content. | Show the active session, the active case, and the time of the current period; show amounts only once decision 5 is applied. |
+
