@@ -25,6 +25,9 @@ export function createApp(db: DatabaseSync) {
   const allowedOrigins = new Set([
     'tauri://localhost', 'http://tauri.localhost', 'https://tauri.localhost',
     'http://127.0.0.1:5173', 'http://localhost:5173',
+    // The dev UI may run on another port (UI_PORT), and a shared preview may add origins.
+    ...(process.env.UI_PORT ? [`http://127.0.0.1:${process.env.UI_PORT}`, `http://localhost:${process.env.UI_PORT}`] : []),
+    ...(process.env.TIMEKEEPER_ALLOWED_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean),
   ]);
   app.use('/api/*', async (c, next) => {
     const origin = c.req.header('Origin');
