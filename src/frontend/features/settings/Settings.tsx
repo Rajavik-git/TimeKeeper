@@ -62,22 +62,30 @@ export function Settings({ s, action, navigate }: ScreenProps) {
     "daily_research_cap" | "nonbillable_travel"
   >("daily_research_cap");
   const patchClient = (id: number, body: Record<string, unknown>) =>
-    action(api.PATCH("/api/client/{id}", { params: { path: { id } }, body }));
+    saved(
+      action(api.PATCH("/api/client/{id}", { params: { path: { id } }, body })),
+    );
   const patchTask = (id: number, body: Record<string, unknown>) =>
-    action(api.PATCH("/api/task/{id}", { params: { path: { id } }, body }));
+    saved(
+      action(api.PATCH("/api/task/{id}", { params: { path: { id } }, body })),
+    );
   const patchFirm = (body: Record<string, unknown>) =>
-    action(
-      api.PATCH("/api/firm/{id}", {
-        params: { path: { id: s.firm[0].id } },
-        body,
-      }),
+    saved(
+      action(
+        api.PATCH("/api/firm/{id}", {
+          params: { path: { id: s.firm[0].id } },
+          body,
+        }),
+      ),
     );
   const patchSetting = (body: Record<string, unknown>) =>
-    action(
-      api.PATCH("/api/setting/{id}", {
-        params: { path: { id: s.setting[0].id } },
-        body,
-      }),
+    saved(
+      action(
+        api.PATCH("/api/setting/{id}", {
+          params: { path: { id: s.setting[0].id } },
+          body,
+        }),
+      ),
     );
   const head = (
     table: string,
@@ -281,11 +289,9 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                     }
                     onKeyDown={blurOnEnter}
                     onBlur={(event) =>
-                      void saved(
-                        patchClient(editClient, {
-                          rate_cents: cents(event.target.value),
-                        }),
-                      )
+                      void patchClient(editClient, {
+                        rate_cents: cents(event.target.value),
+                      })
                     }
                   />
                 </label>
@@ -311,10 +317,12 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 className="settings-inline"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  await action(
-                    api.POST("/api/clients", {
-                      body: { name, code, rate_cents: cents(amount) },
-                    }),
+                  await saved(
+                    action(
+                      api.POST("/api/clients", {
+                        body: { name, code, rate_cents: cents(amount) },
+                      }),
+                    ),
                   );
                   setName("");
                   setCode("");
@@ -403,9 +411,9 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   defaultValue={(s.firm[0].base_rate_cents / 100).toFixed(2)}
                   onKeyDown={blurOnEnter}
                   onBlur={(event) =>
-                    void saved(
-                      patchFirm({ base_rate_cents: cents(event.target.value) }),
-                    )
+                    void patchFirm({
+                      base_rate_cents: cents(event.target.value),
+                    })
                   }
                 />
                 <label htmlFor="base-unit">Unit</label>
@@ -475,9 +483,18 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   ]).map((task) => (
                     <tr
                       key={task.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={editTask === task.id}
                       onClick={() =>
                         setEditTask(editTask === task.id ? null : task.id)
                       }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setEditTask(editTask === task.id ? null : task.id);
+                        }
+                      }}
                     >
                       <td>{task.label}</td>
                       <td>
@@ -536,10 +553,12 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 className="settings-inline"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  await action(
-                    api.POST("/api/tasks", {
-                      body: { code: code.toUpperCase(), label: name },
-                    }),
+                  await saved(
+                    action(
+                      api.POST("/api/tasks", {
+                        body: { code: code.toUpperCase(), label: name },
+                      }),
+                    ),
                   );
                   setCode("");
                   setName("");
@@ -609,10 +628,12 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                           className="rule-delete"
                           aria-label={`Delete rule for ${s.client.find((item) => item.id === rule.client_id)?.name}`}
                           onClick={() =>
-                            action(
-                              api.DELETE("/api/client-rules/{id}", {
-                                params: { path: { id: rule.id } },
-                              }),
+                            void saved(
+                              action(
+                                api.DELETE("/api/client-rules/{id}", {
+                                  params: { path: { id: rule.id } },
+                                }),
+                              ),
                             )
                           }
                         >
@@ -656,10 +677,12 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 <button
                   className="btn primary"
                   onClick={async () => {
-                    await action(
-                      api.POST("/api/client-rules", {
-                        body: { client_id: ruleClient, type: ruleType },
-                      }),
+                    await saved(
+                      action(
+                        api.POST("/api/client-rules", {
+                          body: { client_id: ruleClient, type: ruleType },
+                        }),
+                      ),
                     );
                     setAdd(false);
                   }}
@@ -782,9 +805,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   defaultValue={s.setting[0].invoice_prefix}
                   onKeyDown={blurOnEnter}
                   onBlur={(event) =>
-                    void saved(
-                      patchSetting({ invoice_prefix: event.target.value }),
-                    )
+                    void patchSetting({ invoice_prefix: event.target.value })
                   }
                 />
                 <label htmlFor="next">Next number</label>
@@ -800,9 +821,9 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   )}
                   onKeyDown={blurOnEnter}
                   onBlur={(event) =>
-                    void saved(
-                      patchSetting({ next_number: Number(event.target.value) }),
-                    )
+                    void patchSetting({
+                      next_number: Number(event.target.value),
+                    })
                   }
                 />
               </div>
@@ -815,7 +836,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   className="btn sm"
                   onClick={async () => {
                     if (confirm("Reset the demo?"))
-                      await action(api.POST("/api/demo/reset"));
+                      await saved(action(api.POST("/api/demo/reset")));
                   }}
                 >
                   Reset demo data

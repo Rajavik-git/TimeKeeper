@@ -133,6 +133,8 @@
 .settings-table tbody tr:hover td {
   background: var(--hover);
 }
+.settings-table tbody tr[aria-expanded="true"] td { background: var(--active); }
+.settings-table tbody tr[role="button"] { cursor: pointer; }
 .settings-table .rate {
   text-align: right;
   font-variant-numeric: tabular-nums;
