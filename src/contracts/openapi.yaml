@@ -2868,6 +2868,94 @@
             }
           }
         }
+      },
+      "post": {
+        "summary": "Import evidence references from the Screenpipe workflow",
+        "description": "One object or an array of 1 to 500, applied all or nothing. Idempotent on instanceId + contentType + externalId. Only references are stored; content stays in Screenpipe.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/SourceImport"
+                  },
+                  {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "items": {
+                      "$ref": "#/components/schemas/SourceImport"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "One result per source, in input order; an object for an object request, an array for an array request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SourceImportResult"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SourceImportResult"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, or the rule needed for this action is not decided yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/questions": {
@@ -7156,6 +7244,67 @@
           },
           "confidenceThreshold": {
             "type": "number"
+          }
+        }
+      },
+      "SourceImport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "periodId",
+          "instanceId",
+          "contentType",
+          "externalId",
+          "recordedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Caller-chosen source ID, used when the reference is new."
+          },
+          "periodId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` for evidence not yet tied to a work period."
+          },
+          "instanceId": {
+            "type": "string",
+            "description": "Screenpipe instance. With contentType and externalId, the provider identity."
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string",
+            "description": "Provider record ID, for example a frame ID."
+          },
+          "recordedAt": {
+            "type": "string",
+            "description": "UTC timestamp of the recording."
+          }
+        }
+      },
+      "SourceImportResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stored source ID. For an unchanged reference, the ID saved the first time."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "imported",
+              "unchanged"
+            ]
           }
         }
       }

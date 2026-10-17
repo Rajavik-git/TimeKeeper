@@ -794,7 +794,70 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /**
+         * Import evidence references from the Screenpipe workflow
+         * @description One object or an array of 1 to 500, applied all or nothing. Idempotent on instanceId + contentType + externalId. Only references are stored; content stays in Screenpipe.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SourceImport"] | components["schemas"]["SourceImport"][];
+                };
+            };
+            responses: {
+                /** @description One result per source, in input order; an object for an object request, an array for an array request */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SourceImportResult"] | components["schemas"]["SourceImportResult"][];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Conflict, or the rule needed for this action is not decided yet */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -3101,6 +3164,25 @@ export interface components {
             workspaceId: string;
             vatRate: number;
             confidenceThreshold: number;
+        };
+        SourceImport: {
+            /** @description Caller-chosen source ID, used when the reference is new. */
+            id: string;
+            /** @description `null` for evidence not yet tied to a work period. */
+            periodId: string | null;
+            /** @description Screenpipe instance. With contentType and externalId, the provider identity. */
+            instanceId: string;
+            contentType: string;
+            /** @description Provider record ID, for example a frame ID. */
+            externalId: string;
+            /** @description UTC timestamp of the recording. */
+            recordedAt: string;
+        };
+        SourceImportResult: {
+            /** @description Stored source ID. For an unchanged reference, the ID saved the first time. */
+            id: string;
+            /** @enum {string} */
+            status: "imported" | "unchanged";
         };
     };
     responses: never;

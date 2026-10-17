@@ -109,6 +109,7 @@ Expected callers: `ui` (React), `workflow` (scoped MCP commands used by Screenpi
 | `POST /api/questions` | workflow | Ask about an unresolved period. Returns `202` pending. | 202, 400, 404, 409, 500 |
 | `POST /api/questions/answer` | ui, workflow | Answer, guarded by question, session, period, and revision. | 200, 400, 404, 409, 500 |
 | `GET /api/sources` | ui, chat | All canonical sources. | 200, 500 |
+| `POST /api/sources` | workflow | Import evidence references ([A12](#why-a12-and-a13-were-added)): one object or an array of 1 to 500, all or nothing. Answers `{id, status}` per source (`imported` or `unchanged`), in input order, as an object or an array like the request. | 200, 400, 404, 409, 500 |
 | `POST /api/sources/{instanceId}/{contentType}/{externalId}/validate` | ui | Validate one source. | 200, 400, 404, 409, 500 |
 | `POST /api/sources/{instanceId}/{contentType}/{externalId}/availability` | workflow | `available` or `unavailable`. | 200, 400, 404, 409, 500 |
 | `GET /api/coverage-gaps` | ui, chat | Missing recording coverage. | 200, 500 |
@@ -281,7 +282,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A9 | Command delivery while TimeKeeper is closed. | **Decided**, see [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder). Not built yet. |
 | A10 | Undo time and source validation with `{"validated": false}`. | **Decided**, see [D2](#d2-undo-a-validation-through-the-same-endpoint). |
 | A11 | Replace `pending` refusals with `rule-not-decided` and `conflict`. | **Decided**, see [D4](#d4-error-codes-replacing-pending-for-refusals). Fixes [E1](#e1-undecided-rules-are-returned-as-successful-202-pending). |
-| A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Proposed.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
+| A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
 | A13 | Canonical reads: `GET /api/clients`, `GET /api/cases` (filters `clientId`, `status`), `GET /api/settings`. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added) and [Clients, cases, and settings](#clients-cases-and-settings). Complements the writes in A5. |
 
 ### Why A12 and A13 were added
@@ -297,6 +298,7 @@ Both were found by walking through the [requirements acceptance journey](REQUIRE
   - The same identity with a different period or time returns `409 conflict`.
   - Evidence recorded outside its session or period returns `409 conflict`; an unknown period returns `404 not-found`.
 - **Batch:** a workflow sends many references at once during recovery after reopening. Accept either one object or an array, applied all or nothing, so a partial import cannot leave a period half documented.
+- **As built:** at most 500 sources per request; an empty array or more than 500 is `400`. Every field is required, with `periodId` explicitly `null` when unknown. The response is `{id, status}` per source, where `status` is `imported` or `unchanged` and `id` is the ID stored the first time, so a retry with a new `id` still points to the original record.
 
 **A13. `GET /api/clients`, `GET /api/cases`, `GET /api/settings` (callers: `ui`, `workflow`, `chat`)**
 

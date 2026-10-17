@@ -78,6 +78,7 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
   'POST /api/work-periods': {body:{id:'contract-transition',sessionId:'demo-2026-10-16',caseId:'1',startedAt:'2026-10-16T17:00:00Z',origin:'automatic',mode:'current'}},
   'GET /api/work-periods': {},
   'GET /api/sources': {},
+  'POST /api/sources': {body:{id:'contract-source',periodId:'13',instanceId:'demo',contentType:'screen',externalId:'contract-frame',recordedAt:'2026-10-16T08:45:00Z'}},
   'GET /api/questions': {},
   'POST /api/questions': {body:{questionId:'retry-13',sessionId:'demo-2026-10-16',periodId:'13',expectedAssignmentRevision:0}},
   'POST /api/commands/start': {body:{producerId:'test',commandId:'start',sessionId:'new',occurredAt:'2026-10-16T16:43:00Z'}},

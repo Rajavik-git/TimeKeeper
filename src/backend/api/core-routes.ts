@@ -126,6 +126,19 @@ export function coreRoutes(db: DatabaseSync): Hono {
       periodId:string(b.periodId,'periodId'),expectedAssignmentRevision:integer(b.expectedAssignmentRevision,'expectedAssignmentRevision'),
       caseId:string(b.caseId,'caseId'),responseCommandId:string(b.responseCommandId,'responseCommandId')}));
   });
+  // Evidence references from the Screenpipe workflow (docs/API.md A12): one object or an array, applied all or nothing.
+  router.post('/sources',async c=>{
+    const body=await readJson(c);
+    const items=Array.isArray(body) ? body : [body];
+    if (items.length === 0 || items.length > 500) throw new AppError('invalid-request','send between 1 and 500 sources');
+    const results=service.importSources(items.map(value=>{
+      const b=object(value);
+      return {id:string(b.id,'id'),periodId:b.periodId === null ? null : string(b.periodId,'periodId'),
+        instanceId:string(b.instanceId,'instanceId'),contentType:string(b.contentType,'contentType'),
+        externalId:string(b.externalId,'externalId'),recordedAt:string(b.recordedAt,'recordedAt')};
+    }));
+    return c.json(Array.isArray(body) ? results : results[0]);
+  });
   router.post('/sources/:instanceId/:contentType/:externalId/validate',c=>{
     service.validateSource(c.req.param('instanceId'),c.req.param('contentType'),c.req.param('externalId'));
     return c.json({status:'applied'});

@@ -6,6 +6,8 @@ import type { CaseRecord, ClientRecord, CommandRecord, PeriodRecord, Repository,
 import { AppError, isAppErrorCode } from '../ports/errors.js';
 
 export { AppError } from '../ports/errors.js';
+export interface SourceImport { id: string; periodId: string | null; instanceId: string; contentType: string; externalId: string; recordedAt: string }
+export interface SourceImportResult { id: string; status: 'imported' | 'unchanged' }
 const fingerprint = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function assertTime(value: string): void {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) || !Number.isFinite(Date.parse(value))) throw new AppError('invalid-request', 'UTC timestamp required');
@@ -335,9 +337,13 @@ export class TimeKeeperService {
       this.repo.savePeriod(next,this.clock.now()); return view(next);
     });
   }
-  importSource(input: { id: string; periodId: string | null; instanceId: string; contentType: string; externalId: string; recordedAt: string }): void {
-    this.repo.transaction(() => {
-      assertTime(input.recordedAt);
+  /** Imports evidence references all or nothing (docs/API.md A12). Results keep the order of the input. */
+  importSources(inputs: SourceImport[]): SourceImportResult[] {
+    return this.repo.transaction(() => inputs.map(input => this.importSource(input)));
+  }
+  importSource(input: SourceImport): SourceImportResult {
+    return this.repo.transaction(() => {
+      assertId(input.id); assertTime(input.recordedAt);
       if (input.periodId) {
         const p = this.repo.period(input.periodId); if (!p) throw new AppError('not-found','period not found');
         const s = this.getSession(p.sessionId);
@@ -347,10 +353,11 @@ export class TimeKeeperService {
       const old = this.repo.sourceByIdentity(input.instanceId,input.contentType,input.externalId);
       if (old) {
         if (old.workPeriodId !== input.periodId || old.recordedAt !== input.recordedAt) throw new AppError('conflict','source identity changed');
-        return;
+        return { id:old.id,status:'unchanged' };
       }
       this.repo.insertSource({ id:input.id,workPeriodId:input.periodId,instanceId:input.instanceId,contentType:input.contentType,
         externalId:input.externalId,recordedAt:input.recordedAt,ingestedAt:this.clock.now(),validationStatus:'unvalidated',validatedAt:null,availabilityStatus:'unknown',availabilityCheckedAt:null });
+      return { id:input.id,status:'imported' };
     });
   }
   validateSource(instanceId: string, contentType: string, externalId: string): void {
