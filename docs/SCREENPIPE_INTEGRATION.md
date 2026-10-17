@@ -4,7 +4,7 @@ Research date: 2026-10-17. This document separates documented provider capabilit
 
 ## Required outcome
 
-Screenpipe supplies all recorded screen evidence through its memory API. The Screenpipe-owned workflow detects context changes from that evidence and submits assignments to TimeKeeper. Screenpipe chat can query TimeKeeper to retrieve the same case identities and assignments. TimeKeeper returns case associations to Screenpipe for the affected activity. See the [architecture](ARCHITECTURE.md) for the required adapter; the selected tag-based mechanism is defined in the architecture and remains untested.
+The [Screenpipe interaction requirements](REQUIREMENTS.md#screenpipe-interaction) define the required outcome. The [architecture](ARCHITECTURE.md#components-and-flows) defines component ownership and the return path for assignments.
 
 Screenpipe captures the visible context. TimeKeeper must resolve that context to its own case catalogue. An observed tab change does not by itself identify a legal case. A legal case can also change inside the same tab, and multiple tabs can belong to one case.
 
@@ -27,22 +27,7 @@ The search reference and bundled skills can evolve at different speeds. Treat re
 
 ## Recommended two-way architecture
 
-```mermaid
-flowchart TD
-    Capture[Screenpipe capture] --> Memory[Screenpipe recorded memory]
-    Worker[Screenpipe-owned pipe and skill workflow] -->|Read API| Memory
-    API[TimeKeeper application services and API]
-    Worker -->|Candidate lookup and scoped commands| MCP[TimeKeeper MCP server]
-    API <-->|Application records| DB[(TimeKeeper SQLite)]
-    Worker -->|Ambiguous text context and known candidates| JEV[JEV]
-    JEV -->|Typed judgment| Worker
-    Chat[Screenpipe chat] -->|Read-only HTTP MCP tools| MCP
-    MCP -->|Validated requests| API
-    UI[TimeKeeper interface] <-->|Review and corrections| API
-    UI --- Totals[Summary calculations]
-```
-
-Screenpipe owns the pipe/skill workflow. The Node backend validates and persists its commands and provides shared case services; it does not orchestrate a parallel detection workflow. Summary calculations remain in the interface.
+Use the [component and flow diagram](ARCHITECTURE.md#components-and-flows) for execution ownership. The sections below describe provider capabilities and proposed connection contracts.
 
 ### Screenpipe queries TimeKeeper
 
@@ -59,7 +44,7 @@ Proposed tools, not existing Screenpipe APIs:
 
 These tools use the application API, never direct SQLite access. Chat can ask which case a recorded period belongs to and receive the actual `case_id`. Tool responses do not create or update Screenpipe memories. Instruction text alone does not register an MCP connection or implement a tool. Current source defines an importable skill as a folder containing `SKILL.md` with YAML `name` and `description`, then Markdown instructions. Plan an explicitly imported `timekeeper/SKILL.md` separately from the MCP connection; the earlier generic `skills.md` placeholder is superseded. This is verified in current source, not in the installed app. [Official skill importer](https://github.com/screenpipe/screenpipe/blob/main/apps/screenpipe-app-tauri/src-tauri/src/skills.rs).
 
-Keep this chat path read-only. The Screenpipe pipe/skill workflow submits assignment writes through separately scoped MCP/API commands validated by the Node backend. Answers to workflow questions use the scoped answer command and its target period, not a general chat-write tool. Chat-calculated totals are deferred beyond the MVP because summary calculation belongs to the interface.
+The [MCP boundary](ARCHITECTURE.md#mcp-and-jev-boundaries) separates read-only chat tools from scoped workflow commands. Answers to workflow questions use the scoped answer command and its target period, not a general chat-write tool.
 
 ### TimeKeeper queries Screenpipe
 
@@ -95,16 +80,18 @@ The following algorithm is a proposal that satisfies the requested automatic-ass
 2. Compare the observation with the previous context. Ignore irrelevant cosmetic changes, but inspect changed text even when the URL and window title stay the same.
 3. Retrieve possible cases from TimeKeeper. Folder identification is deferred; the following is a candidate strategy, not an agreed rule. Match a case reference, a known document identifier, or a configured URL/path association before relying on a client name alone.
 4. If one active case has an unambiguous identifying match with no conflicting evidence, assign that existing case automatically as an inference pending lawyer validation.
-5. Otherwise, use JEV for semantic continuity and candidate selection.
+5. Otherwise, if JEV is enabled, use it for semantic continuity and candidate selection. If JEV is disabled, follow the existing ambiguous-context and unknown-folder rules in step 8.
 6. Verify that the selected case exists, belongs to the selected client, remains eligible, and still matches the observation being processed.
-7. Close and open inferred periods only when the case changes. Preserve unrelated sibling periods and manual corrections. If recovery proposes splitting a corrected or validated period, retain that period and flag a reconstruction conflict without adding candidate time to totals. Use capture timestamps rather than model-response time for the proposed boundary.
-8. If ordinary screen content is ambiguous, retain the active case. If a new folder cannot be identified, ask the lawyer using a question ID tied to the affected period and expected assignment revision. Ordinary period closure and evidence imports do not make the answer stale. Keep that period unresolved until answered. Delayed answers must not change a newer active case. The precise transition boundary remains to be defined. Never invent a case ID.
+7. Submit the proposed assignment through the [application flow](ARCHITECTURE.md#case-assignment-and-evidence-flow), which applies the work-period and reconstruction rules. Use capture timestamps rather than model-response time for the proposed boundary.
+8. Apply the [case and work-period rules](REQUIREMENTS.md#cases-and-work-periods) for ambiguous content, unknown folders, and delayed answers. The precise transition boundary remains to be defined.
 
 A client name is insufficient when that client has several cases. A case reference appearing in a sidebar or quoted document is not necessarily the active case. Candidate matching must consider the active content and conflicting references. Deterministic rules also need evaluation; they are not automatically reliable simply because they avoid an AI call.
 
 For a case change selected directly in TimeKeeper, the application already knows the chosen ID. Save that explicit user action as the authoritative assignment. Do not ask Screenpipe to rediscover it from the screen. Screenpipe chat obtains the updated assignment through MCP. Exclude the TimeKeeper review interface from automatic classification, or otherwise distinguish reviewing old evidence from doing new case work, to prevent feedback loops.
 
 ## JEV's role
+
+JEV is optional and used only by the Screenpipe workflow. The [architecture](ARCHITECTURE.md#mcp-and-jev-boundaries) defines its ownership and configuration boundary.
 
 TypeSafe's `Noul` returns the probability of a yes/no answer. Use separate questions for whether the client continues and whether the case continues. An uncertain result is not a hard boolean decision. [Noul reference](https://docs.typesafe.ai/primitives/noul).
 
@@ -124,23 +111,15 @@ The [database design](DATABASE.md) now includes period assignment, source identi
 - source provenance sufficient for replay, including source type, instance/device identity where needed, recorded timestamp, and external record ID;
 - assignment state separate from time validation, with method, selected case, candidate evidence, model version where applicable, and unresolved reason;
 - retrieval progress and deduplication rules;
-- a revision or equivalent stale-result guard so delayed inference cannot replace a newer manual assignment;
-- independent period assignment so one correction does not change sibling periods.
+- the [revision guards and period constraints](DATABASE.md#work_periods) used by application services.
 
 Map evidence identity separately to the canonical provider tag target before synchronization. All aliases for one target must agree on its assignment. See the [architecture](ARCHITECTURE.md#screenpipe-assignment-synchronization) for target ownership and delivery ordering. Recorded API capabilities do not establish that this mapping has been verified in the installed release.
 
 ## Required acceptance checks
 
-1. Two different tabs concern the same case: keep the case assignment.
-2. Two cases belong to the same client: select the case reference, not only the client.
-3. A case changes inside one tab without a URL change: use newly recorded content.
-4. A detected new-folder transition has no reliable case match: keep its period unresolved and ask the lawyer. Ordinary ambiguous or background content does not clear the active case.
-5. A lawyer manually changes the assignment before JEV responds: retain the manual correction.
-6. Screenpipe capture is paused or indexing is delayed: display coverage uncertainty rather than inventing work time.
-7. TimeKeeper restarts: replay API evidence without duplicating periods. Any change to effective case or duration clears time validation; identical replay preserves it. A proposed split of a corrected or validated period remains a review conflict.
-8. Screenpipe chat asks about a period: return the same case ID and validation state as the interface.
-9. The lawyer reviews an old case in TimeKeeper: do not count that display as new work on the old case by default.
-10. All observations used for automatic assignment have Screenpipe API provenance. Assignment metadata is delivered separately to Screenpipe, with acknowledgement and revision checks; source recordings are not rewritten.
+Business acceptance examples are maintained in [REQUIREMENTS.md](REQUIREMENTS.md#acceptance-examples). Provider event checks are maintained in the [release acceptance gate](SCREENPIPE_EVENTS.md#release-acceptance-gate).
+
+Evaluate the candidate-matching proposal with cases that share a client, same-tab content changes, and old-case review in TimeKeeper. These checks must establish whether the proposed identification and feedback-loop guards work; they do not define an accepted folder-identification algorithm.
 
 Return to the [architecture](ARCHITECTURE.md) or [README](../README.md).
 

@@ -25,7 +25,7 @@ flowchart LR
         Workflow -->|Retrieve evidence| Memory
     end
     Workflow -->|Start and wait for readiness| Launcher[External desktop launcher]
-    Workflow -->|Ambiguous context| JEV[JEV]
+    Workflow -->|When enabled, ambiguous context| JEV[JEV]
     subgraph TK[TimeKeeper desktop]
         Host[Tauri host]
         UI[React review and summary calculations]
@@ -57,7 +57,7 @@ The diagram describes required behavior. It does not claim that these integratio
 | --- | --- |
 | Screenpipe recorder and API | Capture activity and expose recorded observations and sources. |
 | Screenpipe bridge and workflow | Receive verified signals, retrieve evidence, resolve cases, ask about unknown folders, and submit commands. |
-| JEV | Help the Screenpipe workflow judge ambiguous context using known candidates. Never create case IDs or validate time. |
+| JEV, optional | Help the Screenpipe workflow judge ambiguous context using known candidates. Never create case IDs or validate time. |
 | External launcher | Start or activate the installed Tauri app before its API is reachable. |
 | MCP server | Translate scoped workflow commands and read-only queries into API requests. Never access SQLite directly. |
 | Node application services | Validate commands, preserve revisions and corrections, and persist records through one write path. |
@@ -67,70 +67,46 @@ The diagram describes required behavior. It does not claim that these integratio
 
 ## Session lifecycle and application lifecycle
 
-Session state is independent of desktop process state.
+The [session requirements](REQUIREMENTS.md#sessions-and-desktop-lifecycle) define start, end, replay, and command-order behavior. Tauri manages process startup and shutdown independently of persisted session state.
 
-| Action | Required effect |
-| --- | --- |
-| Start command in Screenpipe | Launch or activate TimeKeeper and wait for readiness. Create a session only if none is active. Otherwise, return the active session ID without resetting its start boundary. |
-| Close TimeKeeper | Exit Tauri and Node. Keep the session and active work period open. |
-| Reopen TimeKeeper | Resume the existing session and reconcile recorded history without duplicate periods or lost corrections. |
-| End command in Screenpipe | End the explicitly targeted session and close its active period. Later end requests for that session return its original end boundary. Do not stop Screenpipe recording. |
-| Receive evidence after session end | Accept historical reconciliation for recorded activity inside the session boundary. Do not reopen or extend the session. |
-
-Only one session can be active per workspace. Commands need stable IDs, a session ID, effective timestamps, and revision checks. The start response supplies the authoritative session ID for subsequent commands. Receipt time must not replace the effective timestamp. Command retries must have no additional effect.
-
-An end without a valid target reports that no matching session exists and does not create one. During recovery, an end whose prerequisite start is known but not yet applied stays pending until that start is processed. Pending receipt is not successful session termination. A contradictory end timestamp cannot revise an already applied end boundary.
-
-Recovery must apply known causal prerequisites before dependent commands. A new start must not be treated as a repeated start merely because an earlier end is still pending recovery. Unresolved order is reported as pending or conflicting, not guessed from delivery order. The chosen transport must preserve this ordering information.
+Commands carry stable IDs, a session ID, effective timestamps, and revision checks. The start response supplies the authoritative session ID for subsequent commands. Receipt time must not replace the effective timestamp. The transport must preserve causal prerequisite information for recovery. Application services enforce these contracts through the [technical persistence records](DATABASE.md#technical-persistence).
 
 While TimeKeeper is closed, its API, MCP server, and SQLite writer are unavailable. Session commands, case changes, and lawyer answers must survive this interval. Recordings alone do not guarantee that those decisions can be reconstructed.
 
 Two implementation options remain open: durable command storage outside the desktop process, or relaunching TimeKeeper when a command requires persistence. A SQLite queue inside the stopped app does not solve command reception. Selecting and testing this contract is required before claiming that end commands or assignments work while the app is closed.
 
-An explicit end at 12:00 must allow later import of recordings from 11:00 to 12:00. It must reject new tracked activity after 12:00. Recovery preserves corrections and must not assign the reopen time as the session end.
-
 ## Case assignment and evidence flow
 
-Folder identification remains undefined. The matching ideas in the [integration research](SCREENPIPE_INTEGRATION.md) are proposals. Ordinary application switches preserve the active case. A detected unknown-folder transition starts an unresolved period and asks the lawyer. The precise detection and effective-boundary rules remain open.
+The [case and work-period requirements](REQUIREMENTS.md#cases-and-work-periods) define assignment behavior. Folder identification and effective-boundary rules remain open. The matching ideas in the [integration research](SCREENPIPE_INTEGRATION.md#resolving-the-correct-case) are proposals.
 
 The intended assignment flow is:
 
 1. A verified Screenpipe signal wakes the Screenpipe workflow.
 2. The workflow retrieves persisted observations through the Screenpipe API.
 3. The workflow retrieves candidate cases through MCP and the application API.
-4. The workflow resolves an existing case, uses JEV when needed, or asks the lawyer.
+4. The workflow resolves an existing case, uses JEV when enabled and needed, or asks the lawyer.
 5. The workflow submits the assignment and its evidence through a scoped MCP command.
 6. Node checks the session boundary, case identity, expected revision, and manual corrections.
 7. One transaction saves the period assignment and pending source-tag delivery.
 8. The adapter reconciles the tags and records successful verification or retryable failure.
 
-The work period owns its case assignment. Its client is derived from the case. Changing one period preserves other periods. A historical correction does not change the current active case.
+Workflow question and answer payloads carry the identifiers and assignment guard defined in the requirements. The [pending-question records](DATABASE.md#technical-persistence) persist that guard across deliveries. Application services own answer validation and reconstruction-conflict persistence.
 
-Questions about unknown folders carry a question ID, session ID, period ID, and expected assignment revision. An answer resolves that period, even if the lawyer has since opened another case. Duplicate answers have no additional effect. Ordinary period closure and evidence imports do not invalidate the assignment guard. A newer assignment, superseded question, or replacement of the target period causes a visible conflict instead of an overwrite. Answering a question does not teach a reusable folder rule in the MVP.
-
-Replayed observations must not duplicate time. Delayed inference must not overwrite a newer manual correction. Source retrieval progress advances only after the corresponding records are committed. Recovery rereads overlapping windows to handle delayed indexing and deduplicates source identities.
-
-If late evidence suggests splitting a lawyer-corrected or validated period, preserve the existing period, its sources, and its override. Record the proposed reconstruction as a review conflict. Do not automatically split the period or copy, discard, or distribute its override. Proposed replacement periods do not contribute additional time to totals. The detailed conflict-resolution flow remains to be defined before implementing that action.
+Source retrieval progress advances only after the corresponding records are committed. Recovery rereads overlapping windows to handle delayed indexing and deduplicates source identities.
 
 The trigger transport and producer remain subject to the [event verification gate](SCREENPIPE_EVENTS.md). A signal can arrive before its evidence is searchable. An empty initial query does not prove that no activity occurred.
 
 ## Evidence, durations, and summaries
 
-A screenshot proves an observation at a recorded timestamp. It does not by itself prove continuous work between observations. Screenshot counts, model response times, and application uptime are not duration inputs.
+The [evidence and rounding requirements](REQUIREMENTS.md#evidence-duration-and-rounding) define duration semantics and incomplete totals. The [state transitions](REQUIREMENTS.md#state-transitions) define validation behavior. Storage preserves the [precise detected duration and override](DATABASE.md#duration-rounding-and-consolidation) separately.
 
-The interval reconstruction rule remains a product decision. It must define usable boundaries and missing-recording behavior without adding inactivity subtraction. Precise detected intervals and a lawyer's duration override remain distinct. Editing duration does not silently rewrite observed timestamps.
-
-Time validation applies to the effective case and duration that the lawyer reviewed. A change to either value from any origin invalidates that validation. Identical replay preserves it. A changed detected duration also preserves validation if a lawyer override keeps the effective duration unchanged. Technical synchronization retries do not invalidate time. See the [state transitions](REQUIREMENTS.md#state-transitions) for billing and rate decisions that remain open.
-
-React uses the lawyer's override when present, otherwise the supported detected duration. It sums unrounded durations in the selected group and rounds the combined total upward:
+React calculates summaries from the complete detail set supplied by the API. With the proposed millisecond representation, the calculation is:
 
 ```text
 combined_minutes = ceil(sum(effective_duration_ms) / 60000)
 ```
 
-Two 20-second periods produce one combined minute. A zero total remains zero. Each case, client, or selected-range total is calculated from its underlying precise durations, not from rounded subtotals. Therefore, rounded subtotals can sum to more than the rounded overall total.
-
-The database stores details and corrections. React calculates totals after receiving the complete input set. Missing pages, missing duration evidence, or unavailable recordings must be visible as incomplete coverage. Source validation, time validation, and billed status remain separate.
+The backend supplies detail records and retrieval-completeness information. It does not calculate aggregate summaries.
 
 ## Screenpipe assignment synchronization
 
@@ -157,7 +133,7 @@ Synchronization retries must not undo a newer manual correction or trigger a det
 
 Chat queries follow `Screenpipe chat -> MCP -> application API -> SQLite`. Workflow writes use separately scoped commands. Corrections and validations use the desktop interface. Exact tool schemas, transport compatibility, and local access controls remain to be implemented.
 
-The Screenpipe workflow owns JEV calls and candidate selection. Backend services validate the proposed case and evidence without running a second inference workflow. This keeps model orchestration outside the Node application modules.
+JEV is an optional Screenpipe integration. TimeKeeper installation and startup must not require JEV configuration, a TypeSafe API key, or the TypeSafe SDK. When enabled, the Screenpipe workflow owns JEV calls and candidate selection. Backend services validate the proposed case and evidence without running a second inference workflow. This keeps model orchestration outside the Node application modules.
 
 The [integration research](SCREENPIPE_INTEGRATION.md) records custom HTTP MCP support, skill import format, and JEV API evidence. An imported skill supplies instructions. It does not register the MCP connection or make an event listener. Hosted JEV inference also requires a decision about permitted source data.
 
@@ -167,4 +143,4 @@ When TimeKeeper is stopped, chat cannot read its API and must report that applic
 
 The agreed logical model is defined in [DATABASE.md](DATABASE.md): clients, cases, sessions, work periods, sources, settings, and technical recovery records. The supplied task/subtask model remains a [historical reference](reference/ORIGINAL_DATABASE.md).
 
-Resolve the [remaining decisions](DESIGN_REVIEW.md) before implementation that depends on them. The first acceptance journey covers start, case A, unknown folder, case B, delayed answer, close, end through Screenpipe, reopen, review, correct, validate, and calculate the combined rounded total. Run desktop acceptance on both macOS and Windows. Static documents do not establish provider or platform behavior.
+Resolve the [remaining decisions](DESIGN_REVIEW.md) before dependent implementation. Run the [requirements acceptance examples](REQUIREMENTS.md#acceptance-examples) on both macOS and Windows. Static documents do not establish provider or platform behavior.

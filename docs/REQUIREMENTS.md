@@ -37,18 +37,18 @@ Reusable folder learning, chat-calculated summaries, and advanced currency behav
 - Returning to an existing case creates a new work period for that case. Each new period starts at zero; previous periods and totals remain intact.
 - Each work period has its own case assignment, time correction, time validation, and billing status. Derive its client from the case. Do not store an independent conflicting client assignment.
 - A case correction affects the selected period and its sources. It must preserve other periods and must not change the current active case when correcting historical work.
-- A recovered transition must not automatically split a corrected or validated period. Preserve that period and its overrides, and flag the proposed reconstruction for review. Do not count candidate replacement time alongside the original period.
-- JEV can assist ambiguous decisions among existing cases. It cannot invent IDs or validate time for the lawyer. A manual correction takes precedence over later automatic results and retries.
+- Reconstruction must not automatically split, merge, or replace a corrected or validated period. Preserve that period, its sources, and its overrides, and flag the proposed reconstruction for review. A reconstruction proposal must not discard the override or copy or distribute it across replacement periods. Do not count candidate replacement time alongside the original period.
+- JEV is optional and used only by the Screenpipe workflow. Installing and starting TimeKeeper must not require JEV, a TypeSafe API key, or the TypeSafe SDK. When enabled, JEV can assist ambiguous decisions among existing cases. It cannot invent IDs or validate time for the lawyer. A manual correction takes precedence over later automatic results and retries.
 
 ### Evidence, duration, and rounding
 
 - Retrieve captured evidence through Screenpipe's API. Do not read Screenpipe database files directly or create another recorder.
-- A screenshot proves an observation at its recorded timestamp. It does not, by itself, prove continuous work between screenshots. The rule for deriving duration from observations remains undefined.
+- A screenshot proves an observation at its recorded timestamp. It does not, by itself, prove continuous work between screenshots. Source count is not a duration measurement. Do not multiply a period's duration by its number of sources. The rule for deriving duration from observations remains undefined.
 - Consolidation uses reviewed Screenpipe memory and preserves the lawyer's time overrides. Application uptime and elapsed time while the application is closed do not establish recorded work.
 - Preserve source timestamps and the precision of detected values. Store the lawyer's duration override separately so later reconciliation cannot replace it.
 - Express working time in minutes. Apply any lawyer override, sum the precise effective durations, then round the combined total upward to whole minutes. Do not round individual periods before summing.
-- Calculate each displayed grouped total from its underlying precise durations. Do not sum rounded subtotals. For example, two 20-second periods total 40 seconds and display as one minute.
-- Missing recordings produce a visible coverage gap. Do not treat missing evidence as zero work, inactivity, or proof of continuous work.
+- Calculate each displayed grouped total from its underlying precise durations. Do not sum rounded subtotals. For example, two 20-second periods total 40 seconds and display as one minute. A zero total remains zero.
+- Missing recordings, missing duration evidence, and missing API pages produce a visible coverage gap. Do not present an incomplete input set as a complete total. Do not treat missing evidence as zero work, inactivity, or proof of continuous work.
 - Keep source availability separate from source validation. A deleted or unavailable Screenpipe recording must not delete a reviewed work period or its time correction.
 
 ### Review, billing status, and rates
@@ -76,7 +76,7 @@ Source validation remains separate throughout these transitions. The open billed
 
 - Screenpipe owns the workflow after a trigger. Its workflow reads memory and submits scoped commands through TimeKeeper MCP and the application API. The Node backend validates and persists those commands.
 - Screenpipe chat queries application details through read-only MCP tools and the API when those services are available.
-- Return resolved case associations to Screenpipe for the affected evidence. Track pending or failed synchronization, and confirm synchronization only after verification. A chat answer alone is not proof of stored assignment.
+- Return resolved case associations to Screenpipe for the affected evidence. Update assignment metadata without rewriting source recordings. Track pending or failed synchronization, and confirm synchronization only after verification. A chat answer alone is not proof of stored assignment.
 - Record enough identity and revision information to prevent duplicate commands, duplicate evidence, stale automatic updates, and synchronization loops.
 
 ## MVP use cases
@@ -107,7 +107,7 @@ These examples define required behavior. No acceptance checks have run.
 3. Open known case B at 10:15. Start a period for B and preserve the unresolved earlier period.
 4. At 10:20, answer that the earlier folder belongs to existing case A. Resolve that original period to A without changing the current case B. Do not create a new case.
 5. Close TimeKeeper at 11:00. Its services stop while the session remains active. Send the explicit end command for this session through Screenpipe at 12:00.
-6. Reopen at 14:00. Recover the same session and its 12:00 end boundary through the selected durable delivery mechanism. Review available evidence before that boundary. Do not infer three hours of work from the session span or count application downtime as work.
+6. Reopen at 14:00. Recover the same session and its 12:00 end boundary through the selected durable delivery mechanism. Review available evidence before that boundary. Do not infer three hours of work from the session span. Do not derive work duration from application downtime alone.
 7. Correct the resolved earlier A period's time to 12 minutes, then validate it. A replay must preserve the correction and validation if its effective case and duration are unchanged.
 8. Calculate the selected summary from precise effective durations, including the 12-minute override. Sum first and round the combined total upward. Show missing coverage and omit unaccepted replacement candidates from counted time. Source validation and billing status remain separate.
 
@@ -130,6 +130,7 @@ The folder-identification, duration-derivation, and closed-app delivery mechanis
 13. Validate a detected 12-minute period without an override. Reconciliation changes its effective duration to 15 minutes. Require time validation again. Replaying the same 15-minute result after validation must preserve that validation.
 14. Two evidence records map to one provider tag target. Reconcile one agreed case assignment for that target. Conflicting assignments block synchronization instead of writing competing tags. Target mapping must be verified before this example can pass.
 15. During recovery, a new start depends on an earlier session's pending end. Apply that end first, then create the new session. Do not return the earlier session as if this were a repeated start.
+16. Screenpipe chat queries a stored period while TimeKeeper is available. Return the same case ID and validation state shown in the interface.
 
 ## Decisions still required
 

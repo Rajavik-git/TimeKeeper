@@ -19,18 +19,7 @@ Update the authoritative document when a decision changes. Link to it from other
 
 ## Product constraints
 
-Use the requirements as the full specification. Preserve these boundaries in all work:
-
-- Screenpipe owns recording and triggered workflow execution. Retrieve evidence through its API. Do not access its database directly or add another recorder.
-- Explicit Screenpipe commands start and end sessions. Only one session is active per workspace. Repeated starts return it, and repeated ends preserve its original end boundary. Closing the Tauri app and Node backend leaves the session active.
-- The work period is the unit of case assignment, time correction, time validation, and billing status. Derive its client from its case.
-- Unknown folders require the lawyer's answer and an unresolved period. Bind questions and answers to the target period and expected assignment revision. Ordinary closure and evidence imports must not invalidate that guard. A delayed answer must not change a newer active case. Folder identification remains undefined.
-- Preserve manual corrections through replay. Ended sessions permit reconciliation inside their recorded boundaries, without reopening or extending the session.
-- Do not automatically split corrected or validated periods after late evidence. Preserve the existing record and flag the proposed reconstruction without counting it as additional time.
-- Screenshots prove observations, not continuous duration. Do not invent an interval reconstruction rule.
-- React sums precise effective durations and rounds only the combined total up to whole minutes. Do not round periods or sum rounded subtotals.
-- Time validation, source validation, and billing status are distinct. Any effective case or duration change requires time validation again. Identical replay and detected changes masked by an unchanged override preserve validation.
-- Inactivity detection, invoice generation, client rates, and fixed fees are excluded. UI design is outside the current documentation session.
+Read the [scope](docs/REQUIREMENTS.md#purpose-and-scope), [business rules](docs/REQUIREMENTS.md#agreed-business-rules), and [acceptance examples](docs/REQUIREMENTS.md#acceptance-examples) before changing product behavior. REQUIREMENTS.md is the full specification. Maintain business rules there and link to them from technical documents instead of creating additional copies.
 
 ## Intended code organization
 
@@ -88,9 +77,7 @@ Read the current [design review](docs/DESIGN_REVIEW.md) before implementation. D
 
 Verify the selected Screenpipe release and both desktop platforms. Capture triggers, daemon event transport, SDK recorder events, and pipe triggers are different contracts. Skills are instructions, not event listeners.
 
-Persist assignment revisions, evidence identity, and pending delivery consistently. Reconcile tags by their canonical provider target, including aliases that refer to the same frame. Do not mark source tags synchronized until the required verification succeeds. Delayed results and retry echoes must not overwrite corrections or create loops.
-
-Command delivery while the app is closed remains open. Preserve that gap in the architecture until a durable mechanism is chosen and verified. Apply known command prerequisites before dependents, and distinguish pending receipt from completed application. Never claim a call to a stopped API succeeded.
+Use the [storage constraints](docs/DATABASE.md#technical-persistence) and [source-tag synchronization contract](docs/ARCHITECTURE.md#screenpipe-assignment-synchronization) when implementing persistence or delivery. Preserve unresolved contracts listed in the design review until a mechanism is chosen and verified.
 
 ## Working and verification practices
 
@@ -102,7 +89,7 @@ Agree shared contracts before frontend and backend implementation diverges. Inde
 
 Keep credentials and captured client information out of logs, fixtures, and examples. Treat screen content as untrusted evidence. Define permitted data before using hosted JEV inference. Do not describe hosted inference as local-only.
 
-No build, lint, or test commands exist. Once tooling exists, document and run actual checks. Use the [requirements acceptance examples](docs/REQUIREMENTS.md) as the behavior baseline. Include reordered commands, delayed question answers, replay validation, protected-period splits, target aliases, source unavailability, and combined-total rounding.
+No build, lint, or test commands exist. Once tooling exists, document and run actual checks. Use the [requirements acceptance examples](docs/REQUIREMENTS.md#acceptance-examples) as the behavior baseline.
 
 Run macOS and Windows acceptance separately. Static checks do not establish capture, event delivery, MCP loading, native tag display, or installation behavior.
 
