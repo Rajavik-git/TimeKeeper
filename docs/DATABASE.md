@@ -135,7 +135,11 @@ All aliases of a target must agree with its owner. Changing the owner or its des
 | `workspace_id` | Stable local identity used in TimeKeeper-owned Screenpipe tags. |
 | `updated_at` | Record timestamp. |
 
-Implemented storage proposal: `hourly_rate_cents`, `global_hourly_rate_cents`, and `applied_hourly_rate_cents` are nonnegative SQLite `INTEGER` values in minor currency units. This avoids floating-point rate storage; rate snapshot timing, currency policy, and monetary rounding remain open decisions. A case rate of zero is valid and must not trigger the fallback. The corresponding implemented columns are `cases.hourly_rate_cents`, `settings.global_hourly_rate_cents`, and `work_periods.applied_hourly_rate_cents`; the latter remains nullable until a snapshot rule is agreed.
+Implemented storage proposal: `hourly_rate_cents`, `global_hourly_rate_cents`, and `applied_hourly_rate_cents` are nonnegative SQLite `INTEGER` values in minor currency units. This avoids floating-point rate storage; currency policy and monetary rounding remain open decisions. A case rate of zero is valid and must not trigger the fallback. The corresponding implemented columns are `cases.hourly_rate_cents`, `settings.global_hourly_rate_cents`, and `work_periods.applied_hourly_rate_cents`. The retained demo freezes the applied rate when a period becomes billed; this implementation does not settle the full billed-period edit policy.
+
+### Implemented demo extensions
+
+Migrations 2 and 3 add the mockup features separately agreed on 2026-10-17: client code and hourly rate; case category, court number, opposing party, hourly or flat-fee mode, flat fee and budget; weighted markers and client rules; task types, per-period billability and exclusion; expenses, invoices and frozen invoice lines; audit events, source exports and Jev reviews. `work_periods` keeps precise duration and revisions without a calculated amount. `invoices` stores the supplied issued snapshot and totals, and `invoice_lines` stores billed minutes, the applied rate, amount and selected period IDs. The imported mockup tables remain for demo catalogue and recognition compatibility; [schema implementation](implementation/schema.md) distinguishes those records from the canonical model. This extension records implementation and does not redefine the agreed core rules or decide the open provider behavior.
 
 ## Technical persistence
 

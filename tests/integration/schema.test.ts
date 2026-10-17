@@ -4,8 +4,8 @@ import { memoryDb } from "../../src/backend/adapters/sqlite/repository";
 const expected = JSON.parse(
   readFileSync("src/backend/adapters/sqlite/expected-schema.json", "utf8"),
 ) as Record<string, string[]>;
-describe("mockup schema mapping", () => {
-  it("keeps the exact 18 mapped tables and columns with valid foreign keys", () => {
+describe("demo schema migration", () => {
+  it("keeps the imported fields and adds the work-period model with valid foreign keys", () => {
     const db = memoryDb();
     try {
       const actual = (
@@ -15,7 +15,9 @@ describe("mockup schema mapping", () => {
           )
           .all() as { name: string }[]
       ).map((x) => x.name);
-      expect(actual.sort()).toEqual(Object.keys(expected).sort());
+      for (const table of Object.keys(expected)) expect(actual).toContain(table);
+      for (const table of ["clients", "cases", "sessions", "work_periods", "sources", "tag_targets", "settings", "processed_commands", "pending_questions", "reconstruction_conflicts", "retrieval_progress", "assignment_deliveries"])
+        expect(actual).toContain(table);
       for (const [table, columns] of Object.entries(expected)) {
         const names = (
           db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
