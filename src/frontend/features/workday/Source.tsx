@@ -1,61 +1,467 @@
-import { useEffect, useState } from 'react';
-import { api, shortDate, type ScreenProps, type State } from '../../api/client';
-import { Card } from '../../shared/components/Card';
-import { SourcePackDialog } from '../../shared/components/SourcePackDialog';
-import { effectiveMs, formatPreciseDuration } from '../../calculations/billing';
+import { useEffect, useState } from "react";
+import { api, shortDate, type ScreenProps, type State } from "../../api/client";
+import { SourcePackDialog } from "../../shared/components/SourcePackDialog";
+import { effectiveMs, formatPreciseDuration } from "../../calculations/billing";
+import "./Activity.css";
 
-type Props=ScreenProps & {selected:string};
-export function Source({s,core,selected,action}:Props) {
-  const [clientId,setClientId]=useState('');
-  const [caseId,setCaseId]=useState('');
-  const [activity,setActivity]=useState<State>(s);
-  const [picked,setPicked]=useState<number|null>(null);
-  const [frame,setFrame]=useState(0);
-  const [pack,setPack]=useState(false);
-  const [preview,setPreview]=useState<{x:number;y:number;time:string;excerpt:string;kind:string}|null>(null);
-  useEffect(()=>{let live=true; api.GET('/api/state',{params:{query:{clientId:clientId||undefined,caseId:caseId||undefined}}}).then(result=>{if(live&&result.data)setActivity(result.data)});return()=>{live=false}},[s,clientId,caseId]);
-  const entries=activity.time_entry;
-  const timelineBlock=(entry:typeof entries[number])=>{
-    const recorded=activity.block.find(item=>item.id===entry.block_id);
-    if(recorded)return recorded;
-    const period=core.periods.find(item=>item.id===String(entry.id));
-    if(!period)return null;
-    return {id:-entry.id,start_time:period.startedAt.slice(11,16),end_time:period.endedAt?.slice(11,16)??'—',minutes:Math.max(1,Math.round((effectiveMs(period)??0)/60000)),window_title:period.label,overlaps_block_id:null};
-  };
-  const selectedEntry=entries.find(entry=>entry.id===picked)??entries.find(entry=>String(entry.id)===selected)??entries[0];
-  const block=selectedEntry?timelineBlock(selectedEntry):null;
-  const sources=activity.source.filter(item=>item.block_id===selectedEntry?.block_id && selectedEntry.block_id!==null);
-  const source=sources[Math.min(frame,sources.length-1)];
-  const period=core.periods.find(item=>item.id===String(selectedEntry?.id));
-  const byDate=Object.entries(entries.reduce<Record<string,typeof entries>>((groups,entry)=>{(groups[entry.date]??=[]).push(entry);return groups},{})).sort(([a],[b])=>a.localeCompare(b));
-  const audit=activity.audit_event.filter(event=>event.time_entry_id===selectedEntry?.id||event.block_id===block?.id);
-  const marker=s.marker.find(m=>m.matter_id===selectedEntry?.matter_id && sources.some(x=>x.detected_marker===m.value));
-  const owner=activity.client.find(c=>c.id===activity.matter.find(m=>m.id===selectedEntry?.matter_id)?.client_id);
-  const matter=activity.matter.find(m=>m.id===selectedEntry?.matter_id);
-  const recognized=marker&&matter ? `Recognized from ${matter.reference} (window title) and ${owner?.name} (screen ${source?.timestamp??'—'}).` : 'Case assignment follows the recorded observation.';
-  return <>
-    <div className="ph"><div className="t"><h1>Activity</h1><p>Recorded work and the observations behind each period.</p></div>
-      <div className="actions activity-filters"><select className="field" aria-label="Filter by client" value={clientId} onChange={event=>{setClientId(event.target.value);setCaseId('');setPicked(null)}}><option value="">All clients</option>{s.client.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
-        <select className="field" aria-label="Filter by case" value={caseId} onChange={event=>{setCaseId(event.target.value);setPicked(null)}}><option value="">{clientId?'All their cases':'All cases'}</option>{s.matter.filter(m=>!clientId||String(m.client_id)===clientId).map(m=><option key={m.id} value={m.id}>{m.title}</option>)}</select>
-        <button className="btn" disabled={!selectedEntry?.matter_id} onClick={()=>setPack(true)}>Export source pack</button></div></div>
-    <Card className="activity-timeline" style={{'--activity-days':byDate.length} as React.CSSProperties}><div className="row between"><h2>Timeline</h2><div className="activity-legend"><span className="legend-validated">Validated</span><span className="legend-pending">To validate</span><span>Not billable</span><span>No case</span></div></div>
-      <div className="activity-timeline-body" style={{gridTemplateRows:`16px repeat(${byDate.length},minmax(0,1fr))`}}><div className="timeline-axis"><span/><div>{Array.from({length:12},(_,i)=><span key={i}>{8+i}h</span>)}</div></div>
-      {byDate.map(([date,rows])=><div className="timeline-row" key={date}><b className="num small">{shortDate(date)}</b><div className="timeline-track">{rows.map(entry=>{
-        const b=timelineBlock(entry);if(!b)return null;
-        const d=activity.matter.find(x=>x.id===entry.matter_id),c=activity.client.find(x=>x.id===d?.client_id);
-        const start=Number(b.start_time.slice(0,2))*60+Number(b.start_time.slice(3))-480;
-        const width=Math.max(3,b.minutes/660*100);
-        const label=byDate.length<=14?(width>18?`${c?.name.split(' ').at(-1)??''} · ${d?.title??''}`:width>10?d?.title:width>6?c?.name.split(' ').at(-1):d?.reference.split('-').slice(0,2).join('-')):'';
-        const canonical=core.periods.find(p=>p.id===String(entry.id));
-        const show=(x:number,y:number)=>{const source=activity.source.find(item=>item.block_id===entry.block_id && entry.block_id!==null);setPreview({x:Math.max(8,Math.min(window.innerWidth-300,x-140)),y:Math.max(8,y-150),time:b.start_time+'–'+b.end_time,excerpt:source?.excerpt??b.window_title,kind:source?.type==='audio'?'Call transcript':entry.block_id?'Screen capture':'Manual entry'})};
-        return <button key={entry.id} style={{left:`${Math.max(0,start)/660*100}%`,width:`${width}%`}} className={`${b.overlaps_block_id?'overlap ':''}${!entry.matter_id?'no-case ':''}${!entry.billable?'not-billable ':canonical?.timeValidated||entry.review_status==='approved'?'validated ':'to-validate '}`} aria-pressed={entry.id===selectedEntry?.id} title={`${c?.name??'No case'} · ${d?.title??''} · ${b.start_time}–${b.end_time}`} onMouseMove={event=>show(event.clientX,event.clientY)} onMouseLeave={()=>setPreview(null)} onFocus={event=>{const box=event.currentTarget.getBoundingClientRect();show(box.left+box.width/2,box.top)}} onBlur={()=>setPreview(null)} onClick={()=>{setPicked(entry.id);setFrame(0);setPreview(null)}}>{label}</button>;
-      })}</div></div>)}</div>
-    </Card>
-    {preview&&<div className="activity-preview glass" style={{left:preview.x,top:preview.y}} aria-hidden="true"><b>{preview.time} · {preview.kind}</b><p>{preview.excerpt}</p></div>}
-    {selectedEntry&&block?<div className="activity-lower"><Card className="activity-detail"><div className="row between"><div><h2>{selectedEntry.label}</h2><p className="small muted">{owner?.name??'No case'} · {matter?.title??'Unassigned'} · {shortDate(selectedEntry.date)} · {block.start_time}–{block.end_time}</p></div><span>{formatPreciseDuration(period?effectiveMs(period):null)} · {period?.timeValidated?'Validated':'To validate'}</span></div>
-      <div className="recognized-strip">{recognized}</div>
-      <div className="activity-sources"><h3>Sources</h3>{sources.length?sources.map((item,index)=>{const canonical=core.sources.find(x=>x.id===String(item.id));return <div className="activity-source-row" key={item.id}><button className={`btn small ${frame===index?'primary':''}`} onClick={()=>setFrame(index)}>{item.timestamp} · {item.type==='audio'?'Call transcript':'Screen capture'}</button><span>{item.excerpt}</span><label className="row small"><input type="checkbox" checked={canonical?.validationStatus==='validated'} disabled={!canonical||canonical.validationStatus==='validated'} onChange={()=>{if(canonical)void action(api.POST('/api/sources/{instanceId}/{contentType}/{externalId}/validate',{params:{path:{instanceId:canonical.instanceId,contentType:canonical.contentType,externalId:canonical.externalId}},body:{}}))}}/>Source validated</label></div>}):<p>No recorded source for this period.</p>}</div></Card>
-      <Card className="activity-audit"><h2>Audit trail</h2>{audit.map(item=><div className="audit-row" key={item.id}><span className="small muted">{item.timestamp} · {item.actor==='TimeKeepr'?'TimeKeeper':item.actor}</span><b>{item.action}</b><span className="small muted">{[item.before,item.after].filter(Boolean).join(' → ').replace(/(?:confidence|probability|p\s*=)\s*[^·]+(?:·\s*)?/gi,'').replace(/(?:frame_id|chunk_id)\s*\d+/gi,'').trim()}</span></div>)}</Card></div>:<Card><h2>No activity recorded</h2><p>Choose another client or case.</p></Card>}
-    {pack&&selectedEntry?.matter_id&&<SourcePackDialog s={s} matterId={selectedEntry.matter_id} initialPeriodId={selectedEntry.id} action={action} close={()=>setPack(false)}/>}
-  </>;
+type Props = ScreenProps & { selected: string };
+const clock = (value: string) =>
+  Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+const dollars = (cents: number) =>
+  `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export function Source({ s, core, selected, action }: Props) {
+  const [clientId, setClientId] = useState("");
+  const [caseId, setCaseId] = useState("");
+  const [activity, setActivity] = useState<State>(s);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [pack, setPack] = useState(false);
+  const [preview, setPreview] = useState<{
+    x: number;
+    y: number;
+    time: string;
+    excerpt: string;
+    kind: string;
+  } | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .GET("/api/state", {
+        params: {
+          query: {
+            clientId: clientId || undefined,
+            caseId: caseId || undefined,
+          },
+        },
+      })
+      .then((result) => {
+        if (live && result.data) setActivity(result.data);
+      });
+    return () => {
+      live = false;
+    };
+  }, [s, clientId, caseId]);
+  const entries = activity.time_entry.filter(
+    (entry) => entry.block_id !== null,
+  );
+  const byDate = Object.entries(
+    entries.reduce<Record<string, typeof entries>>((groups, entry) => {
+      (groups[entry.date] ??= []).push(entry);
+      return groups;
+    }, {}),
+  ).sort(([a], [b]) => b.localeCompare(a));
+  const selectedEntry =
+    entries.find((entry) => entry.id === picked) ??
+    entries.find((entry) => String(entry.id) === selected) ??
+    entries.find((entry) => entry.id === 14) ??
+    entries[0];
+  const block = activity.block.find(
+    (item) => item.id === selectedEntry?.block_id,
+  );
+  const matter = activity.matter.find(
+    (item) => item.id === selectedEntry?.matter_id,
+  );
+  const owner = activity.client.find((item) => item.id === matter?.client_id);
+  const period = core.periods.find(
+    (item) => item.id === String(selectedEntry?.id),
+  );
+  const sources = activity.source.filter((item) => item.block_id === block?.id);
+  const audit = activity.audit_event.filter(
+    (item) => item.time_entry_id === selectedEntry?.id,
+  );
+  const firstMarker = activity.marker.find(
+    (item) =>
+      item.matter_id === matter?.id &&
+      sources.some((source) => source.detected_marker === item.value),
+  );
+  const recognized =
+    matter && block && firstMarker ? (
+      <>
+        Recognized from <b>{matter.reference.slice(0, 8)}</b> (window title) and{" "}
+        <b>{firstMarker.value}</b> (screen {sources[0]?.timestamp ?? "—"}).
+      </>
+    ) : null;
+  const days = Math.max(1, byDate.length);
+  const time =
+    selectedEntry && block
+      ? formatPreciseDuration(
+          period ? effectiveMs(period) : selectedEntry.tenths_of_hour * 360000,
+        )
+      : "";
+  const status =
+    selectedEntry &&
+    (period?.timeValidated || selectedEntry.review_status === "approved")
+      ? "Validated"
+      : "To validate";
+  return (
+    <>
+      <div className="activity-crumbs">
+        Activity <span>›</span> <b>{selectedEntry?.label ?? "Activity"}</b>
+      </div>
+      <div className="ph activity-head">
+        <div className="t">
+          <h1>Activity</h1>
+          <p>
+            Everything that was recorded, and where each billed minute comes
+            from.
+          </p>
+        </div>
+        <div className="actions activity-filters">
+          <select
+            className="select"
+            aria-label="Client"
+            value={clientId}
+            onChange={(event) => {
+              setClientId(event.target.value);
+              setCaseId("");
+              setPicked(null);
+            }}
+          >
+            <option value="">All clients</option>
+            {s.client.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="select"
+            aria-label="Case"
+            disabled={!clientId}
+            value={caseId}
+            onChange={(event) => {
+              setCaseId(event.target.value);
+              setPicked(null);
+            }}
+          >
+            <option value="">
+              {clientId ? "All their cases" : "All cases"}
+            </option>
+            {clientId &&
+              s.matter
+                .filter((item) => String(item.client_id) === clientId)
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+          </select>
+          <button
+            className="btn"
+            disabled={!matter}
+            onClick={() => setPack(true)}
+          >
+            ↓&nbsp; Export source pack
+          </button>
+        </div>
+      </div>
+      <section
+        className="activity-timeline"
+        style={{ height: `clamp(260px, ${116 + days * 30}px, 56vh)` }}
+      >
+        <div className="card-h">
+          <div className="t">
+            <h2>Timeline</h2>
+            <p>
+              Hover a block to preview the recording second by second. Click it
+              to inspect.
+            </p>
+          </div>
+          <div className="activity-legend">
+            <span>
+              <i className="ok" />
+              Validated
+            </span>
+            <span>
+              <i className="pending" />
+              To validate
+            </span>
+            <span>
+              <i className="nonbill" />
+              Not billable
+            </span>
+            <span>
+              <i className="unassigned" />
+              No case
+            </span>
+          </div>
+        </div>
+        <div className="activity-timeline-body">
+          <div
+            className="activity-grid"
+            style={{ gridTemplateRows: `16px repeat(${days}, minmax(0,1fr))` }}
+          >
+            <span />
+            <div className="activity-axis">
+              {[8, 10, 12, 14, 16, 18].map((hour) => (
+                <span
+                  key={hour}
+                  style={{ left: `${((hour - 8) / 11) * 100}%` }}
+                >
+                  {hour}:00
+                </span>
+              ))}
+            </div>
+            {byDate.map(([date, rows]) => (
+              <>
+                <span className="activity-date" key={`${date}-date`}>
+                  {shortDate(date)}
+                </span>
+                <div className="activity-track" key={`${date}-track`}>
+                  {rows.map((entry) => {
+                    const recorded = activity.block.find(
+                      (item) => item.id === entry.block_id,
+                    );
+                    if (!recorded) return null;
+                    const caseItem = activity.matter.find(
+                      (item) => item.id === entry.matter_id,
+                    );
+                    const client = activity.client.find(
+                      (item) => item.id === caseItem?.client_id,
+                    );
+                    const start =
+                      ((clock(recorded.start_time) - 480) / 660) * 100;
+                    const width = Math.max(
+                      ((clock(recorded.end_time ?? recorded.start_time) -
+                        clock(recorded.start_time)) /
+                        660) *
+                        100,
+                      0.9,
+                    );
+                    const short =
+                      client?.name
+                        .replace(/ (Inc\.|LLC)$/, "")
+                        .split(" ")
+                        .at(-1) ?? "";
+                    const full = `${short} · ${caseItem?.title ?? ""}`;
+                    const pixels = width * 12.4;
+                    const label =
+                      !caseItem || days > 14
+                        ? ""
+                        : pixels >= full.length * 7.2 + 14
+                          ? full
+                          : pixels >= caseItem.title.length * 7.2 + 14
+                            ? caseItem.title
+                            : pixels >= short.length * 7.2 + 14
+                              ? short
+                              : pixels >= 60
+                                ? caseItem.reference.slice(0, 8)
+                                : "";
+                    const canonical = core.periods.find(
+                      (item) => item.id === String(entry.id),
+                    );
+                    const show = (x: number, y: number) => {
+                      const first = activity.source.find(
+                        (item) => item.block_id === entry.block_id,
+                      );
+                      setPreview({
+                        x: Math.max(
+                          8,
+                          Math.min(window.innerWidth - 300, x - 140),
+                        ),
+                        y: Math.max(8, y - 150),
+                        time: `${recorded.start_time}–${recorded.end_time}`,
+                        excerpt: first?.excerpt ?? recorded.window_title,
+                        kind:
+                          first?.type === "audio"
+                            ? "Call transcript"
+                            : "Screen capture",
+                      });
+                    };
+                    return (
+                      <button
+                        key={entry.id}
+                        className={`activity-segment ${!entry.matter_id ? "unassigned" : !entry.billable ? "nonbill" : canonical?.timeValidated || entry.review_status === "approved" ? "ok" : "pending"} ${recorded.overlaps_block_id ? "overlap" : ""}`}
+                        style={{ left: `${start}%`, width: `${width}%` }}
+                        aria-pressed={entry.id === selectedEntry?.id}
+                        title={`${client?.name ?? "No case"} · ${caseItem?.title ?? ""} · ${recorded.start_time}–${recorded.end_time}`}
+                        onMouseMove={(event) =>
+                          show(event.clientX, event.clientY)
+                        }
+                        onMouseLeave={() => setPreview(null)}
+                        onFocus={(event) => {
+                          const box =
+                            event.currentTarget.getBoundingClientRect();
+                          show(box.left + box.width / 2, box.top);
+                        }}
+                        onBlur={() => setPreview(null)}
+                        onClick={() => {
+                          setPicked(entry.id);
+                          setPreview(null);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ))}
+          </div>
+        </div>
+      </section>
+      {preview && (
+        <div
+          className="activity-preview glass"
+          style={{ left: preview.x, top: preview.y }}
+          aria-hidden="true"
+        >
+          <b>
+            {preview.time} · {preview.kind}
+          </b>
+          <p>{preview.excerpt}</p>
+        </div>
+      )}
+      <div className="activity-lower">
+        <section className="activity-detail">
+          <div className="card-h">
+            <div className="t">
+              <h2>{selectedEntry?.label ?? "No activity recorded"}</h2>
+              <p>
+                {owner?.name ?? "No case"} · {matter?.title ?? "Unassigned"} ·{" "}
+                {matter?.reference ?? ""} ·{" "}
+                {selectedEntry ? shortDate(selectedEntry.date) : ""}
+                {block ? `, ${block.start_time}–${block.end_time}` : ""}
+              </p>
+            </div>
+            <div className="activity-summary">
+              <span className={status === "Validated" ? "ok" : "pending"}>
+                ●&nbsp; {status}
+              </span>
+              <b>
+                {time}
+                {selectedEntry?.billable && matter && matter.mode !== "flat_fee"
+                  ? ` · ${dollars(selectedEntry.amount_cents || Math.round((selectedEntry.tenths_of_hour * (matter.own_rate_cents ?? owner?.rate_cents ?? s.firm[0].base_rate_cents)) / 10))}`
+                  : ""}
+              </b>
+            </div>
+          </div>
+          {recognized && <div className="recognized-strip">{recognized}</div>}
+          <div className="activity-sources">
+            {sources.length ? (
+              sources.map((item) => {
+                const canonical = core.sources.find(
+                  (source) => source.id === String(item.id),
+                );
+                const before = item.excerpt.indexOf(
+                  item.detected_marker ?? "\0",
+                );
+                return (
+                  <div className="activity-source-row" key={item.id}>
+                    <span className="num muted">{item.timestamp}</span>
+                    <div>
+                      <div>
+                        {before >= 0 ? (
+                          <>
+                            {item.excerpt.slice(0, before)}
+                            <mark>{item.detected_marker}</mark>
+                            {item.excerpt.slice(
+                              before + item.detected_marker.length,
+                            )}
+                          </>
+                        ) : (
+                          item.excerpt
+                        )}
+                      </div>
+                      <span className="meta">
+                        {item.type === "audio" ? "Audio" : "Screen"} ·{" "}
+                        {block?.app}
+                      </span>
+                      <div className="activity-source-actions">
+                        <span>
+                          ●&nbsp;{" "}
+                          {item.available
+                            ? "Available"
+                            : "Unavailable in screenpipe"}
+                        </span>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={
+                              canonical?.validationStatus === "validated"
+                            }
+                            disabled={
+                              !canonical ||
+                              canonical.validationStatus === "validated"
+                            }
+                            onChange={() => {
+                              if (canonical)
+                                void action(
+                                  api.POST(
+                                    "/api/sources/{instanceId}/{contentType}/{externalId}/validate",
+                                    {
+                                      params: {
+                                        path: {
+                                          instanceId: canonical.instanceId,
+                                          contentType: canonical.contentType,
+                                          externalId: canonical.externalId,
+                                        },
+                                      },
+                                      body: {},
+                                    },
+                                  ),
+                                );
+                            }}
+                          />{" "}
+                          Source validated
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="muted">
+                {selectedEntry
+                  ? "Entered by hand · Off-screen time has no capture."
+                  : "Choose another client or case."}
+              </p>
+            )}
+          </div>
+        </section>
+        <section className="activity-audit">
+          <div className="card-h">
+            <div className="t">
+              <h2>Audit trail</h2>
+              <p>Every action on this entry, in order.</p>
+            </div>
+          </div>
+          <div className="activity-audit-body">
+            {audit.length ? (
+              <ol>
+                {audit.map((item) => (
+                  <li key={item.id}>
+                    <span className="dot" />
+                    <div>
+                      <b>{item.action}</b>
+                      <div className="meta">
+                        {item.actor === "TimeKeepr" ? "TimeKeeper" : item.actor}{" "}
+                        · {item.timestamp}
+                        {item.after &&
+                        !/confidence|probability/i.test(item.after)
+                          ? ` · ${item.after.replace(/(?:frame_id|chunk_id)\s*\d+/gi, "").trim()}`
+                          : ""}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="muted">
+                No events yet · Actions on this entry will be listed here.
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
+      {pack && matter && (
+        <SourcePackDialog
+          s={s}
+          matterId={matter.id}
+          initialPeriodId={selectedEntry.id}
+          action={action}
+          close={() => setPack(false)}
+        />
+      )}
+    </>
+  );
 }

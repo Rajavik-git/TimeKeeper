@@ -1,614 +1,743 @@
 import { useState } from "react";
-import { api, money, originLabel, type ScreenProps } from "../../api/client";
-import { configuredRate, effectiveMs } from '../../calculations/billing';
-import { Card } from "../../shared/components/Card";
-import { Pill } from "../../shared/components/Pill";
-import { MatterReference } from "../../shared/components/MatterReference";
-type Tab = "clients" | "matters" | "base" | "tasks" | "rules" | "preferences" | "pill";
-type SortState={column:number;direction:1|-1};
-let rememberedSorts:Record<string,SortState>={};
-function ordered<T>(rows:T[], sort:SortState|undefined, values:(row:T)=>Array<string|number|boolean|null|undefined>):T[] {
-  if(!sort)return rows;
-  return [...rows].sort((a,b)=>{
-    const left=values(a)[sort.column],right=values(b)[sort.column];
-    if(left===null||left===undefined||left==='—')return right===null||right===undefined||right==='—'?0:1;
-    if(right===null||right===undefined||right==='—')return -1;
-    return sort.direction*(typeof left==='number'&&typeof right==='number'?left-right:String(left).localeCompare(String(right),'en-US'));
+import { api, type ScreenProps } from "../../api/client";
+import "./Settings.css";
+
+type Tab = "clients" | "rates" | "tasks" | "rules" | "prefs" | "pill";
+type SortState = { column: number; direction: 1 | -1 };
+const tabs: [Tab, string][] = [
+  ["clients", "Clients"],
+  ["rates", "Rates"],
+  ["tasks", "Tasks"],
+  ["rules", "Client rules"],
+  ["prefs", "Capture and invoices"],
+  ["pill", "Desk pill"],
+];
+const dollars = (cents: number) =>
+  `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+const cents = (value: string) =>
+  Math.round(Number(value.replaceAll(",", "")) * 100);
+let rememberedSorts: Record<string, SortState> = {};
+function sorted<T>(
+  rows: T[],
+  sort: SortState | undefined,
+  values: (row: T) => (string | number)[],
+): T[] {
+  if (!sort) return rows;
+  return [...rows].sort((a, b) => {
+    const av = values(a)[sort.column],
+      bv = values(b)[sort.column];
+    return (
+      sort.direction *
+      (typeof av === "number" && typeof bv === "number"
+        ? av - bv
+        : String(av).localeCompare(String(bv), "en-US"))
+    );
   });
 }
-const dollarInput = (s: string) => Math.round(Number(s.replaceAll(",", "")) * 100);
-export function Settings({ s, core, action, navigate }: ScreenProps) {
-  const [tab, setTab] = useState<Tab>("clients"),
-    [name, setName] = useState(""),
-    [clientCode, setClientCode] = useState(""),
-    [amount, setAmount] = useState(""),
-    [taskCode, setTaskCode] = useState(""),
-    [taskName, setTaskName] = useState(""),
-    [ruleClient, setRuleClient] = useState(s.client[0]?.id ?? 0),
-    [sorts,setSorts]=useState(rememberedSorts),
-    [ruleType, setRuleType] = useState<
-      "daily_research_cap" | "nonbillable_travel"
-    >("daily_research_cap");
-  const header=(table:string,column:number,label:string,numeric=false)=><th scope="col" aria-sort={sorts[table]?.column===column?sorts[table].direction===1?'ascending':'descending':undefined}><button className="sort-button" onClick={()=>setSorts(old=>{
-    const current=old[table],next={...old,[table]:{column,direction:current?.column===column ? current.direction===1?-1:1 : numeric?-1:1} as SortState};
-    rememberedSorts=next;return next;
-  })}>{label}{sorts[table]?.column===column?(sorts[table].direction===1?' ↑':' ↓'):''}</button></th>;
-  type PatchPath =
-    | "/api/client/{id}"
-    | "/api/matter/{id}"
-    | "/api/task/{id}"
-    | "/api/firm/{id}"
-    | "/api/setting/{id}";
-  const patch = (
-    path: PatchPath,
-    id: number,
-    body: Record<string, unknown>,
-  ) => {
-    switch (path) {
-      case "/api/client/{id}":
-        return action(
-          api.PATCH("/api/client/{id}", { params: { path: { id } }, body }),
-        );
-      case "/api/matter/{id}":
-        return action(
-          api.PATCH("/api/matter/{id}", { params: { path: { id } }, body }),
-        );
-      case "/api/task/{id}":
-        return action(
-          api.PATCH("/api/task/{id}", { params: { path: { id } }, body }),
-        );
-      case "/api/firm/{id}":
-        return action(
-          api.PATCH("/api/firm/{id}", { params: { path: { id } }, body }),
-        );
-      case "/api/setting/{id}":
-        return action(
-          api.PATCH("/api/setting/{id}", { params: { path: { id } }, body }),
-        );
-    }
-  };
+export function Settings({ s, action, navigate }: ScreenProps) {
+  const [tab, setTab] = useState<Tab>("clients");
+  const [sorts, setSorts] = useState(rememberedSorts);
+  const [add, setAdd] = useState(false);
+  const [editClient, setEditClient] = useState<number | null>(null);
+  const [editTask, setEditTask] = useState<number | null>(null);
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [amount, setAmount] = useState("");
+  const [ruleClient, setRuleClient] = useState(s.client[0]?.id ?? 0);
+  const [ruleType, setRuleType] = useState<
+    "daily_research_cap" | "nonbillable_travel"
+  >("daily_research_cap");
+  const patchClient = (id: number, body: Record<string, unknown>) =>
+    action(api.PATCH("/api/client/{id}", { params: { path: { id } }, body }));
+  const patchTask = (id: number, body: Record<string, unknown>) =>
+    action(api.PATCH("/api/task/{id}", { params: { path: { id } }, body }));
+  const patchFirm = (body: Record<string, unknown>) =>
+    action(
+      api.PATCH("/api/firm/{id}", {
+        params: { path: { id: s.firm[0].id } },
+        body,
+      }),
+    );
+  const patchSetting = (body: Record<string, unknown>) =>
+    action(
+      api.PATCH("/api/setting/{id}", {
+        params: { path: { id: s.setting[0].id } },
+        body,
+      }),
+    );
+  const head = (
+    table: string,
+    column: number,
+    label: string,
+    numeric = false,
+  ) => (
+    <th
+      scope="col"
+      aria-sort={
+        sorts[table]?.column === column
+          ? sorts[table].direction === 1
+            ? "ascending"
+            : "descending"
+          : undefined
+      }
+    >
+      <button
+        onClick={() =>
+          setSorts((old) => {
+            const prior = old[table];
+            const next = {
+              ...old,
+              [table]: {
+                column,
+                direction:
+                  prior?.column === column
+                    ? prior.direction === 1
+                      ? -1
+                      : 1
+                    : numeric
+                      ? -1
+                      : 1,
+              } as SortState,
+            };
+            rememberedSorts = next;
+            return next;
+          })
+        }
+      >
+        {label}
+        {sorts[table]?.column === column
+          ? sorts[table].direction === 1
+            ? " ↑"
+            : " ↓"
+          : ""}
+      </button>
+    </th>
+  );
+  const cardHead = (
+    title: string,
+    subtitle: string,
+    button?: React.ReactNode,
+  ) => (
+    <div className="card-h">
+      <div className="t">
+        <h2>{title}</h2>
+        <p>{subtitle}</p>
+      </div>
+      {button}
+    </div>
+  );
+  const addButton = (label: string) => (
+    <button className="btn sm" onClick={() => setAdd((value) => !value)}>
+      {add ? "Cancel" : `＋ ${label}`}
+    </button>
+  );
   return (
     <>
-      <div className="ph">
+      <div className="settings-crumbs">
+        Settings <span>›</span>{" "}
+        <b>{tabs.find((item) => item[0] === tab)?.[1]}</b>
+      </div>
+      <div className="ph settings-head">
         <div className="t">
           <h1>Settings</h1>
           <p>Rates, tasks, client rules and capture preferences.</p>
         </div>
       </div>
-      {tab === "base" && (
-        <Card>
-          <div className="row">
-            <Pill kind="solid">1 · Case rate</Pill> ›{" "}
-            <Pill>2 · otherwise client rate</Pill> ›{" "}
-            <Pill>3 · otherwise base rate</Pill>
-            <span className="small muted">
-              Every change recalculates unbilled amounts.
-            </span>
-          </div>
-        </Card>
-      )}
-      <div className="settings-nav subnav">
-        {(
-          [
-            ["clients", "Clients"],
-            ["base", "Rates"],
-            ["matters", "Cases"],
-            ["tasks", "Tasks"],
-            ["rules", "Client rules"],
-            ["preferences", "Capture and invoices"],
-            ["pill", "Desk pill"],
-          ] as [Tab, string][]
-        ).map(([id, text]) => (
+      <nav className="settings-nav" aria-label="Settings sections">
+        {tabs.map(([id, label]) => (
           <button
             key={id}
             aria-current={tab === id ? "true" : undefined}
-            onClick={() => setTab(id)}
+            onClick={() => {
+              setTab(id);
+              setAdd(false);
+            }}
           >
-            {text}
+            {label}
           </button>
         ))}
-      </div>
-      {tab === "clients" && (
-        <Card>
-          <div className="scroll-x">
-            <table className="dt">
-              <thead>
-                <tr>
-                  {header("clients",0,"Client")}
-                  {header("clients",1,"Type")}
-                  {header("clients",2,"Mode")}
-                  {header("clients",3,"Hourly rate",true)}
-                  {header("clients",4,"Sales tax")}
-                  {header("clients",5,"Cases",true)}
-                </tr>
-              </thead>
-              <tbody>
-                {ordered(s.client,sorts.clients,c=>[c.name,c.type,c.mode,c.rate_cents,c.vat_applicable,s.matter.filter(m=>m.client_id===c.id).length]).map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      {c.name}{" "}
-
-                    </td>
-                    <td>{c.type}</td>
-                    <td>
-                      <select
-                        className="field"
-                        value={c.mode}
-                        onChange={(e) =>
-                          patch("/api/client/{id}", c.id, {
-                            mode: e.target.value,
-                          })
-                        }
-                      >
-                        <option value="hourly">hourly rate</option>
-                        <option value="subscription">subscription</option>
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        className="field num short"
-                        key={`${c.id}-${c.rate_cents}`}
-                        defaultValue={c.rate_cents / 100}
-                        onBlur={(e) =>
-                          patch("/api/client/{id}", c.id, {
-                            rate_cents: dollarInput(e.target.value),
-                          })
-                        }
-                      />{" "}
-                      $/h
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={c.vat_applicable}
-                        onChange={(e) =>
-                          patch("/api/client/{id}", c.id, {
-                            vat_applicable: e.target.checked,
-                          })
-                        }
-                      />
-                    </td>
-                    <td>
-                      {s.matter.filter((d) => d.client_id === c.id).length}
-                    </td>
+      </nav>
+      <div className="settings-content">
+        {tab === "clients" && (
+          <section className="settings-card settings-clients">
+            {cardHead(
+              "Clients",
+              "Default hourly rate for each client.",
+              addButton("Add client"),
+            )}
+            <div className="settings-table">
+              <table>
+                <thead>
+                  <tr>
+                    {head("clients", 0, "Name")}
+                    {head("clients", 1, "Type")}
+                    {head("clients", 2, "Billing")}
+                    {head("clients", 3, "Rate", true)}
+                    {head("clients", 4, "Sales tax")}
+                    <th aria-label="Actions" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <form
-            className="row"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              await action(
-                api.POST("/api/clients", {
-                  body: {
-                    name: name,
-                    code: clientCode,
-                    rate_cents: dollarInput(amount),
-                  },
-                }),
-              );
-              setName("");
-              setClientCode("");
-              setAmount("");
-            }}
-          >
-            <input
-              className="field grow"
-              placeholder="Client name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <input
-              className="field short"
-              placeholder="CODE"
-              aria-label="Client code"
-              required
-              pattern="[A-Z][A-Z0-9]*"
-              value={clientCode}
-              onChange={(e) => setClientCode(e.target.value.toUpperCase())}
-            />
-            <input
-              className="field short"
-              placeholder="Rate $/h"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <button className="btn small">+ Add client</button>
-          </form>
-        </Card>
-      )}
-      {tab === "matters" && (
-        <Card>
-          <div className="scroll-x">
-            <table className="dt">
-              <thead>
-                <tr>
-                  {header("matters",0,"Client")}
-                  {header("matters",1,"Case")}
-                  {header("matters",2,"Mode")}
-                  {header("matters",3,"Own rate",true)}
-                  {header("matters",4,"Amount",true)}
-                  {header("matters",5,"Flat fee",true)}
-                  {header("matters",6,"Budget",true)}
-                  {header("matters",7,"Applied rate")}
-                </tr>
-              </thead>
-              <tbody>
-                {ordered(s.matter,sorts.matters,d=>[s.client.find(c=>c.id===d.client_id)?.name,d.title,d.mode,d.own_rate_cents!==null,d.own_rate_cents,d.flat_fee_cents,d.budget_cents,originLabel(configuredRate(s,d.id).origin)]).map((d) => {
-                  const c = s.client.find((x) => x.id === d.client_id)!;
-                  const p = s.time_entry.find((l) => l.matter_id === d.id);
-                  return (
-                    <tr key={d.id}>
-                      <td>
-                        {c.name}{" "}
-
+                </thead>
+                <tbody>
+                  {sorted(s.client, sorts.clients, (client) => [
+                    client.name,
+                    client.type,
+                    client.mode,
+                    client.rate_cents,
+                    Number(client.vat_applicable),
+                  ]).map((client) => (
+                    <tr key={client.id}>
+                      <td>{client.name}</td>
+                      <td className="muted">
+                        {client.type === "company" ? "Company" : "Individual"}
                       </td>
-                      <td>
-                        <MatterReference value={d.reference} /> {d.title}
+                      <td className="muted">
+                        {client.mode === "hourly" ? "Hourly" : "Subscription"}
                       </td>
+                      <td className="rate">{dollars(client.rate_cents)}/h</td>
+                      <td>{client.vat_applicable ? "Yes" : "None"}</td>
                       <td>
-                        <select
-                          className="field"
-                          value={d.mode}
-                          onChange={(e) =>
-                            patch("/api/matter/{id}", d.id, {
-                              mode: e.target.value,
-                              flat_fee_cents:
-                                e.target.value === "flat_fee"
-                                  ? (d.flat_fee_cents ?? 100000)
-                                  : d.flat_fee_cents,
-                            })
+                        <button
+                          className="more"
+                          aria-label={`Edit ${client.name}`}
+                          onClick={() =>
+                            setEditClient(
+                              editClient === client.id ? null : client.id,
+                            )
                           }
                         >
-                          <option value="hourly">hourly</option>
-                          <option value="flat_fee">flat fee</option>
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={d.own_rate_cents !== null}
-                          onChange={(e) =>
-                            patch("/api/matter/{id}", d.id, {
-                              own_rate_cents: e.target.checked
-                                ? c.rate_cents
-                                : null,
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="field short"
-                          disabled={d.own_rate_cents === null}
-                          key={`${d.id}-${d.own_rate_cents}`}
-                          defaultValue={
-                            d.own_rate_cents === null
-                              ? ""
-                              : d.own_rate_cents / 100
-                          }
-                          onBlur={(e) =>
-                            patch("/api/matter/{id}", d.id, {
-                              own_rate_cents: dollarInput(e.target.value),
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="field short"
-                          key={`${d.id}-${d.flat_fee_cents}`}
-                          defaultValue={
-                            d.flat_fee_cents === null
-                              ? ""
-                              : d.flat_fee_cents / 100
-                          }
-                          onBlur={(e) =>
-                            patch("/api/matter/{id}", d.id, {
-                              flat_fee_cents: e.target.value
-                                ? dollarInput(e.target.value)
-                                : null,
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="field short"
-                          key={`${d.id}-${d.budget_cents}`}
-                          defaultValue={
-                            d.budget_cents === null ? "" : d.budget_cents / 100
-                          }
-                          onBlur={(e) =>
-                            patch("/api/matter/{id}", d.id, {
-                              budget_cents: e.target.value
-                                ? dollarInput(e.target.value)
-                                : null,
-                            })
-                          }
-                        />
-                      </td>
-                      <td>
-                        <Pill>
-                          {originLabel(configuredRate(s,d.id).origin)}
-                        </Pill>
+                          ···
+                        </button>
                       </td>
                     </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {editClient && (
+              <div className="settings-inline">
+                <label>
+                  Billing{" "}
+                  <select
+                    className="select"
+                    value={
+                      s.client.find((item) => item.id === editClient)?.mode
+                    }
+                    onChange={(event) =>
+                      patchClient(editClient, { mode: event.target.value })
+                    }
+                  >
+                    <option value="hourly">Hourly</option>
+                    <option value="subscription">Subscription</option>
+                  </select>
+                </label>
+                <label>
+                  Rate $/h{" "}
+                  <input
+                    className="input"
+                    key={editClient}
+                    defaultValue={
+                      (s.client.find((item) => item.id === editClient)
+                        ?.rate_cents ?? 0) / 100
+                    }
+                    onBlur={(event) =>
+                      patchClient(editClient, {
+                        rate_cents: cents(event.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={
+                      s.client.find((item) => item.id === editClient)
+                        ?.vat_applicable ?? false
+                    }
+                    onChange={(event) =>
+                      patchClient(editClient, {
+                        vat_applicable: event.target.checked,
+                      })
+                    }
+                  />{" "}
+                  Sales tax
+                </label>
+              </div>
+            )}
+            {add && (
+              <form
+                className="settings-inline"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  await action(
+                    api.POST("/api/clients", {
+                      body: { name, code, rate_cents: cents(amount) },
+                    }),
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-      {tab === "base" && (
-        <div className="split">
-          <div className="main solid pad col">
-            <h2>Base rate</h2>
-            <span className="small muted">
-              For work not yet assigned to a client or case.
-            </span>
-            <label>
-              Amount $/h{" "}
-              <input
-                className="field short"
-                key={s.firm[0].base_rate_cents}
-                defaultValue={s.firm[0].base_rate_cents / 100}
-                onBlur={(e) =>
-                  patch("/api/firm/{id}", s.firm[0].id, {
-                    base_rate_cents: dollarInput(e.target.value),
-                  })
-                }
-              />
-            </label>
-            <label>
-              Unit{" "}
-              <select
-                className="field"
-                value={s.firm[0].base_unit}
-                onChange={(e) =>
-                  patch("/api/firm/{id}", s.firm[0].id, {
-                    base_unit: e.target.value,
-                  })
-                }
+                  setName("");
+                  setCode("");
+                  setAmount("");
+                  setAdd(false);
+                }}
               >
-                <option value="hour">per hour</option>
-                <option value="intervention">per intervention</option>
-              </select>
-            </label>
-            <label>
-              Sales tax rate{" "}
-              <input
-                className="field short"
-                key={s.firm[0].vat_rate}
-                defaultValue={s.firm[0].vat_rate}
-                onBlur={(e) =>
-                  patch("/api/firm/{id}", s.firm[0].id, {
-                    vat_rate: Number(e.target.value.replace(",", ".")),
-                  })
-                }
-              />
-            </label>
-          </div>
-          <Card className="side">
-            <h3>At base rate today</h3>
-            {core.periods.filter(period=>!period.caseId && !period.excluded).map(period=>(
-              <p key={period.id}>{period.label} · {effectiveMs(period)===null?'Unknown duration':money(Math.round(effectiveMs(period)!*(s.firm[0]?.base_rate_cents??0)/3600000))} before expenses, estimated</p>
-            ))}
-          </Card>
-        </div>
-      )}
-      {tab === "tasks" && (
-        <Card>
-          <div className="scroll-x">
-            <table className="dt">
-              <thead>
-                <tr>
-                  {header("tasks",0,"Label")}
-                  {header("tasks",1,"Billable by default")}
-                  {header("tasks",2,"Off-screen")}
-                  {header("tasks",3,"Entries",true)}
-                </tr>
-              </thead>
-              <tbody>
-                {ordered(s.task,sorts.tasks,t=>[t.label,t.billable_by_default,t.off_screen,s.time_entry.filter(e=>e.task_id===t.id).length]).map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.label}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={t.billable_by_default}
-                        onChange={(e) =>
-                          patch("/api/task/{id}", t.id, {
-                            billable_by_default: e.target.checked,
-                          })
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={t.off_screen}
-                        onChange={(e) =>
-                          patch("/api/task/{id}", t.id, {
-                            off_screen: e.target.checked,
-                          })
-                        }
-                      />
-                    </td>
-                    <td>
-                      {s.time_entry.filter((l) => l.task_id === t.id).length}
-                    </td>
+                <input
+                  className="input"
+                  aria-label="Client name"
+                  placeholder="Client name"
+                  required
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+                <input
+                  className="input"
+                  aria-label="Client code"
+                  placeholder="CODE"
+                  required
+                  pattern="[A-Z][A-Z0-9]*"
+                  value={code}
+                  onChange={(event) =>
+                    setCode(event.target.value.toUpperCase())
+                  }
+                />
+                <input
+                  className="input"
+                  aria-label="Rate $/h"
+                  placeholder="Rate $/h"
+                  required
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+                <button className="btn primary">Add client</button>
+              </form>
+            )}
+          </section>
+        )}
+        {tab === "rates" && (
+          <>
+            <section className="settings-card settings-rates">
+              {cardHead(
+                "Which rate applies",
+                "Checked in this order for every time entry.",
+              )}
+              <div className="settings-table">
+                <table>
+                  <tbody>
+                    <tr>
+                      <td className="muted" style={{ width: 40 }}>
+                        1
+                      </td>
+                      <td>Case rate</td>
+                      <td className="muted">
+                        Set on a case. Overrides everything else.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="muted">2</td>
+                      <td>Client rate</td>
+                      <td className="muted">
+                        Used when the case has no rate of its own.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="muted">3</td>
+                      <td>Base rate</td>
+                      <td className="muted">
+                        {dollars(s.firm[0].base_rate_cents)}/h, for work with no
+                        case.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            <section className="settings-card">
+              {cardHead("Base rate", "Applies when no case is recognized.")}
+              <div className="settings-form">
+                <label htmlFor="base-rate">Hourly rate</label>
+                <input
+                  className="input"
+                  id="base-rate"
+                  key={s.firm[0].base_rate_cents}
+                  defaultValue={(s.firm[0].base_rate_cents / 100).toFixed(2)}
+                  onBlur={(event) =>
+                    patchFirm({ base_rate_cents: cents(event.target.value) })
+                  }
+                />
+                <label htmlFor="base-unit">Unit</label>
+                <select
+                  className="select"
+                  id="base-unit"
+                  value={s.firm[0].base_unit}
+                  onChange={(event) =>
+                    patchFirm({ base_unit: event.target.value })
+                  }
+                >
+                  <option value="hour">Per hour</option>
+                  <option value="intervention">Per intervention</option>
+                </select>
+                <label htmlFor="sales-tax">Sales tax on fees</label>
+                <input
+                  className="input"
+                  id="sales-tax"
+                  key={s.firm[0].vat_rate}
+                  defaultValue={
+                    s.firm[0].vat_rate ? String(s.firm[0].vat_rate) : "None"
+                  }
+                  onBlur={(event) =>
+                    patchFirm({
+                      vat_rate:
+                        event.target.value === "None"
+                          ? 0
+                          : Number(event.target.value),
+                    })
+                  }
+                />
+              </div>
+            </section>
+          </>
+        )}
+        {tab === "tasks" && (
+          <section className="settings-card">
+            {cardHead(
+              "Tasks",
+              "Types of work and how they are billed by default.",
+              addButton("Add task"),
+            )}
+            <div className="settings-table">
+              <table>
+                <thead>
+                  <tr>
+                    {head("tasks", 0, "Task")}
+                    {head("tasks", 1, "Billable by default")}
+                    {head("tasks", 2, "Off-screen")}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <form
-            className="row"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              await action(
-                api.POST("/api/tasks", {
-                  body: { code: taskCode.toUpperCase(), label: taskName },
-                }),
-              );
-              setTaskCode("");
-              setTaskName("");
-            }}
-          >
-            <input
-              className="field short"
-              placeholder="CODE"
-              required
-              value={taskCode}
-              onChange={(e) => setTaskCode(e.target.value)}
-            />
-            <input
-              className="field grow"
-              placeholder="Label"
-              required
-              value={taskName}
-              onChange={(e) => setTaskName(e.target.value)}
-            />
-            <button className="btn small">+ Add task</button>
-          </form>
-        </Card>
-      )}
-      {tab === "rules" && (
-        <Card>
-          <div className="scroll-x">
-            <table className="dt">
-              <thead>
-                <tr>
-                  {header("rules",0,"Client")}
-                  {header("rules",1,"Rule")}
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {ordered(s.client_rule,sorts.rules,r=>[s.client.find(c=>c.id===r.client_id)?.name,r.label]).map((r) => (
-                  <tr key={r.id}>
-                    <td>{s.client.find((c) => c.id === r.client_id)?.name}</td>
-                    <td>{r.label}</td>
-                    <td>
-                      <button
-                        className="btn small"
-                        onClick={() =>
-                          action(
-                            api.DELETE("/api/client-rules/{id}", {
-                              params: { path: { id: r.id } },
-                            }),
-                          )
-                        }
-                      >
-                        Delete
-                      </button>
-                    </td>
+                </thead>
+                <tbody>
+                  {sorted(s.task, sorts.tasks, (task) => [
+                    task.label,
+                    Number(task.billable_by_default),
+                    Number(task.off_screen),
+                  ]).map((task) => (
+                    <tr
+                      key={task.id}
+                      onClick={() =>
+                        setEditTask(editTask === task.id ? null : task.id)
+                      }
+                    >
+                      <td>{task.label}</td>
+                      <td>
+                        {task.billable_by_default ? (
+                          "Yes"
+                        ) : (
+                          <span className="muted">No</span>
+                        )}
+                      </td>
+                      <td>
+                        {task.off_screen ? (
+                          "Yes"
+                        ) : (
+                          <span className="muted">No</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {editTask && (
+              <div className="settings-inline">
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={
+                      s.task.find((item) => item.id === editTask)
+                        ?.billable_by_default ?? false
+                    }
+                    onChange={(event) =>
+                      patchTask(editTask, {
+                        billable_by_default: event.target.checked,
+                      })
+                    }
+                  />{" "}
+                  Billable by default
+                </label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={
+                      s.task.find((item) => item.id === editTask)?.off_screen ??
+                      false
+                    }
+                    onChange={(event) =>
+                      patchTask(editTask, { off_screen: event.target.checked })
+                    }
+                  />{" "}
+                  Off-screen
+                </label>
+              </div>
+            )}
+            {add && (
+              <form
+                className="settings-inline"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  await action(
+                    api.POST("/api/tasks", {
+                      body: { code: code.toUpperCase(), label: name },
+                    }),
+                  );
+                  setCode("");
+                  setName("");
+                  setAdd(false);
+                }}
+              >
+                <input
+                  className="input"
+                  placeholder="CODE"
+                  required
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                />
+                <input
+                  className="input"
+                  placeholder="Label"
+                  required
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+                <button className="btn primary">Add task</button>
+              </form>
+            )}
+          </section>
+        )}
+        {tab === "rules" && (
+          <section className="settings-card settings-rules">
+            {cardHead(
+              "Client rules",
+              "Checked on every pre-invoice before issuing.",
+              addButton("Add rule"),
+            )}
+            <div className="settings-table">
+              <table>
+                <thead>
+                  <tr>
+                    {head("rules", 0, "Client")}
+                    {head("rules", 1, "Rule")}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="row">
-            <select
-              className="field"
-              value={ruleClient}
-              onChange={(e) => setRuleClient(Number(e.target.value))}
-            >
-              {s.client.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="field"
-              value={ruleType}
-              onChange={(e) => setRuleType(e.target.value as typeof ruleType)}
-            >
-              <option value="daily_research_cap">
-                Daily research cap (30m)
-              </option>
-              <option value="nonbillable_travel">Non-billable travel</option>
-            </select>
-            <button
-              className="btn small"
-              onClick={() =>
-                action(
-                  api.POST("/api/client-rules", {
-                    body: { client_id: ruleClient, type: ruleType },
-                  }),
-                )
-              }
-            >
-              + Add rule
-            </button>
-          </div>
-        </Card>
-      )}
-      {tab === "pill" && <Card className="settings-pill"><h2>Desk pill</h2><p>Keep the current case close while you work.</p>
-        <label className="row"><input type="checkbox" checked={s.setting[0].pill_always_on_top} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{pill_always_on_top:e.target.checked})}/>Show the pill above other windows</label>
-        <label className="col">What it shows <select className="field" value={s.setting[0].pill_display} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{pill_display:e.target.value})}><option value="fees">Fees for the current case</option><option value="time">Time on the current case</option><option value="case">Case name only</option></select></label>
-        <label className="row"><input type="checkbox" checked={s.setting[0].notifications} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{notifications:e.target.checked})}/>Notify me when a period needs an answer</label>
-        <label className="row"><input type="checkbox" checked={s.setting[0].pill_withhold_calls} onChange={e=>patch('/api/setting/{id}',s.setting[0].id,{pill_withhold_calls:e.target.checked})}/>Hold notifications during calls</label>
-        <div className="solid pad col"><h3>See how it looks</h3><p>Preview the pill on a sample legal document.</p><button className="btn" onClick={()=>navigate('desk')}>Open preview</button></div>
-      </Card>}
-      {tab === "preferences" && (
-        <Card className="settings">
-          {(
-            [
-              ["excluded_apps", "Apps excluded from capture"],
-              ["capture_retention", "Capture retention"],
-              ["invoice_prefix", "Invoice prefix"],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key}>
-              {label}
-              <input
-                className="field"
-                key={String(s.setting[0][key])}
-                defaultValue={s.setting[0][key]}
-                onBlur={(e) =>
-                  patch("/api/setting/{id}", s.setting[0].id, {
-                    [key]: e.target.value,
-                  })
-                }
-              />
-            </label>
-          ))}
-          <label>
-            Next number{" "}
-            <input
-              className="field short"
-              type="number"
-              key={s.setting[0].next_number}
-              defaultValue={s.setting[0].next_number}
-              onBlur={(e) =>
-                patch("/api/setting/{id}", s.setting[0].id, {
-                  next_number: Number(e.target.value),
-                })
-              }
-            />
-          </label>
-          <label className="row">
-            <input
-              type="checkbox"
-              checked={s.setting[0].notifications}
-              onChange={(e) =>
-                patch("/api/setting/{id}", s.setting[0].id, {
-                  notifications: e.target.checked,
-                })
-              }
-            />{" "}
-            Pill notifications
-          </label>
-        </Card>
-      )}
+                </thead>
+                <tbody>
+                  {sorted(s.client_rule, sorts.rules, (rule) => [
+                    s.client.find((item) => item.id === rule.client_id)?.name ??
+                      "",
+                    rule.label,
+                  ]).map((rule) => (
+                    <tr key={rule.id}>
+                      <td>
+                        {
+                          s.client.find((item) => item.id === rule.client_id)
+                            ?.name
+                        }
+                      </td>
+                      <td>
+                        {rule.label}
+                        <button
+                          className="rule-delete"
+                          aria-label={`Delete rule for ${s.client.find((item) => item.id === rule.client_id)?.name}`}
+                          onClick={() =>
+                            action(
+                              api.DELETE("/api/client-rules/{id}", {
+                                params: { path: { id: rule.id } },
+                              }),
+                            )
+                          }
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {add && (
+              <div className="settings-inline">
+                <select
+                  className="select"
+                  value={ruleClient}
+                  onChange={(event) =>
+                    setRuleClient(Number(event.target.value))
+                  }
+                >
+                  {s.client.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="select"
+                  value={ruleType}
+                  onChange={(event) =>
+                    setRuleType(event.target.value as typeof ruleType)
+                  }
+                >
+                  <option value="daily_research_cap">
+                    Daily research cap (30m)
+                  </option>
+                  <option value="nonbillable_travel">
+                    Non-billable travel
+                  </option>
+                </select>
+                <button
+                  className="btn primary"
+                  onClick={async () => {
+                    await action(
+                      api.POST("/api/client-rules", {
+                        body: { client_id: ruleClient, type: ruleType },
+                      }),
+                    );
+                    setAdd(false);
+                  }}
+                >
+                  Add rule
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+        {tab === "pill" && (
+          <>
+            <section className="settings-card">
+              {cardHead(
+                "Desk pill",
+                "The small bar at the top centre of your screen, above every application.",
+              )}
+              <div className="settings-form">
+                <label>Show the pill</label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={s.setting[0].pill_always_on_top}
+                    onChange={(event) =>
+                      patchSetting({ pill_always_on_top: event.target.checked })
+                    }
+                  />{" "}
+                  Always on top of other windows
+                </label>
+                <label htmlFor="pill-display">Show</label>
+                <select
+                  className="select"
+                  id="pill-display"
+                  value={s.setting[0].pill_display}
+                  onChange={(event) =>
+                    patchSetting({ pill_display: event.target.value })
+                  }
+                >
+                  <option value="fees">Fees earned on the current case</option>
+                  <option value="time">Time on the current case</option>
+                  <option value="case">Current case only</option>
+                </select>
+                <label>Notifications</label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={s.setting[0].notifications}
+                    onChange={(event) =>
+                      patchSetting({ notifications: event.target.checked })
+                    }
+                  />{" "}
+                  Tell me when a period needs my answer
+                </label>
+                <label>During calls</label>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={s.setting[0].pill_withhold_calls}
+                    onChange={(event) =>
+                      patchSetting({
+                        pill_withhold_calls: event.target.checked,
+                      })
+                    }
+                  />{" "}
+                  Hold notifications until the call ends
+                </label>
+              </div>
+            </section>
+            <section className="settings-card">
+              <div className="settings-preview">
+                <div>
+                  <b>See how it looks</b>
+                  <p>A preview of the pill on a sample desktop.</p>
+                </div>
+                <button className="btn" onClick={() => navigate("desk")}>
+                  Open preview
+                </button>
+              </div>
+            </section>
+          </>
+        )}
+        {tab === "prefs" && (
+          <>
+            <section className="settings-card">
+              {cardHead("Capture", "What TimeKeeper reads from screenpipe.")}
+              <div className="settings-form">
+                <label htmlFor="excluded">Never capture</label>
+                <input
+                  className="input"
+                  id="excluded"
+                  key={s.setting[0].excluded_apps}
+                  defaultValue={s.setting[0].excluded_apps}
+                  onBlur={(event) =>
+                    patchSetting({ excluded_apps: event.target.value })
+                  }
+                />
+                <label htmlFor="retention">Keep captures for</label>
+                <input
+                  className="input"
+                  id="retention"
+                  key={s.setting[0].capture_retention}
+                  defaultValue={s.setting[0].capture_retention}
+                  onBlur={(event) =>
+                    patchSetting({ capture_retention: event.target.value })
+                  }
+                />
+              </div>
+            </section>
+            <section className="settings-card">
+              {cardHead(
+                "Invoices",
+                "Numbering is continuous and cannot be reset.",
+              )}
+              <div className="settings-form">
+                <label htmlFor="prefix">Prefix</label>
+                <input
+                  className="input"
+                  id="prefix"
+                  key={s.setting[0].invoice_prefix}
+                  defaultValue={s.setting[0].invoice_prefix}
+                  onBlur={(event) =>
+                    patchSetting({ invoice_prefix: event.target.value })
+                  }
+                />
+                <label htmlFor="next">Next number</label>
+                <input
+                  className="input"
+                  id="next"
+                  type="text"
+                  inputMode="numeric"
+                  key={s.setting[0].next_number}
+                  defaultValue={String(s.setting[0].next_number).padStart(
+                    4,
+                    "0",
+                  )}
+                  onBlur={(event) =>
+                    patchSetting({ next_number: Number(event.target.value) })
+                  }
+                />
+              </div>
+            </section>
+          </>
+        )}
+      </div>
     </>
   );
 }
