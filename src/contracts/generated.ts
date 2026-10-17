@@ -649,6 +649,7 @@ export interface paths {
                     to?: string;
                     clientId?: string;
                     caseId?: string;
+                    sessionId?: string;
                 };
                 header?: never;
                 path?: never;
@@ -766,7 +767,9 @@ export interface paths {
         /** Read PeriodSource */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    periodId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -876,6 +879,8 @@ export interface paths {
             parameters: {
                 query?: {
                     date?: string;
+                    status?: "pending" | "answered" | "superseded";
+                    sessionId?: string;
                 };
                 header?: never;
                 path?: never;
@@ -890,6 +895,15 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["PendingQuestion"][];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
                 /** @description Internal error */
@@ -2129,6 +2143,9 @@ export interface paths {
             parameters: {
                 query?: {
                     date?: string;
+                    from?: string;
+                    to?: string;
+                    sessionId?: string;
                 };
                 header?: never;
                 path?: never;
