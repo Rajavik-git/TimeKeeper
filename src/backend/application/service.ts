@@ -143,6 +143,7 @@ export class TimeKeeperService {
     const s = this.repo.session(id); if (!s) throw new AppError('not-found','session not found'); return s;
   }
   activeSession(): SessionRecord | null { return this.repo.activeSession(); }
+  listActiveCases() { return this.repo.listActiveCases(); }
   listSessions(): SessionRecord[] { return this.repo.listSessions(); }
   allPeriods(): Array<PeriodView & {clientId:string|null}> {
     return this.repo.allPeriods().map(p=>({...view(p),clientId:p.caseId ? this.repo.clientForCase(p.caseId) : null}));

@@ -2,14 +2,15 @@
 // Calls only the application API (docs/API.md D6, D7). Never claims a start that the API did not confirm.
 import type { StartCommand } from '../contracts/index.js';
 import type { TabDetectionResult } from './tab-detection.js';
+import { activePeriod, type PeriodInfo } from './workflow.js';
 
 export const PRODUCER_ID = 'screenpipe-start-button';
 
 export interface SessionInfo { id: string; startedAt: string; endedAt: string | null }
 
 export type StatusResult =
-  | { timekeeper: 'running'; activeSession: SessionInfo | null }
-  | { timekeeper: 'not_running'; activeSession: null };
+  | { timekeeper: 'running'; activeSession: SessionInfo | null; activePeriod: PeriodInfo | null }
+  | { timekeeper: 'not_running'; activeSession: null; activePeriod: null };
 
 export type StartResult =
   | { status: 'already_active'; started: false; session: SessionInfo; tab_detection?: TabDetectionResult }
@@ -72,8 +73,9 @@ async function activeSession(deps: SessionDeps): Promise<SessionInfo | null> {
 }
 
 export async function getStatus(deps: SessionDeps): Promise<StatusResult> {
-  if (!(await healthy(deps))) return { timekeeper: 'not_running', activeSession: null };
-  return { timekeeper: 'running', activeSession: await activeSession(deps) };
+  if (!(await healthy(deps))) return { timekeeper: 'not_running', activeSession: null, activePeriod: null };
+  const session = await activeSession(deps);
+  return { timekeeper: 'running', activeSession: session, activePeriod: session ? await activePeriod(deps, session.id) : null };
 }
 
 async function waitUntilReady(deps: SessionDeps): Promise<boolean> {

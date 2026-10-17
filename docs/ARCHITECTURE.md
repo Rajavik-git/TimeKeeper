@@ -192,9 +192,33 @@ Import the pipe with Screenpipe's supported local import. Create its local `.env
 
 The pipe ships with `schedule: manual` and `enabled: false`. A working Screenpipe AI preset and request tools are still required. Folder identification, a verified trigger, and durable command delivery remain unimplemented. Importing the pipe does not make these components available.
 
-### Start button and tab detection
+### Start and End buttons and tab detection
 
-The manual [Start TimeKeeper pipe](../integrations/screenpipe/pipes/start-timekeeper/pipe.md) calls the TimeKeeper MCP tool `start_session` ([src/mcp/](../src/mcp/server.ts); contract in [API D7](API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe)). The tool returns the active session unchanged, or starts one through `POST /api/commands/start`.
+The manual [Start TimeKeeper pipe](../integrations/screenpipe/pipes/start-timekeeper/pipe.md) calls the TimeKeeper MCP tool `start_session` ([src/mcp/](../src/mcp/server.ts); contract in [API D7](API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe)). The tool returns the active session unchanged, or starts one through `POST /api/commands/start`. The manual [End TimeKeeper pipe](../integrations/screenpipe/pipes/end-timekeeper/pipe.md) calls `end_session`, which ends the active session through `POST /api/commands/end`.
+
+```mermaid
+sequenceDiagram
+    participant L as Lawyer
+    participant SP as Screenpipe
+    participant TKM as TimeKeeper MCP
+    participant W as Tab-detection watcher
+    participant J as JEV
+    participant API as TimeKeeper API
+    L->>SP: Run Start TimeKeeper
+    SP->>TKM: start_session
+    TKM->>API: POST /commands/start (unless a session is active)
+    TKM->>W: start in background (single instance)
+    L->>SP: changes tab (recorded)
+    W->>SP: search-content (focus events, captures)
+    W->>J: did the tab really change? then which case?
+    J-->>W: answer and confidence
+    W->>TKM: record_case_transition (confirmed and still current only)
+    TKM->>API: POST /work-periods at the capture time
+    L->>SP: Run End TimeKeeper
+    SP->>TKM: end_session
+    TKM->>API: POST /commands/end
+    W->>API: GET /sessions/active is null, watcher stops
+```
 
 Whenever a session is then running, the tool starts the [JEV tab-change check](../integrations/screenpipe/jev-check/README.md) in the background with `--session-bound`:
 
@@ -202,7 +226,7 @@ Whenever a session is then running, the tool starts the [JEV tab-change check](.
 - it stops after `GET /api/sessions/active` reports no active session; an unreachable API keeps it running, because closing TimeKeeper does not end the session;
 - it is skipped when `TIMEKEEPER_TAB_DETECTION=off` or when its JEV `.env` is missing, and its failure never fails the session start.
 
-The check is read-only and writes results to its local `watch.log`, which is ignored by Git and may contain window titles.
+Before each check, the watcher reads the session, the open period's case, and the case catalogue through the TimeKeeper MCP server (`timekeeper_status`, `list_cases`). After a confirmed change on a still-current context it calls `record_case_transition`, the only write it makes; rules and guards are in [API D9](API.md#d9-jev-confirmed-tab-changes-become-work-period-transitions). `TIMEKEEPER_APPLY=off` keeps it read-only. It logs to its local `watch.log`, which is ignored by Git and may contain window titles.
 
 ## Storage and implementation gates
 

@@ -4,13 +4,14 @@ import { createServer, type Server } from 'node:http';
 import { createInterface } from 'node:readline';
 import { depsFromEnv } from './config.js';
 import { ensureSession, getStatus, type SessionDeps } from './session.js';
+import { endSession, listCases, recordCaseTransition } from './workflow.js';
 
 const PROTOCOL_VERSION = '2024-11-05';
 
 export const TOOLS = [
   {
     name: 'timekeeper_status',
-    description: 'Read-only. Reports whether the TimeKeeper API is running and returns the active session, or null.',
+    description: 'Read-only. Reports whether the TimeKeeper API is running, the active session (or null), and its open work period with caseId (or null).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
   },
@@ -22,6 +23,40 @@ export const TOOLS = [
       'Only call this when the lawyer explicitly asks to start TimeKeeper. Result status: ' +
       'started | already_active | timekeeper_not_running | pending | unconfirmed | error. Only "started" and "already_active" mean a session is running.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: false, idempotentHint: true },
+  },
+  {
+    name: 'end_session',
+    description:
+      'End TimeKeeper button. Ends the active TimeKeeper session at the time of the call; tab detection then stops by itself. ' +
+      'Only call this when the lawyer explicitly asks to end the session. Result status: ' +
+      'ended | no_active_session | timekeeper_not_running | pending | unconfirmed | error. Only "ended" means the session ended.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: false, idempotentHint: false },
+  },
+  {
+    name: 'list_cases',
+    description: 'Read-only. Lists active cases (id, clientId, clientName, reference, title) for case matching.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'record_case_transition',
+    description:
+      'Workflow command. Records a case change confirmed by the JEV workflow at the capture time of the new context. ' +
+      'caseId is an existing case ID from list_cases, or null for an unknown folder (opens an unresolved period and asks the lawyer). ' +
+      'Does nothing for the current case, an inactive session, or a newer period. Result status: ' +
+      'applied | no_change | stale | pending | timekeeper_not_running | unconfirmed | error.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string', description: 'Active session ID from timekeeper_status.' },
+        transitionAt: { type: 'string', description: 'ISO capture timestamp of the new context (never the model response time).' },
+        caseId: { type: ['string', 'null'], description: 'Existing case ID, or null when no existing case matches.' },
+      },
+      required: ['sessionId', 'transitionAt', 'caseId'],
+      additionalProperties: false,
+    },
     annotations: { readOnlyHint: false, idempotentHint: true },
   },
 ] as const;
@@ -51,6 +86,18 @@ export async function handle(msg: Rpc, deps: SessionDeps): Promise<object | null
       if (name === 'start_session') {
         const result = await ensureSession(deps);
         return reply(text(result, !['started', 'already_active'].includes(result.status)));
+      }
+      if (name === 'end_session') {
+        const result = await endSession(deps);
+        return reply(text(result, result.status !== 'ended'));
+      }
+      if (name === 'list_cases') {
+        try { return reply(text(await listCases(deps))); }
+        catch (error) { return reply(text({ error: error instanceof Error ? error.message : String(error) }, true)); }
+      }
+      if (name === 'record_case_transition') {
+        const result = await recordCaseTransition(deps, msg.params?.arguments);
+        return reply(text(result, !['applied', 'no_change', 'stale'].includes(result.status)));
       }
       return fail(-32602, `Unknown tool: ${String(name)}`);
     }

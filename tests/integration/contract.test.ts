@@ -67,6 +67,7 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
     lines:[{origin:'work_period',originId:'2',label:'Work on case',billedMinutes:66,rateCents:30000,amountCents:33000,vat:true}],
   } },
   'GET /api/sessions/active': {},
+  'GET /api/cases': {},
   'GET /api/health': {},
   'GET /api/sessions': {},
   'GET /api/sessions/{id}': {path:'/api/sessions/demo-2026-10-16'},

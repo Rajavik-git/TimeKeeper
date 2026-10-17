@@ -1,6 +1,6 @@
 # JEV tab-change check
 
-Command-line verification of the chain **Screenpipe → MCP → JEV → result**. It is read-only: it never changes an assignment, creates a period, or writes to Screenpipe or TimeKeeper. Every result reports `applied: false`.
+The chain **Screenpipe → MCP → JEV → result → TimeKeeper**. The check itself never writes (`applied: false` in each result). With `--apply`, or `--session-bound` as started by the Start button, the watcher sends confirmed changes to the active session through the TimeKeeper MCP tool `record_case_transition` ([API D9](../../../docs/API.md#d9-jev-confirmed-tab-changes-become-work-period-transitions)). It never writes to Screenpipe.
 
 ```mermaid
 flowchart LR
@@ -11,7 +11,10 @@ flowchart LR
   Q2 --> FR[Still current?]
   FR --> OUT[Result]
   Q1 -->|no or uncertain| OUT
+  OUT -->|confirmed change, --apply| TK[TimeKeeper MCP: record_case_transition]
 ```
+
+With `--apply`, the case candidates and the current case come from TimeKeeper (`list_cases`, `timekeeper_status`) instead of `cases.json`. Only a confirmed change on a still-current context is sent: a different existing case, or `null` for "no unique candidate" (unresolved period and a question for the lawyer). Everything else is logged as `timekeeper: nothing sent (<reason>)`. Set `TIMEKEEPER_APPLY=off` to keep the watcher read-only.
 
 1. Starts `screenpipe-mcp` (pinned to 0.20.3) over stdio and reads recent `window_focus` and `app_switch` events with `search-content`.
 2. Groups focus changes less than 10 seconds apart into one burst. The previous context is the window held before the burst; the current context is the last window. A quick switch and return compares the tab with itself and lists the visited tab under "passed through". If no earlier window is in range, it compares two captures of the current window at least 10 seconds apart.
@@ -48,7 +51,7 @@ $bun = "$env:LOCALAPPDATA\screenpipe\bun.exe"   # or: bun
 & $bun jev-check.ts --session-bound    # watch while a TimeKeeper session is active (single instance)
 ```
 
-Normally you do not run `--session-bound` yourself: the TimeKeeper MCP tool `start_session` starts it in the background whenever a session is running ([architecture](../../../docs/ARCHITECTURE.md#start-button-and-tab-detection)). It holds `.watch.pid` so only one runs, checks `GET /api/sessions/active` every 10 seconds at `TIMEKEEPER_API_URL` (default `http://127.0.0.1:8787/api`), and exits when no session is active. An unreachable API keeps it running, because closing TimeKeeper does not end the session. Its output goes to `watch.log` in this folder, which contains window titles and is ignored by Git.
+Normally you do not run `--session-bound` yourself: the TimeKeeper MCP tool `start_session` starts it in the background whenever a session is running ([architecture](../../../docs/ARCHITECTURE.md#start-and-end-buttons-and-tab-detection)). It holds `.watch.pid` so only one runs, checks `GET /api/sessions/active` every 10 seconds at `TIMEKEEPER_API_URL` (default `http://127.0.0.1:8787/api`), and exits when no session is active. An unreachable API keeps it running, because closing TimeKeeper does not end the session. Its output goes to `watch.log` in this folder, which contains window titles and is ignored by Git.
 
 Unit tests, with fake MCP and JEV backends, from the repository root:
 

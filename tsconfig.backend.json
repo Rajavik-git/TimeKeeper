@@ -15,6 +15,7 @@
   },
   "include": [
     "src/backend/**/*.ts",
-    "src/contracts/**/*.ts"
+    "src/contracts/**/*.ts",
+    "src/mcp/**/*.ts"
   ]
 }

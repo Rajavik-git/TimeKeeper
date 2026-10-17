@@ -7,6 +7,7 @@ import { parseInputEvents, isRelevant, StabilityTimer } from "./context.ts";
 import { callJev, parseAllowedFields, type CaseRecord } from "./jev.ts";
 import { runCheck, type CheckOptions, type CheckResult } from "./check.ts";
 import { acquireWatchLock, releaseWatchLock, sessionState } from "./session-bound.ts";
+import { decideTransition } from "./decide.ts";
 
 const here = import.meta.dir;
 
@@ -99,21 +100,74 @@ function print(r: CheckResult) {
     else console.log(`  assignment: ${a.status} (${a.reason})`);
   }
   if (r.still_current !== null) console.log(`  still current: ${r.still_current} -> display proposal: ${r.display_proposal}`);
-  console.log("  applied: false (no assignment was changed)");
+  if (!tk) console.log("  applied: false (no assignment was changed)");
+}
+
+const timekeeperApi = env("TIMEKEEPER_API_URL") || `http://127.0.0.1:${env("TIMEKEEPER_PORT") || 8787}/api`;
+
+// --apply (implied by --session-bound): send confirmed changes to the TimeKeeper session through its MCP server.
+const apply = (flag("--apply") || sessionBound) && !/^(0|false|off|no)$/i.test(env("TIMEKEEPER_APPLY"));
+let tk: McpStdioClient | null = apply
+  ? new McpStdioClient([process.execPath, join(here, "..", "..", "..", "src", "mcp", "server.ts")],
+      { TIMEKEEPER_API_URL: timekeeperApi, TIMEKEEPER_TAB_DETECTION: "off" })
+  : null;
+
+type TkContext = { sessionId: string | null; period: { caseId: string | null } | null };
+const stamp = () => new Date().toISOString();
+
+/** Candidates and the current case come from TimeKeeper, so JEV compares against the real catalogue. */
+async function syncFromTimekeeper(): Promise<TkContext | null> {
+  if (!tk) return null;
+  try {
+    const st = (await tk.callToolJson("timekeeper_status", {})).value;
+    if (st?.timekeeper !== "running" || !st.activeSession) return { sessionId: null, period: null };
+    const cs = await tk.callToolJson<any[]>("list_cases", {});
+    if (!cs.isError && Array.isArray(cs.value) && cs.value.length) {
+      opts.cases = cs.value.map((c) => ({ id: c.id, client_id: c.clientId, reference: c.reference, title: c.title, client_name: c.clientName }));
+    }
+    opts.currentCaseId = st.activePeriod?.caseId ?? null;
+    return { sessionId: st.activeSession.id, period: st.activePeriod ? { caseId: st.activePeriod.caseId ?? null } : null };
+  } catch (e: any) {
+    console.error(`  timekeeper: status failed: ${e.message}`);
+    return null;
+  }
+}
+
+async function applyResult(r: CheckResult, ctx: TkContext | null) {
+  if (!tk || r.status !== "checked") return;
+  if (!ctx?.sessionId) return console.log("  timekeeper: no active session reachable, nothing sent");
+  const d = decideTransition(r, ctx.period, opts.minConfidence);
+  if (d.action === "none") return console.log(`  timekeeper: nothing sent (${d.reason})`);
+  try {
+    const out = await tk.callToolJson("record_case_transition", { sessionId: ctx.sessionId, transitionAt: d.transitionAt, caseId: d.caseId });
+    const v: any = out.value;
+    const detail = v.period ? ` period ${v.period.id} case ${v.period.caseId ?? "unresolved"}` : v.reason ? ` (${v.reason})` : v.message ? ` (${v.message})` : "";
+    console.log(`  timekeeper: record_case_transition -> ${v.status}${detail}${v.questionId ? `; question ${v.questionId} asked` : ""}`);
+  } catch (e: any) {
+    console.error(`  timekeeper: record_case_transition failed: ${e.message}`);
+  }
+}
+
+async function checkAndApply(): Promise<CheckResult> {
+  const ctx = await syncFromTimekeeper();
+  const r = await runCheck(deps, opts);
+  if (r.status !== "not_stable") {
+    print(r);
+    await applyResult(r, ctx);
+  }
+  return r;
 }
 
 async function once() {
   // Wait for stability (up to one minute) instead of failing immediately.
   for (let i = 0; i < 6; i++) {
-    const r = await runCheck(deps, opts);
-    if (r.status !== "not_stable") return print(r);
+    const r = await checkAndApply();
+    if (r.status !== "not_stable") return;
     if (!asJson) console.log(`Not stable yet, waiting ${r.wait_ms} ms...`);
     await Bun.sleep(Math.min(r.wait_ms ?? 1000, 10_000) + 250);
   }
   console.log("Context never became stable within one minute.");
 }
-
-const timekeeperApi = env("TIMEKEEPER_API_URL") || `http://127.0.0.1:${env("TIMEKEEPER_PORT") || 8787}/api`;
 
 async function watchLoop() {
   const timer = new StabilityTimer(opts.stabilityMs);
@@ -146,7 +200,8 @@ async function watchLoop() {
       since = now;
       if (timer.due(Date.now())) {
         timer.consume();
-        print(await runCheck(deps, opts));
+        console.log(`[${stamp()}] stable for ${opts.stabilityMs / 1000}s -> checking`);
+        await checkAndApply();
       }
     } catch (e: any) {
       console.error(`  read failed: ${e.message}`);
@@ -170,6 +225,18 @@ try {
   await mcp.start();
   const tools = await mcp.listTools();
   if (!tools.includes("search-content")) throw new Error("Screenpipe MCP does not expose search-content");
+  if (tk) {
+    try {
+      await tk.start();
+      const tkTools = await tk.listTools();
+      if (!tkTools.includes("record_case_transition")) throw new Error("TimeKeeper MCP has no record_case_transition tool");
+      console.log(`[${stamp()}] Connected to TimeKeeper MCP: confirmed changes are sent to the session.`);
+    } catch (e: any) {
+      console.error(`TimeKeeper MCP unavailable (${e.message}); results are only logged.`);
+      await tk.close();
+      tk = null;
+    }
+  }
   if (watch) await watchLoop();
   else await once();
 } catch (e: any) {
@@ -177,5 +244,6 @@ try {
   process.exitCode = 1;
 } finally {
   await mcp.close();
+  await tk?.close();
   if (sessionBound) releaseWatchLock();
 }

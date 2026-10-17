@@ -29,6 +29,8 @@ export function coreRoutes(db: DatabaseSync): Hono {
   // Readiness for the launcher and Tauri (docs/API.md A1). Answering means the API and its database are open.
   router.get('/health',c=>c.json({status:'ok'}));
   router.get('/sessions/active',c=>c.json(service.activeSession()));
+  // Read-only case catalogue for the Screenpipe case-matching workflow (through the MCP server).
+  router.get('/cases',c=>c.json(service.listActiveCases()));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));
   router.get('/work-periods',c=>{

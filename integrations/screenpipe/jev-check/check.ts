@@ -41,6 +41,8 @@ export type CheckResult = {
   detection: "focus_change" | "no_focus_change" | null;
   previous: Ctx | null;
   current: Ctx | null;
+  /** Capture time of the change (focus event, or the current capture for a content-only change). */
+  transition_at: string | null;
   passed_through: string[];
   tab_change: TabAnswer | null;
   assignment: CaseAnswer | { status: "skipped"; reason: string } | null;
@@ -78,7 +80,7 @@ export async function runCheck(deps: CheckDeps, o: CheckOptions): Promise<CheckR
   const now = deps.now();
   const ignored = o.ignoredTitles ?? DEFAULT_IGNORED_TITLES;
   const base: CheckResult = {
-    checked_at: iso(now), status: "checked", detection: null, previous: null, current: null, passed_through: [],
+    checked_at: iso(now), status: "checked", detection: null, previous: null, current: null, transition_at: null, passed_through: [],
     tab_change: null, assignment: null, still_current: null, display_proposal: false, applied: false,
   };
   const windowStart = now - o.windowMinutes * 60_000;
@@ -107,6 +109,7 @@ export async function runCheck(deps: CheckDeps, o: CheckOptions): Promise<CheckR
   }
   base.previous = ctx(prev);
   base.current = ctx(cur);
+  base.transition_at = Number.isFinite(currentFocusTs) ? iso(currentFocusTs) : null;
 
   const pState = permittedObservation(prev, "previous_observation", o.allowed, o.maxTextChars);
   const cState = permittedObservation(cur, "observation", o.allowed, o.maxTextChars);

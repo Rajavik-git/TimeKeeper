@@ -27,15 +27,15 @@ Read-only chat tools, installed Screenpipe workflows, capture, and native packag
 
 ## Screenpipe integration
 
-### Start TimeKeeper button and tab detection
+### Start and End buttons and tab detection
 
-Screenpipe runs on its own; a TimeKeeper session starts only when the lawyer runs the manual **Start TimeKeeper** pipe. It calls the TimeKeeper MCP tool `start_session`: an active session is left unchanged, otherwise a new one starts. While a session runs, the same tool starts the read-only JEV tab-change detection in the background; it stops when the session ends. See [API D7](docs/API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe) and the [architecture](docs/ARCHITECTURE.md#start-button-and-tab-detection).
+Screenpipe runs on its own; a TimeKeeper session starts only when the lawyer runs the manual **Start TimeKeeper** pipe and ends with **End TimeKeeper**. They call the TimeKeeper MCP tools `start_session` (an active session is left unchanged) and `end_session`. While a session runs, JEV tab-change detection runs in the background: when JEV confirms a real tab change, it sends the result to the session through MCP (`record_case_transition`), which opens a period on the matched case or an unresolved period with a question for the lawyer. It stops when the session ends. See [API D7 and D9](docs/API.md#d9-jev-confirmed-tab-changes-become-work-period-transitions) and the [architecture](docs/ARCHITECTURE.md#start-and-end-buttons-and-tab-detection).
 
 1. Start the API (`npm run dev:server`) and register the MCP server in Screenpipe, for example as a custom HTTP connection to `http://127.0.0.1:3032/mcp` after running `npx tsx src/mcp/server.ts --http` (Screenpipe's bundled `bun` also runs it).
-2. Install [integrations/screenpipe/pipes/start-timekeeper](integrations/screenpipe/pipes/start-timekeeper/pipe.md) with the CLI of your Screenpipe release, as for the JEV pipe below. If pipes cannot call MCP tools, set `TIMEKEEPER_START_COMMAND` in its `.env` (see its `.env.example`).
-3. For tab detection, fill `integrations/screenpipe/jev-check/.env` from its `.env.example`. Without it, sessions still start and the result reports `tab_detection: not_configured`. Set `TIMEKEEPER_TAB_DETECTION=off` to disable it.
+2. Install [start-timekeeper](integrations/screenpipe/pipes/start-timekeeper/pipe.md) and [end-timekeeper](integrations/screenpipe/pipes/end-timekeeper/pipe.md) with the CLI of your Screenpipe release, as for the JEV pipe below. If pipes cannot call MCP tools, set `TIMEKEEPER_START_COMMAND` / `TIMEKEEPER_END_COMMAND` in their `.env` (see each `.env.example`).
+3. For tab detection, fill `integrations/screenpipe/jev-check/.env` from its `.env.example`. Without it, sessions still start and the result reports `tab_detection: not_configured`. Set `TIMEKEEPER_TAB_DETECTION=off` to disable it, or `TIMEKEEPER_APPLY=off` to keep it read-only.
 
-These steps have been checked with a stand-in API and the real Screenpipe MCP on Windows, not yet with the Node API or an installed pipe run.
+The full loop (Start → real tab change → Screenpipe MCP → JEV → TimeKeeper MCP → API → End) ran once on Windows with the Node API and fictional documents. Installed pipe runs and macOS remain unverified.
 
 ### Optional JEV integration for Screenpipe
 

@@ -2596,6 +2596,36 @@
         }
       }
     },
+    "/api/cases": {
+      "get": {
+        "summary": "List active cases with their client, for Screenpipe case matching",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "clientId", "clientName", "reference", "title"],
+                    "properties": {
+                      "id": { "type": "string" },
+                      "clientId": { "type": "string" },
+                      "clientName": { "type": "string" },
+                      "reference": { "type": "string" },
+                      "title": { "type": "string" }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/active": {
       "get": {
         "summary": "Read active session",

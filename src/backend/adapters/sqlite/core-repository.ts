@@ -128,6 +128,11 @@ export class SqliteRepository implements Repository {
     }
   }
   caseExists(id: string): boolean { return !!this.db.prepare('SELECT 1 FROM cases WHERE id=?').get(id); }
+  listActiveCases(): Array<{ id: string; clientId: string; clientName: string; reference: string; title: string }> {
+    return this.db.prepare(`SELECT c.id, c.client_id, cl.name AS client_name, c.reference, c.title FROM cases c
+      JOIN clients cl ON cl.id=c.client_id WHERE c.status='active' ORDER BY c.reference`).all()
+      .map(value => { const r=row(value)!; return { id:str(r.id),clientId:str(r.client_id),clientName:str(r.client_name),reference:str(r.reference),title:str(r.title) }; });
+  }
   createClient(id: string, name: string, now: string): void {
     this.db.prepare('INSERT INTO clients(id,name,created_at,updated_at) VALUES (?,?,?,?)').run(id,name,now,now);
   }

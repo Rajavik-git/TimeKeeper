@@ -14,6 +14,7 @@ function fakeApi(options: { up?: boolean; active?: Session | null; startStatus?:
     const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
     if (path === '/health') return json({ status: 'ok' });
     if (path === '/sessions/active') return json(state.active);
+    if (path === '/work-periods') return json([]);
     if (path === '/commands/start' && init?.method === 'POST') {
       const command = JSON.parse(String(init.body));
       state.starts.push(command);
@@ -140,8 +141,8 @@ describe('tab detection with the session', () => {
 describe('timekeeper_status', () => {
   it('reports running with the active session, or not running', async () => {
     const active = { id: 's1', startedAt: '2026-10-17T08:00:00.000Z', endedAt: null };
-    expect(await getStatus(fakeApi({ active }).deps)).toEqual({ timekeeper: 'running', activeSession: active });
-    expect(await getStatus(fakeApi({ up: false }).deps)).toEqual({ timekeeper: 'not_running', activeSession: null });
+    expect(await getStatus(fakeApi({ active }).deps)).toEqual({ timekeeper: 'running', activeSession: active, activePeriod: null });
+    expect(await getStatus(fakeApi({ up: false }).deps)).toEqual({ timekeeper: 'not_running', activeSession: null, activePeriod: null });
   });
 });
 
@@ -152,7 +153,7 @@ describe('MCP protocol', () => {
     const { deps } = fakeApi();
     expect(await call(deps, 'initialize')).toMatchObject({ result: { capabilities: { tools: {} }, serverInfo: { name: 'timekeeper' } } });
     const list: any = await call(deps, 'tools/list');
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(['timekeeper_status', 'start_session']);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(['timekeeper_status', 'start_session', 'end_session', 'list_cases', 'record_case_transition']);
     expect(await handle({ jsonrpc: '2.0', method: 'notifications/initialized' }, deps)).toBeNull();
   });
 
@@ -186,7 +187,7 @@ describe('MCP protocol', () => {
 
   it('rejects unknown tools and methods', async () => {
     const { deps } = fakeApi();
-    expect(await call(deps, 'tools/call', { name: 'end_session' })).toMatchObject({ error: { code: -32602 } });
+    expect(await call(deps, 'tools/call', { name: 'delete_everything' })).toMatchObject({ error: { code: -32602 } });
     expect(await call(deps, 'resources/list')).toMatchObject({ error: { code: -32601 } });
   });
 });

@@ -44,6 +44,8 @@ export interface Repository {
   insertPeriod(period: PeriodRecord, now: string): void;
   savePeriod(period: PeriodRecord, now: string): void;
   caseExists(id: string): boolean;
+  /** Active cases with their client, for case matching by Screenpipe workflows. */
+  listActiveCases(): Array<{ id: string; clientId: string; clientName: string; reference: string; title: string }>;
   createClient(id: string, name: string, now: string): void;
   createCase(id: string, clientId: string, reference: string, title: string, hourlyRateCents: number | null, now: string): void;
   setGlobalRate(rateCents: number, currency: string, workspaceId: string, now: string): void;

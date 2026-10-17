@@ -101,6 +101,13 @@ export class McpStdioClient {
     }
   };
 
+  /** Calls a tool whose text content is JSON; returns it with the tool's error flag instead of throwing on isError. */
+  async callToolJson<T = any>(name: string, args: Record<string, unknown>): Promise<{ isError: boolean; value: T }> {
+    const r = await this.request("tools/call", { name, arguments: args });
+    const text = (r?.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
+    return { isError: Boolean(r?.isError), value: JSON.parse(text) as T };
+  }
+
   async close() {
     try { (this.proc?.stdin as any)?.end?.(); } catch {}
     this.proc?.kill();

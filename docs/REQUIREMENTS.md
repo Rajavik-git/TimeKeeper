@@ -16,9 +16,10 @@ Reusable folder learning, chat-calculated summaries, and advanced currency behav
 
 ### Sessions and desktop lifecycle
 
-- The lawyer starts and ends a session through explicit commands in Screenpipe. Start is the manual **Start TimeKeeper** pipe: if a session is already active it changes nothing, otherwise it starts one ([API D7](API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe)). The end command remains to be implemented.
+- The lawyer starts and ends a session through explicit commands in Screenpipe. Start is the manual **Start TimeKeeper** pipe: if a session is already active it changes nothing, otherwise it starts one. End is the manual **End TimeKeeper** pipe: it ends the active session at the press time ([API D7](API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe)).
 - Screenpipe can run without TimeKeeper. Starting Screenpipe never starts a session.
-- Optional JEV tab-change detection runs only while a session is active. The start command also starts it, or leaves the running one unchanged, and it stops after the session ends. It never starts, ends, or reassigns anything by itself.
+- Optional JEV tab-change detection runs only while a session is active. The start command also starts it, or leaves the running one unchanged, and it stops after the session ends. It never starts or ends a session.
+- When JEV confirms a real tab change on a context that is still current, the detection sends the result to the session: a different existing case opens an automatic work period at the capture time of the change; no unique existing case opens an unresolved period and asks the lawyer. No change, uncertain or low-confidence answers, and the current case keep the active case. Automatic periods still require the lawyer's time validation ([API D9](API.md#d9-jev-confirmed-tab-changes-become-work-period-transitions)).
 - Start launches or activates TimeKeeper and waits for its services before creating the session. A workspace has at most one active session. A distinct start command while one is active returns that session's ID. Repeated or distinct starts must not reset its start boundary.
 - Closing TimeKeeper exits the desktop application and its Node backend. The session and active work period remain open. Closing or reopening the application does not establish a work-time boundary.
 - Only the explicit Screenpipe end command ends the session. It fixes an effective end timestamp and closes the active period at that boundary. Ending the session does not stop Screenpipe recording.
