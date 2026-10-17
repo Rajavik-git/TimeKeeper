@@ -282,7 +282,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A6 | Reconstruction conflict endpoints: list and resolve. | **Open, reduced by [D9](#d9-only-past-days-can-be-validated).** Conflicts are stored, but the lawyer's resolution action is undefined ([design review](DESIGN_REVIEW.md)). With D9, today's periods are never validated, so conflicts remain only for periods the lawyer **corrected** during the day, or for rare very late evidence. Two gaps if it is built: the stored conflict does not record the proposed case (only the time), and nothing marks a conflict `resolved`. Proposed minimal version: store the proposed case, `GET /api/reconstruction-conflicts`, and `POST /api/reconstruction-conflicts/{id}/dismiss`; splitting stays out until billed-period editing (README decision 8) is agreed. |
 | A7 | Read-only chat tools use existing read endpoints. | **Decided**, see [D3](#d3-read-only-chat-uses-existing-read-endpoints). Needs the A4 filters. |
 | A8 | No local access control for the hackathon. | **Decided**, see [D1](#d1-no-local-access-token-for-the-hackathon). |
-| A9 | Command delivery while TimeKeeper is closed. | **Decided**, see [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder). Not built yet. |
+| A9 | Command delivery while TimeKeeper is closed. | **Done on the TimeKeeper side**, see [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder) "8. Status". Still missing: the pipe's fallback write, catching up missed recordings, and showing failed commands in the interface. |
 | A10 | Undo time and source validation with `{"validated": false}`. | **Done**, as decided in [D2](#d2-undo-a-validation-through-the-same-endpoint). |
 | A11 | Replace `pending` refusals with `rule-not-decided` and `conflict`. | **Decided**, see [D4](#d4-error-codes-replacing-pending-for-refusals). Fixes [E1](#e1-undecided-rules-are-returned-as-successful-202-pending). |
 | A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
@@ -502,6 +502,22 @@ The same synchronization may also run on a timer while TimeKeeper is open, so a 
 - In TimeKeeper: an inbox adapter (`src/backend/adapters/inbox/`) behind a port, and a startup worker (`src/backend/workers/`) that runs steps 1 to 4 before readiness ([AGENTS.md](../AGENTS.md) rule 4).
 - In the pipe: the fallback write when the API does not answer.
 - Tests: end written while closed is applied at startup with its original time; duplicate files; end before start; invalid file; crash between apply and move.
+
+**8. Status (2026-10-17)**
+
+Built on `mprifti42tech/api`:
+
+- Port `CommandInbox` in `src/backend/ports/index.ts` (replaces the earlier placeholder), adapter `folderInbox` in `src/backend/adapters/inbox/folder.ts`, worker `syncInbox` in `src/backend/workers/inbox-sync.ts`.
+- `src/backend/api/index.ts` runs the synchronization **before** the server listens, so `GET /api/health` answers only once the inbox is applied, then every 30 seconds while running.
+- Folder: `TIMEKEEPER_INBOX` if set, otherwise `inbox` next to the database (`TIMEKEEPER_DB`): the app data folder in the installed app, `data/inbox/` in development.
+- Commands are sorted by `occurredAt`, then `commandId`, and applied through the same service as `POST /api/commands/start` and `/end`. Applied → `done/`; waiting for a prerequisite → stays; refused or invalid → `failed/` with `<name>.error.json` holding `{error, message}`; an unexpected error (for example a locked database) leaves the file for the next run.
+- Tests: `tests/integration/inbox-sync.test.ts` (9 tests: the closed-app end, order by time, an end waiting for its start, duplicates, a crash between apply and move, invalid and refused files, `.tmp` files ignored, the folder location, an end before its start). Also checked end to end by starting the real API with an end file waiting in its inbox: it was applied before `/api/health` answered, with the session ending at the pressed time.
+
+Not built yet:
+
+- **The pipe side:** the `end_session` tool and pipe must write the file when the API does not answer (Rajavik-git, with `end_session`). The format is section 2; write `.tmp`, then rename.
+- **Step 4, catching up missed recordings:** needs the Screenpipe adapter ([D5](#d5-calling-screenpipes-api-with-its-token)), which does not exist yet.
+- **Showing failed commands to the lawyer:** the files are in `failed/`, but no endpoint or screen shows them yet.
 
 ### D9. Only past days can be validated
 
