@@ -4,17 +4,14 @@ import {
   api,
   client,
   money,
-  hours,
   shortDate,
-  price,
-  task,
   type ScreenProps,
 } from "../../api/client";
-import { Status } from "../../shared/components/Status";
+import { configuredRate, effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
 import { MatterReference } from "../../shared/components/MatterReference";
 import { Icon } from "../../shared/components/Icon";
 
-export function Cases({ s, action, navigate, source }: ScreenProps) {
+export function Cases({ s, core, action, navigate, source }: ScreenProps) {
   const [selected, setSelected] = useState(s.matter[0]?.id ?? 0);
   const [filter, setFilter] = useState("");
   const [adding, setAdding] = useState(false);
@@ -29,21 +26,19 @@ export function Cases({ s, action, navigate, source }: ScreenProps) {
   const d = s.matter.find((x) => x.id === selected) ?? s.matter[0];
   if (!d) return null;
   const c = client(s, d.id)!;
-  const lines = s.time_entry
-    .filter((l) => l.matter_id === d.id)
-    .sort((a, b) => b.date.localeCompare(a.date));
-  const rate = lines.length ? price(s, lines[0].id) : undefined;
-  const spent = lines
-    .filter((l) => l.billable)
-    .reduce((n, l) => n + price(s, l.id).value_cents, 0);
+  const lines = core.periods.filter(p=>p.caseId===String(d.id) && !p.excluded).sort((a,b)=>b.startedAt.localeCompare(a.startedAt));
+  const rate = configuredRate(s,d.id);
+  const priced = (periods:typeof lines) => rate.origin==='flat_fee' ? 0 :
+    Math.round(summarizeWork(periods,core.sources).roundedMinutes*rate.rateCents/60);
+  const issuedInvoiceIds=new Set(core.billing.invoices.filter(invoice=>invoice.caseId===String(d.id)).map(invoice=>invoice.id));
+  const issuedWorkCents=core.billing.lines.filter(line=>
+    (line.origin==='work_period'||line.origin==='flat_fee') && issuedInvoiceIds.has(line.invoiceId))
+    .reduce((total,line)=>total+line.amountCents,0);
+  const spent = issuedWorkCents + priced(lines.filter(p=>p.billable && p.billingStatus==='unbilled'));
   const budget = d.mode === "flat_fee" ? d.flat_fee_cents : d.budget_cents;
-  const total = lines.reduce((n, l) => n + l.tenths_of_hour, 0);
-  const toBill = lines
-    .filter((l) => l.billable && l.billing_status !== "billed")
-    .reduce((n, l) => n + l.amount_cents, 0);
-  const non = lines
-    .filter((l) => !l.billable)
-    .reduce((n, l) => n + l.tenths_of_hour, 0);
+  const total = summarizeWork(lines,core.sources).roundedMinutes;
+  const toBill = priced(lines.filter(p=>p.billable && p.billingStatus==='unbilled'));
+  const non = summarizeWork(lines.filter(p=>!p.billable),core.sources).roundedMinutes;
   const markers = s.marker.filter((r) => r.matter_id === d.id);
   return (
     <>
@@ -99,11 +94,7 @@ export function Cases({ s, action, navigate, source }: ScreenProps) {
                         <span className="ref">{x.reference}</span>
                       </span>
                       <span className="num muted">
-                        {hours(
-                          s.time_entry
-                            .filter((l) => l.matter_id === x.id)
-                            .reduce((n, l) => n + l.tenths_of_hour, 0),
-                        )}
+                        {formatRoundedMinutes(summarizeWork(core.periods.filter(p=>p.caseId===String(x.id) && !p.excluded),core.sources).roundedMinutes)}
                       </span>
                     </button>
                   ))}
@@ -136,12 +127,12 @@ export function Cases({ s, action, navigate, source }: ScreenProps) {
                 <dd>
                   {d.mode === "flat_fee"
                     ? `Flat fee ${money(d.flat_fee_cents ?? 0)}`
-                    : `${money(rate?.rate_cents ?? c.rate_cents)}/h`}
+                    : `${money(rate.rateCents)}/h`}
                 </dd>
               </div>
               <div>
                 <dt>Time recorded</dt>
-                <dd className="num">{hours(total)}</dd>
+                <dd className="num">{formatRoundedMinutes(total)}</dd>
               </div>
               <div>
                 <dt>To bill</dt>
@@ -151,7 +142,7 @@ export function Cases({ s, action, navigate, source }: ScreenProps) {
               </div>
               <div>
                 <dt>Not billable</dt>
-                <dd className="num">{hours(non)}</dd>
+                <dd className="num">{formatRoundedMinutes(non)}</dd>
               </div>
               <div>
                 <dt>Opposing party</dt>
@@ -235,31 +226,26 @@ export function Cases({ s, action, navigate, source }: ScreenProps) {
                     {lines.map((l) => (
                       <tr
                         key={l.id}
-                        className={l.block_id ? "click" : ""}
+                        className={core.sources.some(record=>record.workPeriodId===l.id) ? "click" : ""}
                         onClick={() => {
-                          if (l.block_id) source(l.id);
+                          if (core.sources.some(record=>record.workPeriodId===l.id)) source(l.id);
                         }}
                       >
-                        <td className="num">{shortDate(l.date)}</td>
+                        <td className="num">{shortDate(l.startedAt.slice(0,10))}</td>
                         <td className="wrap">
                           {l.label}
-                          <span className="sub">{task(s, l.task_id)}</span>
+                          <span className="sub">{s.task.find(t=>t.id===l.taskTypeId)?.label ?? 'Work period'}</span>
                         </td>
-                        <td className="r num">{hours(l.tenths_of_hour)}</td>
+                        <td className="r num">{formatPreciseDuration(effectiveMs(l))}</td>
                         <td className="r num">
-                          {d.mode === "flat_fee"
+                          {l.billingStatus==='billed' ? 'In invoice' : d.mode === "flat_fee"
                             ? "Flat fee"
-                            : l.billable
-                              ? money(l.amount_cents)
+                            : l.billable && effectiveMs(l)!==null
+                              ? money(Math.round(effectiveMs(l)!*rate.rateCents/3600000))
                               : "—"}
                         </td>
                         <td>
-                          <Status
-                            review_status={l.review_status}
-                            billing_status={l.billing_status}
-                            billable={l.billable}
-                            reason={l.reason}
-                          />
+                          {l.timeValidated?'Time validated':'Time to validate'} · {l.billingStatus}
                         </td>
                       </tr>
                     ))}

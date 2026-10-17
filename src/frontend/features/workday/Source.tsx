@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import {
   api,
   shortDate,
-  money,
-  hours,
   label,
   type Recognition,
   type ScreenProps,
@@ -12,7 +10,7 @@ import {
 import { Card } from "../../shared/components/Card";
 import { MatterSelect } from "../../shared/components/MatterSelect";
 import { Pill } from "../../shared/components/Pill";
-import { Status } from "../../shared/components/Status";
+import { effectiveMs, formatPreciseDuration } from '../../calculations/billing';
 function highlight(text: string, marker: string) {
   if (!marker) return text;
   return text.split(marker).map((part, index) => (
@@ -25,9 +23,10 @@ function highlight(text: string, marker: string) {
 
 export function Source({
   s,
+  core,
   selected,
   action,
-}: ScreenProps & { selected: number }) {
+}: ScreenProps & { selected: string }) {
   const available = s.time_entry.filter((l) => l.block_id),
     [picked, setPicked] = useState<number | null>(null),
     [frame, setFrame] = useState(0),
@@ -44,8 +43,8 @@ export function Source({
       progress: number;
     } | null>(null),
     [options, setOptions] = useState(["o1", "o2", "o3", "o4"]);
-  const l =
-    available.find((x) => x.id === (picked ?? selected)) ?? available[0];
+  const l = picked !== null ? available.find(x=>x.id===picked) :
+    selected ? available.find(x=>String(x.id)===selected) : available[0];
   useEffect(() => {
     if (!l?.block_id) return;
     let active = true;
@@ -60,7 +59,22 @@ export function Source({
       active = false;
     };
   }, [l?.block_id]);
-  if (!l) return <Card>No source available.</Card>;
+  if (!l) {
+    const period=core.periods.find(p=>p.id===selected);
+    const records=core.sources.filter(record=>record.workPeriodId===period?.id);
+    return <div className="stack"><h1>Source</h1><Card>
+      {period ? <><h2>{period.label}</h2><p>{formatPreciseDuration(effectiveMs(period))} · {period.timeValidated?'Time validated':'Time to validate'} · {period.billingStatus}</p>
+        {records.length ? records.map(record=><div className="row between line-row" key={record.id}>
+          <span>{record.recordedAt} · {record.contentType} · {record.externalId}</span>
+          <span>{record.availabilityStatus}</span>
+          <label className="row small"><input type="checkbox" checked={record.validationStatus==='validated'} disabled={record.validationStatus==='validated'}
+            onChange={()=>void action(api.POST('/api/sources/{instanceId}/{contentType}/{externalId}/validate',{
+              params:{path:{instanceId:record.instanceId,contentType:record.contentType,externalId:record.externalId}},body:{},
+            }))}/>Source validated</label>
+        </div>) : <p>No source linked to this period.</p>}</>
+        : <p>Select a period to inspect its sources.</p>}
+    </Card></div>;
+  }
   const b = s.block.find((x) => x.id === l.block_id)!;
   const sources = s.source.filter((x) => x.block_id === b.id),
     f = sources[Math.min(frame, sources.length - 1)],
@@ -68,6 +82,7 @@ export function Source({
       (x) => x.time_entry_id === l.id || x.block_id === b.id,
     ),
     jev = s.jev_review.filter((x) => x.block_id === b.id);
+  const period=core.periods.find(p=>p.id===String(l.id));
   const showPreview = (
     event: React.MouseEvent<HTMLButtonElement>,
     block: typeof b,
@@ -155,8 +170,7 @@ export function Source({
         <div className="row between">
           <h3>Timeline</h3>
           <span className="tiny muted">
-            Hover a block to preview the recording second by second. Click it to
-            inspect.
+            Hover for the simulated demo cursor. Select a source to review its recorded observation.
           </span>
         </div>
         <div className="timeline">
@@ -268,15 +282,10 @@ export function Source({
         </div>
         <div className="row">
           <span className="num">
-            {hours(l.tenths_of_hour)} ·{" "}
-            {l.billable ? money(l.amount_cents) : "non billable"}
+            {formatPreciseDuration(period?effectiveMs(period):null)} ·{" "}
+            {period?.billable ? 'billable' : 'non billable'}
           </span>
-          <Status
-            review_status={l.review_status}
-            billing_status={l.billing_status}
-            billable={l.billable}
-            reason={l.reason}
-          />
+          <span>{period?.timeValidated?'Time validated':'Time to validate'} · {period?.billingStatus ?? 'unbilled'}</span>
         </div>
       </div>
       <div className="source-layout">
@@ -318,16 +327,18 @@ export function Source({
                 </span>
               </p>
             )}
-            <div className="row">
-              {sources.map((x, i) => (
-                <button
-                  className={`btn small ${i === frame ? "primary" : ""}`}
-                  key={x.id}
-                  onClick={() => setFrame(i)}
-                >
-                  {x.timestamp} · {x.type}
-                </button>
-              ))}
+            <div className="col">
+              {sources.map((x, i) => {
+                const reviewed=core.sources.find(record=>record.id===String(x.id));
+                return <div className="row between line-row" key={x.id}>
+                  <button className={`btn small ${i===frame?'primary':''}`} onClick={()=>setFrame(i)}>{x.timestamp} · {x.type} · {x.screenpipe_ref}</button>
+                  <span className="small">{reviewed?.availabilityStatus==='unavailable'?'Unavailable in Screenpipe':reviewed?.availabilityStatus==='available'?'Available':'Availability unknown'}</span>
+                  <label className="row small"><input type="checkbox" checked={reviewed?.validationStatus==='validated'} disabled={!reviewed||reviewed.validationStatus==='validated'}
+                    onChange={()=>{if(reviewed)void action(api.POST('/api/sources/{instanceId}/{contentType}/{externalId}/validate',{
+                      params:{path:{instanceId:reviewed.instanceId,contentType:reviewed.contentType,externalId:reviewed.externalId}},body:{},
+                    }))}}/>Source validated</label>
+                </div>;
+              })}
             </div>
           </Card>
           <Card>

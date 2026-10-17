@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { api, money, price, originLabel, type ScreenProps } from "../../api/client";
+import { api, money, originLabel, type ScreenProps } from "../../api/client";
+import { configuredRate, effectiveMs } from '../../calculations/billing';
 import { Card } from "../../shared/components/Card";
 import { Pill } from "../../shared/components/Pill";
 import { MatterReference } from "../../shared/components/MatterReference";
 type Tab = "clients" | "matters" | "base" | "tasks" | "rules" | "preferences";
 const euroInput = (s: string) => Math.round(Number(s.replace(",", ".")) * 100);
-export function Settings({ s, action }: ScreenProps) {
+export function Settings({ s, core, action }: ScreenProps) {
   const [tab, setTab] = useState<Tab>("clients"),
     [name, setName] = useState(""),
     [clientCode, setClientCode] = useState(""),
@@ -316,15 +317,7 @@ export function Settings({ s, action }: ScreenProps) {
                       </td>
                       <td>
                         <Pill>
-                          {originLabel(
-                            p
-                              ? price(s, p.id).origin
-                              : d.mode === "flat_fee"
-                                ? "flat_fee"
-                                : d.own_rate_cents !== null
-                                  ? "matter"
-                                  : "client",
-                          )}
+                          {originLabel(configuredRate(s,d.id).origin)}
                         </Pill>
                       </td>
                     </tr>
@@ -386,13 +379,9 @@ export function Settings({ s, action }: ScreenProps) {
           </div>
           <Card className="side">
             <h3>At base rate today</h3>
-            {s.time_entry
-              .filter((l) => !l.matter_id)
-              .map((l) => (
-                <p key={l.id}>
-                  {l.label} · {money(l.amount_cents)} excluding VAT, estimated
-                </p>
-              ))}
+            {core.periods.filter(period=>!period.caseId && !period.excluded).map(period=>(
+              <p key={period.id}>{period.label} · {effectiveMs(period)===null?'Unknown duration':money(Math.round(effectiveMs(period)!*(s.firm[0]?.base_rate_cents??0)/3600000))} excluding VAT, estimated</p>
+            ))}
           </Card>
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { api, today, type State, type View } from "./api/client";
+import { api, today, type State, type CoreState, type View } from "./api/client";
 import { Desk } from "./features/desk/Desk";
 import { MyDay } from "./features/workday/MyDay";
 import { Cases } from "./features/cases/Cases";
@@ -25,14 +25,21 @@ const workspaceViews = [
 
 function App() {
   const [s, setS] = useState<State>();
+  const [core, setCore] = useState<CoreState>();
   const [view, setView] = useState<View>("myDay");
-  const [sourceId, setSourceId] = useState(0);
+  const [sourceId, setSourceId] = useState('');
   const [selectedCase, setSelectedCase] = useState<number>();
   const [message, setMessage] = useState("");
   const refresh = async () => {
-    const { data, error } = await api.GET("/api/state");
-    if (error) throw Error(JSON.stringify(error));
-    setS(data);
+    const [legacy, active, sessions, periods, sources, questions, billing, coverageGaps] = await Promise.all([
+      api.GET('/api/state'), api.GET('/api/sessions/active'), api.GET('/api/sessions'),
+      api.GET('/api/work-periods'), api.GET('/api/sources'), api.GET('/api/questions'),api.GET('/api/billing/state'),api.GET('/api/coverage-gaps'),
+    ]);
+    for (const response of [legacy,active,sessions,periods,sources,questions,billing,coverageGaps])
+      if (response.error) throw Error(JSON.stringify(response.error));
+    setS(legacy.data);
+    setCore({activeSession:active.data ?? null,sessions:sessions.data ?? [],periods:periods.data ?? [],
+      sources:sources.data ?? [],questions:questions.data ?? [],coverageGaps:coverageGaps.data ?? [],billing:billing.data ?? {invoices:[],lines:[],expenses:[]}});
   };
   useEffect(() => {
     refresh().catch((e) => setMessage(String(e)));
@@ -61,7 +68,7 @@ function App() {
     document.querySelector(".shell-main")?.scrollTo(0, 0);
     window.scrollTo(0, 0);
   };
-  const source = (id: number) => {
+  const source = (id: string) => {
     setSourceId(id);
     navigate("source");
   };
@@ -84,8 +91,8 @@ function App() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
-  const props = s
-    ? { s, refresh, action, navigate, source, selectedCase }
+  const props = s && core
+    ? { s, core, refresh, action, navigate, source, selectedCase }
     : undefined;
   const lawyer = s?.firm[0]?.lawyer_name ?? "TimeKeepr";
   const initials = lawyer
@@ -94,10 +101,9 @@ function App() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const pending =
-    s?.time_entry.filter(
-      (e) => e.date === today && e.review_status !== "approved",
-    ).length ?? 0;
+  const pending = core?.periods.filter(p=>p.startedAt.startsWith(today) && !p.excluded && !p.timeValidated).length ?? 0;
+  const activePeriod = core?.periods.find(p=>p.sessionId === core.activeSession?.id && p.endedAt === null);
+  const currentCase = s?.matter.find(m=>String(m.id) === activePeriod?.caseId);
   const viewName =
     [...primaryViews, ...workspaceViews].find(
       (item) => item[0] === view,
@@ -146,9 +152,10 @@ function App() {
           <div className="capture">
             <div className="row1">
               <span className="live" aria-hidden="true" />
-              Capture on
+              {core?.activeSession ? 'Session active' : 'No active session'}
             </div>
-            <p>screenpipe is recording. Everything stays on this device.</p>
+            <p>{core?.activeSession ? `Started from Screenpipe at ${core.activeSession.startedAt.slice(11,16)}. Closing TimeKeepr keeps it open.` : 'Start from Screenpipe to begin a session.'}</p>
+            {core?.activeSession&&<p className="num tiny">session {core.activeSession.id} · revision {core.activeSession.revision}{currentCase?` · ${currentCase.reference}`:''}</p>}
             <button
               className="btn sm"
               disabled

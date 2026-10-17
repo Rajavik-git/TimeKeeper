@@ -1,571 +1,135 @@
-import { useEffect, useState } from "react";
-import {
-  api,
-  client,
-  shortDate,
-  matter,
-  money,
-  hours,
-  price,
-  originLabel,
-  task,
-  today,
-  type TimeEntry,
-  type ScreenProps,
-  type Recognition,
-} from "../../api/client";
-import { MatterSelect } from "../../shared/components/MatterSelect";
-import { Kpi } from "../../shared/components/Kpi";
-import { Status } from "../../shared/components/Status";
-import { MatterReference } from "../../shared/components/MatterReference";
-import { Icon } from "../../shared/components/Icon";
+import { useEffect, useState } from 'react';
+import { api, client, matter, money, today, type Recognition, type ScreenProps } from '../../api/client';
+import { configuredRate, dayFees, effectiveMs, formatPreciseDuration, formatRoundedMinutes, hasCoverageGap, summarizeWork } from '../../calculations/billing';
+import { MatterSelect } from '../../shared/components/MatterSelect';
+import { Kpi } from '../../shared/components/Kpi';
+import { Icon } from '../../shared/components/Icon';
+import { MatterReference } from '../../shared/components/MatterReference';
 
-export function MyDay({ s, action, source }: ScreenProps) {
-  const [editing, setEditing] = useState<number | null>(null);
-  const [menuRow, setMenuRow] = useState<number | null>(null);
-  const [manual, setManual] = useState(false);
-  const [filter, setFilter] = useState<"all" | "review" | "approved" | "left">(
-    "all",
-  );
-  const [suggestions, setSuggestions] = useState<Record<number, Recognition>>(
-    {},
-  );
-  const unassigned = s.time_entry
-    .filter(
-      (entry) => entry.date === today && !entry.matter_id && entry.block_id,
-    )
-    .map((entry) => entry.block_id!);
-  useEffect(() => {
-    let active = true;
-    Promise.all(
-      unassigned.map(async (blockId) => ({
-        blockId,
-        result: (
-          await api.GET("/api/blocks/{id}/recognition", {
-            params: { path: { id: blockId } },
-          })
-        ).data,
-      })),
-    ).then((rows) => {
-      if (active)
-        setSuggestions(
-          Object.fromEntries(
-            rows
-              .filter((row) => row.result)
-              .map((row) => [row.blockId, row.result!]),
-          ),
-        );
-    });
-    return () => {
-      active = false;
-    };
-  }, [unassigned.join(",")]);
-  const lines = s.time_entry
-    .filter((l) => l.date === today)
-    .sort((a, b) => {
-      const x = s.block.find((v) => v.id === a.block_id)?.start_time ?? "99";
-      const y = s.block.find((v) => v.id === b.block_id)?.start_time ?? "99";
-      return x.localeCompare(y);
-    });
-  const excluded = s.block.filter(
-    (b) => b.date === today && b.state === "discarded",
-  );
-  const review = lines.filter((l) => l.review_status !== "approved");
-  const approved = lines.filter((l) => l.review_status === "approved");
-  const visible =
-    filter === "review" ? review : filter === "approved" ? approved : lines;
-  const validate = (id: number) =>
-    action(
-      api.PATCH("/api/time-entries/{id}", {
-        params: { path: { id } },
-        body: { review_status: "approved" },
-      }),
-    );
-  const tabs = [
-    ["all", "All", lines.length],
-    ["review", "To review", review.length],
-    ["approved", "Approved", approved.length],
-    ["left", "Left out", excluded.length],
-  ] as const;
-  return (
-    <>
-      <div className="ph">
-        <div className="t">
-          <h1>My day</h1>
-          <p>
-            {new Intl.DateTimeFormat("en-GB", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-              timeZone: "UTC",
-            }).format(new Date(today + "T12:00:00Z"))}
-            . Everything below was captured by screenpipe and is waiting for
-            your approval.
-          </p>
-        </div>
-        <div className="actions">
-          <button className="btn" onClick={() => setManual(true)}>
-            <Icon name="plus" small />
-            Off-screen time
-          </button>
-          <button
-            className="btn primary"
-            onClick={() =>
-              action(api.POST("/api/day/approve", { body: { date: today } }))
-            }
-          >
-            <Icon name="check" small />
-            Approve day
-          </button>
-        </div>
-      </div>
-      <div className="grid4">
-        <Kpi
-          title="Fees today"
-          value={money(lines.reduce((n, l) => n + l.amount_cents, 0))}
-          detail="Excl. VAT"
-        />
-        <Kpi
-          title="Time captured"
-          value={hours(lines.reduce((n, l) => n + l.tenths_of_hour, 0))}
-          detail={`${lines.length} entries`}
-        />
-        <Kpi
-          title="Left out"
-          value={`${excluded.reduce((n, b) => n + b.minutes, 0)} min`}
-          detail={`${excluded.length} blocks, not counted`}
-        />
-        <Kpi
-          title="To review"
-          value={review.length}
-          detail="Nothing is billed without you"
-        />
-      </div>
-      <section className="card">
-        <div className="toolbar">
-          <div className="seg" role="group" aria-label="Time entries filter">
-            {tabs.map(([value, text, count]) => (
-              <button
-                key={value}
-                aria-pressed={filter === value}
-                onClick={() => setFilter(value)}
-              >
-                {text}
-                <span className="c">{count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {filter === "left" ? (
-          <div className="tbl">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Application</th>
-                  <th>Window</th>
-                  <th className="r">Duration</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {excluded.map((b) => (
-                  <tr key={b.id}>
-                    <td className="num">
-                      {b.start_time}–{b.end_time}
-                    </td>
-                    <td>{b.app}</td>
-                    <td className="muted">{b.window_title}</td>
-                    <td className="r num">{b.minutes} min</td>
-                    <td>
-                      <div className="rowact">
-                        <button
-                          className="btn sm"
-                          onClick={() =>
-                            action(
-                              api.POST("/api/blocks/{id}/recover", {
-                                params: { path: { id: b.id } },
-                              }),
-                            )
-                          }
-                        >
-                          Count as work
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!excluded.length && (
-              <div className="empty">
-                <span className="ic">
-                  <Icon name="check" />
-                </span>
-                <b>No blocks left out</b>
-                <span>Discarded time appears here.</span>
-              </div>
-            )}
-          </div>
-        ) : !visible.length ? (
-          <div className="empty">
-            <span className="ic">
-              <Icon name="check" />
-            </span>
-            <b>Nothing waiting</b>
-            <span>Every entry of the day is approved.</span>
-          </div>
-        ) : (
-          <div className="tbl">
-            <table>
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Client</th>
-                  <th>Work performed</th>
-                  <th className="r">Hours</th>
-                  <th className="r">Amount</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((l) => {
-                  const b = s.block.find((b) => b.id === l.block_id),
-                    p = price(s, l.id),
-                    d = matter(s, l.matter_id),
-                    c = client(s, l.matter_id),
-                    candidate = b
-                      ? suggestions[b.id]?.candidates[0]
-                      : undefined,
-                    suggestion = candidate
-                      ? matter(s, candidate.matter_id)
-                      : undefined;
-                  return (
-                    <tr key={l.id}>
-                      <td className="num">
-                        {b ? `${b.start_time}–${b.end_time}` : "—"}
-                        <span className="sub">
-                          {b?.app ?? "Off-screen"}
-                          {b && !d
-                            ? ` · ${Math.round(b.confidence * 100)} %`
-                            : ""}
-                        </span>
-                      </td>
-                      <td>
-                        {d ? (
-                          <>
-                            {c?.name}
-                            <span className="sub">
-                              {d.title} ·{" "}
-                              <MatterReference value={d.reference} />
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flag">
-                              <Icon name="alert" small />
-                              No case
-                            </span>
-                            {suggestion ? (
-                              <span className="sub suggest">
-                                Suggested: {suggestion.title} ·{" "}
-                                {Math.round(candidate!.score * 100)}%{" "}
-                                <button
-                                  className="link"
-                                  onClick={() =>
-                                    action(
-                                      api.PATCH("/api/time-entries/{id}", {
-                                        params: { path: { id: l.id } },
-                                        body: { matter_id: suggestion.id },
-                                      }),
-                                    )
-                                  }
-                                >
-                                  Assign
-                                </button>
-                              </span>
-                            ) : (
-                              <span className="sub">
-                                No marker found on screen
-                              </span>
-                            )}
-                            <MatterSelect
-                              s={s}
-                              value={null}
-                              allowEmpty
-                              onChange={(v) =>
-                                action(
-                                  api.PATCH("/api/time-entries/{id}", {
-                                    params: { path: { id: l.id } },
-                                    body: { matter_id: v },
-                                  }),
-                                )
-                              }
-                            />
-                          </>
-                        )}
-                      </td>
-                      <td className="wrap">
-                        {editing === l.id ? (
-                          <EditLabel
-                            l={l}
-                            save={async (value) => {
-                              await action(
-                                api.PATCH("/api/time-entries/{id}", {
-                                  params: { path: { id: l.id } },
-                                  body: { label: value },
-                                }),
-                              );
-                              setEditing(null);
-                            }}
-                            cancel={() => setEditing(null)}
-                          />
-                        ) : (
-                          l.label
-                        )}
-                        <span className="sub">
-                          {task(s, l.task_id)} ·{" "}
-                          {p.flat_fee
-                            ? "flat fee"
-                            : `${originLabel(p.origin)} ${money(p.rate_cents)}/h`}
-                        </span>
-                      </td>
-                      <td className="r num">{hours(l.tenths_of_hour)}</td>
-                      <td className="r num">
-                        {p.flat_fee ? (
-                          <span className="muted">Flat fee</span>
-                        ) : (
-                          money(l.amount_cents)
-                        )}
-                      </td>
-                      <td>
-                        <Status
-                          review_status={l.review_status}
-                          billing_status={l.billing_status}
-                          billable={l.billable}
-                          reason={l.reason}
-                        />
-                      </td>
-                      <td>
-                        <div className="rowact">
-                          {l.review_status !== "approved" && d && (
-                            <button
-                              className="iconbtn"
-                              aria-label="Approve"
-                              title="Approve"
-                              onClick={() => validate(l.id)}
-                            >
-                              <Icon name="check" />
-                            </button>
-                          )}
-                          {b && (
-                            <button
-                              className="iconbtn"
-                              aria-label="View source"
-                              title="View source"
-                              onClick={() => source(l.id)}
-                            >
-                              <Icon name="eye" />
-                            </button>
-                          )}
-                          <button
-                            className="iconbtn"
-                            aria-label="More actions"
-                            title="More actions"
-                            aria-expanded={menuRow === l.id}
-                            onClick={() =>
-                              setMenuRow(menuRow === l.id ? null : l.id)
-                            }
-                          >
-                            <Icon name="more" />
-                          </button>
-                        </div>
-                        {menuRow === l.id && (
-                          <div className="row-menu">
-                            <button
-                              className="btn sm"
-                              onClick={() => {
-                                setEditing(l.id);
-                                setMenuRow(null);
-                              }}
-                            >
-                              Edit label
-                            </button>
-                            <select
-                              className="field"
-                              aria-label="Time entry billing"
-                              value={l.billable ? "" : (l.reason ?? "offered")}
-                              onChange={(e) =>
-                                action(
-                                  api.PATCH("/api/time-entries/{id}", {
-                                    params: { path: { id: l.id } },
-                                    body: {
-                                      billable: !e.target.value,
-                                      reason: (e.target.value || null) as
-                                        "offered" | "internal" | "admin" | null,
-                                    },
-                                  }),
-                                )
-                              }
-                            >
-                              <option value="">Billable</option>
-                              <option value="offered">Offered</option>
-                              <option value="internal">Internal</option>
-                              <option value="admin">Administrative</option>
-                            </select>
-                            {b && l.billing_status !== "billed" && (
-                              <button
-                                className="btn sm"
-                                onClick={() =>
-                                  action(
-                                    api.POST("/api/time-entries/{id}/discard", {
-                                      params: { path: { id: l.id } },
-                                    }),
-                                  )
-                                }
-                              >
-                                Discard
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-      {manual && (
-        <Manual
-          s={s}
-          close={() => setManual(false)}
-          submit={async (body) => {
-            await action(api.POST("/api/time-entries/manual", { body }));
-            setManual(false);
-          }}
-        />
-      )}
-    </>
-  );
-}
-function EditLabel({
-  l,
-  save,
-  cancel,
-}: {
-  l: TimeEntry;
-  save: (v: string) => void;
-  cancel: () => void;
-}) {
-  const [v, setV] = useState(l.label);
-  return (
-    <div className="row grow">
-      <input
-        className="field grow"
-        aria-label="Label"
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-      />
-      <button className="btn small primary" onClick={() => save(v)}>
-        Save
-      </button>
-      <button className="btn small" onClick={cancel}>
-        Cancel
-      </button>
+type Filter = 'all'|'review'|'validated'|'left';
+export function MyDay({s,core,action,source,refresh}:ScreenProps) {
+  const [filter,setFilter]=useState<Filter>('all');
+  const [editing,setEditing]=useState<string|null>(null);
+  const [minutes,setMinutes]=useState('');
+  const [manual,setManual]=useState(false);
+  const [manualCase,setManualCase]=useState(s.matter[0]?.id ?? 1);
+  const [manualTask,setManualTask]=useState(s.task.find(t=>t.off_screen)?.id ?? s.task[0]?.id ?? 1);
+  const [manualMinutes,setManualMinutes]=useState('60');
+  const [manualLabel,setManualLabel]=useState('Case management hearing');
+  const [answerCase,setAnswerCase]=useState<number|null>(null);
+  const [suggestions,setSuggestions]=useState<Record<string,Recognition>>({});
+  const all=core.periods.filter(p=>p.startedAt.startsWith(today)).sort((a,b)=>a.startedAt.localeCompare(b.startedAt));
+  const included=all.filter(p=>!p.excluded);
+  const excluded=all.filter(p=>p.excluded);
+  const review=included.filter(p=>!p.timeValidated || !p.caseId);
+  const validated=included.filter(p=>p.timeValidated && p.caseId);
+  const shown=filter==='review'?review:filter==='validated'?validated:included;
+  const summary=summarizeWork(included,core.sources);
+  const coverageGaps=core.coverageGaps.filter(gap=>gap.startedAt.startsWith(today));
+  const tableRows=[...shown.map(period=>({kind:'period' as const,startedAt:period.startedAt,period})),
+    ...(filter==='all'?coverageGaps.map(gap=>({kind:'gap' as const,startedAt:gap.startedAt,gap})):[])].sort((a,b)=>a.startedAt.localeCompare(b.startedAt));
+  const fees=dayFees(s,core,included);
+  const unresolved=included.filter(p=>!p.caseId);
+  useEffect(()=>{
+    let alive=true;
+    Promise.all(unresolved.map(async period=>{
+      const old=s.time_entry.find(entry=>String(entry.id)===period.id);
+      if(!old?.block_id) return null;
+      const result=(await api.GET('/api/blocks/{id}/recognition',{params:{path:{id:old.block_id}}})).data;
+      return result ? [period.id,result] as const : null;
+    })).then(items=>{if(alive) setSuggestions(Object.fromEntries(items.filter(item=>item!==null) as Array<readonly [string,Recognition]>));});
+    return ()=>{alive=false};
+  },[unresolved.map(p=>p.id).join(','),s.time_entry]);
+  const questionFor=(periodId:string)=>core.questions.find(q=>q.periodId===periodId && q.status==='pending');
+  const assign=(periodId:string,caseId:number)=>{
+    const period=core.periods.find(p=>p.id===periodId)!;
+    const question=questionFor(periodId);
+    if(question) return action(api.POST('/api/questions/answer',{body:{questionId:question.questionId,
+      sessionId:question.sessionId,periodId,expectedAssignmentRevision:question.expectedAssignmentRevision,
+      caseId:String(caseId),responseCommandId:crypto.randomUUID()}}));
+    if(!period.caseId) return;
+    return action(api.POST('/api/work-periods/{id}/assignment',{params:{path:{id:periodId}},body:{
+      caseId:String(caseId),expectedAssignmentRevision:period.assignmentRevision,origin:'lawyer'}}));
+  };
+  const saveDuration=(periodId:string)=>{
+    const parsed=Number(minutes);
+    if(!Number.isFinite(parsed)||parsed<0) return;
+    void action(api.POST('/api/work-periods/{id}/duration-override',{params:{path:{id:periodId}},body:{durationMs:Math.round(parsed*60000)}}));
+    setEditing(null);
+  };
+  const tabs:[Filter,string,number][]=[['all','All',included.length],['review','To review',review.length],['validated','Validated',validated.length],['left','Left out',excluded.length]];
+  return <>
+    <div className="ph"><div className="t"><h1>My day</h1><p>Friday 16 October 2026 · session started from Screenpipe at 08:40. Review each period, then validate time and sources.</p></div>
+      <div className="actions"><button className="btn" onClick={()=>setManual(true)}><Icon name="plus" small/>Off-screen time</button>
+        <button className="btn primary" onClick={async()=>{for(const period of review.filter(p=>p.caseId)) await api.POST('/api/work-periods/{id}/validate-time',{params:{path:{id:period.id}},body:{}});await refresh();}}><Icon name="check" small/>Validate time for the day</button></div></div>
+    <div className="grid4">
+      <Kpi title="Time today" value={formatRoundedMinutes(summary.roundedMinutes)} detail="Precise durations summed, then rounded up"/>
+      <Kpi title="Fees today" value={money(fees)} detail="Excl. VAT · calculated in the app"/>
+      <Kpi title="Coverage" value={`${coverageGaps.length} gap${coverageGaps.length===1?'':'s'}`} detail={coverageGaps.length?`${coverageGaps[0]!.startedAt.slice(11,16)}–${coverageGaps[0]!.endedAt.slice(11,16)} · not counted`:'No recorded gaps'}/>
+      <Kpi title="To validate" value={review.length} detail="Time and sources are reviewed separately"/>
     </div>
-  );
-}
-function Manual({
-  s,
-  submit,
-  close,
-}: {
-  s: ScreenProps["s"];
-  submit: (body: {
-    matter_id: number;
-    task_id: number;
-    date: string;
-    tenths_of_hour: number;
-    label: string;
-  }) => void;
-  close: () => void;
-}) {
-  const [d, setD] = useState(s.matter[0]?.id ?? 1),
-    [t, setT] = useState(
-      s.task.find((x) => x.off_screen)?.id ?? s.task[0]?.id ?? 0,
-    ),
-    [h, setH] = useState(10),
-    [lib, setLib] = useState("Case management hearing");
-  return (
-    <div className="modal-back">
-      <form
-        className="modal glass pad col"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit({
-            matter_id: d,
-            task_id: t,
-            date: today,
-            tenths_of_hour: h,
-            label: lib,
-          });
-        }}
-      >
-        <h2>Add off-screen time</h2>
-        <p>Hearing, meeting, travel: work the screen does not see.</p>
-        <label>
-          Matter <MatterSelect s={s} value={d} onChange={(v) => setD(v ?? d)} />
-        </label>
-        <label>
-          Task{" "}
-          <select
-            className="field"
-            value={t}
-            onChange={(e) => setT(Number(e.target.value))}
-          >
-            {s.task
-              .filter((x) => x.off_screen)
-              .map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.label}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          Duration{" "}
-          <select
-            className="field"
-            value={h}
-            onChange={(e) => setH(Number(e.target.value))}
-          >
-            {[3, 5, 10, 15, 20, 30].map((x) => (
-              <option key={x} value={x}>
-                {hours(x)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Label{" "}
-          <input
-            className="field"
-            value={lib}
-            onChange={(e) => setLib(e.target.value)}
-          />
-        </label>
-        <div className="row">
-          <button className="btn primary">Add</button>
-          <button type="button" className="btn" onClick={close}>
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+    {unresolved[0]&&<section className="card pad col"><h2><Icon name="alert" small/> Which case does this period belong to?</h2>
+      <p>{unresolved[0].startedAt.slice(11,16)}–{unresolved[0].endedAt?.slice(11,16)} · {unresolved[0].demoApp} · {unresolved[0].demoWindowTitle}. Your answer applies to this period only, even after you move to another case.</p>
+      <div className="row"><MatterSelect s={s} value={answerCase} allowEmpty onChange={setAnswerCase}/><button className="btn primary" disabled={!answerCase} onClick={()=>{if(answerCase)void assign(unresolved[0]!.id,answerCase)}}>Answer</button>
+        <button className="btn" onClick={()=>action(api.PATCH('/api/work-periods/{id}/details',{params:{path:{id:unresolved[0]!.id}},body:{excluded:true}}))}>Not client work</button>
+        <span className="small muted">The suggestion is only an aid. No case is created automatically.</span></div>
+    </section>}
+    <section className="card"><div className="toolbar"><div className="seg" role="group" aria-label="Work periods filter">
+      {tabs.map(([key,title,count])=><button key={key} aria-pressed={filter===key} onClick={()=>setFilter(key)}>{title}<span className="c">{count}</span></button>)}
+    </div></div>
+    {filter==='left'?<div className="tbl"><table><thead><tr><th>Time</th><th>Application</th><th>Work observed</th><th className="r">Duration</th><th/></tr></thead><tbody>
+      {excluded.map(period=><tr key={period.id}><td className="num">{period.startedAt.slice(11,16)}–{period.endedAt?.slice(11,16) ?? '…'}</td><td>{period.demoApp ?? '—'}</td>
+        <td>{period.demoWindowTitle ?? period.label}</td><td className="r num">{formatPreciseDuration(effectiveMs(period))}</td><td><button className="btn sm" onClick={()=>action(api.PATCH('/api/work-periods/{id}/details',{params:{path:{id:period.id}},body:{excluded:false}}))}>Count as work</button></td></tr>)}
+    </tbody></table>{!excluded.length&&<div className="empty"><b>No periods left out</b></div>}</div>
+    :<div className="tbl"><table><thead><tr><th>Period</th><th>Client · case</th><th>Work performed</th><th className="r">Duration</th><th className="r">Amount</th><th>Time</th><th>Sources</th><th>Billing</th><th/></tr></thead><tbody>
+      {tableRows.map(row=>{
+        if(row.kind==='gap') return <tr key={row.gap.id}><td className="num muted">{row.gap.startedAt.slice(11,16)}–{row.gap.endedAt.slice(11,16)}</td><td colSpan={8}><span className="flag"><Icon name="alert" small/>Coverage gap</span> <span className="muted">· no recording for this interval. Not counted as work or idle time.</span></td></tr>;
+        const period=row.period;
+        const caseId=period.caseId?Number(period.caseId):null;
+        const item=matter(s,caseId),owner=client(s,caseId);
+        const linked=core.sources.filter(e=>e.workPeriodId===period.id);
+        const validatedSources=linked.filter(e=>e.validationStatus==='validated').length;
+        const gap=hasCoverageGap(period,core.sources);
+        const q=questionFor(period.id),candidate=suggestions[period.id]?.candidates[0],suggestion=candidate?matter(s,candidate.matter_id):undefined;
+        const rate=item?configuredRate(s,item.id):{rateCents:s.firm[0]?.base_rate_cents??0,origin:'base' as const};
+        const appliedRate=period.billingStatus==='billed' ? period.appliedHourlyRateCents ?? rate.rateCents : rate.rateCents;
+        const estimate=effectiveMs(period)===null?null:Math.round(effectiveMs(period)!*appliedRate/3600000);
+        return <tr key={period.id}>
+          <td className="num">{period.startedAt.slice(11,16)}–{period.endedAt?.slice(11,16) ?? '…'}<span className="sub">{period.demoApp ?? 'Off-screen'}</span></td>
+          <td>{item?<>{owner?.name}<span className="sub">{item.title} · <MatterReference value={item.reference}/></span></>:<>
+            <span className="flag"><Icon name="alert" small/>Case answer needed</span>
+            {q&&<span className="sub">Question {q.questionId} · period {period.id}</span>}
+            {suggestion&&<span className="sub suggest">Suggested: {suggestion.title} · {Math.round(candidate!.score*100)}% <button className="link" onClick={()=>assign(period.id,suggestion.id)}>Assign</button></span>}
+            <MatterSelect s={s} value={null} allowEmpty onChange={id=>{if(id) void assign(period.id,id)}}/>
+          </>}</td>
+          <td className="wrap">{period.label}<span className="sub">{s.task.find(t=>t.id===period.taskTypeId)?.label ?? 'Work period'} · {period.billable?'Billable':period.nonbillableReason ?? 'Non-billable'}</span></td>
+          <td className="r num">{editing===period.id?<span className="row"><input className="field" type="number" min="0" step="0.001" aria-label="Corrected minutes" value={minutes} onChange={event=>setMinutes(event.target.value)}/><button className="btn sm primary" onClick={()=>saveDuration(period.id)}>Save</button></span>:formatPreciseDuration(effectiveMs(period))}
+            <span className="sub">Detected: {formatPreciseDuration(period.detectedDurationMs)}{period.durationOverrideMs!==null?' · corrected':''}</span></td>
+          <td className="r num">{period.billable&&rate.origin!=='flat_fee'&&estimate!==null?money(estimate):rate.origin==='flat_fee'?'Flat fee':'—'}</td>
+          <td><span className={period.timeValidated?'ok':'flag'}>{period.timeValidated?'Time validated':'Time to validate'}</span>
+          </td><td>{linked.length?`${validatedSources}/${linked.length} validated`:'No source'}{linked.some(e=>e.availabilityStatus==='unavailable')&&<span className="sub flag">Unavailable</span>}{gap&&<span className="sub flag">Coverage incomplete</span>}</td>
+          <td>{period.billingStatus==='billed'?'Billed':'Unbilled'}</td>
+          <td><div className="rowact"><button className="iconbtn" aria-label="Correct duration" title="Correct duration" disabled={period.billingStatus==='billed'} onClick={()=>{setEditing(period.id);setMinutes(String((effectiveMs(period)??0)/60000))}}><Icon name="edit"/></button>
+            <button className="iconbtn" aria-label="Validate time" title="Validate time" disabled={!period.caseId||period.timeValidated} onClick={()=>action(api.POST('/api/work-periods/{id}/validate-time',{params:{path:{id:period.id}},body:{}}))}><Icon name="check"/></button>
+            {linked.length>0&&<button className="iconbtn" aria-label="View source" title="View source" onClick={()=>source(period.id)}><Icon name="eye"/></button>}
+            <button className="btn sm" disabled={period.invoiceId!==null || (period.billingStatus==='unbilled'&&!period.timeValidated)} onClick={()=>action(api.POST('/api/work-periods/{id}/billing-status',{params:{path:{id:period.id}},body:{status:period.billingStatus==='billed'?'unbilled':'billed'}}))}>{period.billingStatus==='billed'?'Unbill':'Mark billed'}</button>
+          </div></td>
+        </tr>;
+      })}</tbody></table><div className="card-b muted" style={{borderTop:'1px solid var(--line)',fontSize:12}}>Line amounts use precise durations. Group totals add precise durations first, then round up to the minute once.</div>{!shown.length&&<div className="empty"><b>No periods in this view</b></div>}</div>}
+    </section>
+    {manual&&<div className="modal-back"><form className="modal glass pad col" onSubmit={event=>{
+      event.preventDefault();if(!core.activeSession) return;
+      const durationMs=Math.round(Number(manualMinutes)*60000);
+      if(!Number.isSafeInteger(durationMs)||durationMs<0)return;
+      const start=`${today}T17:${String(core.periods.filter(p=>p.startedAt.startsWith(`${today}T17:`)).length).padStart(2,'0')}:00Z`;
+      void action(api.POST('/api/work-periods/manual',{body:{sessionId:core.activeSession.id,caseId:String(manualCase),startedAt:start,durationMs,taskTypeId:manualTask,label:manualLabel}}));
+      setManual(false);
+    }}><h2>Add off-screen time</h2><p>This creates a manual period without a source. Validate its time separately.</p>
+      <label>Case <MatterSelect s={s} value={manualCase} onChange={id=>{if(id)setManualCase(id)}}/></label>
+      <label>Task <select className="field" value={manualTask} onChange={event=>setManualTask(Number(event.target.value))}>{s.task.filter(t=>t.off_screen).map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
+      <label>Minutes <input className="field" type="number" min="0" step="0.001" value={manualMinutes} onChange={event=>setManualMinutes(event.target.value)}/></label>
+      <label>Label <input className="field" value={manualLabel} onChange={event=>setManualLabel(event.target.value)}/></label>
+      <div className="row"><button className="btn primary" disabled={!core.activeSession}>Add</button><button type="button" className="btn" onClick={()=>setManual(false)}>Cancel</button></div>
+    </form></div>}
+  </>;
 }

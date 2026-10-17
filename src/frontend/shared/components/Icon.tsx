@@ -1,4 +1,5 @@
 const paths = {
+  edit: (<><path d="m4 20 4.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20Z"/><path d="m14 7 3 3"/></>),
   day: (
     <>
       <rect x="4" y="5" width="16" height="16" rx="2" />
