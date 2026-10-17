@@ -400,9 +400,11 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                         let top = y + 16;
                         if (left + 350 > window.innerWidth) left = x - 356;
                         if (top + 270 > window.innerHeight) top = y - 276;
+                        // The root may be zoomed by fitViewport(); fixed positions are in zoomed pixels.
+                        const zoom = Number(getComputedStyle(document.documentElement).getPropertyValue("--fit-zoom")) || 1;
                         setPreview({
-                          x: Math.max(8, left),
-                          y: Math.max(8, top),
+                          x: Math.max(8, left) / zoom,
+                          y: Math.max(8, top) / zoom,
                           blockId: recorded.id,
                           fraction,
                         });

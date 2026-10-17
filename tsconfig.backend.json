@@ -14,6 +14,7 @@
     "noEmitOnError": true
   },
   "include": [
+    "api/**/*.ts",
     "src/backend/**/*.ts",
     "src/contracts/**/*.ts"
   ]
