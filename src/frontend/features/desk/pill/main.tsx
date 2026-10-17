@@ -10,7 +10,8 @@ import { Logo } from '../../../shared/brand/Logo';
 import './pill.css';
 
 const tauri = '__TAURI_INTERNALS__' in window;
-const requestedTheme = new URLSearchParams(window.location.search).get('theme');
+const emulator = new URLSearchParams(window.location.search).has('emulator');
+const requestedTheme = new URLSearchParams(window.location.search).get('theme') ?? (emulator ? localStorage.getItem('timekeeper-theme') : null);
 if (requestedTheme === 'dark' || requestedTheme === 'light') document.documentElement.dataset.theme=requestedTheme;
 const demoDocuments = [
   '2025-031 Opposition Brief v3.docx',
@@ -101,6 +102,7 @@ function Pill() {
   useEffect(()=>{if(tauri&&setting)void getCurrentWindow().setAlwaysOnTop(setting.pill_always_on_top).catch(()=>setError('Unable to set pill position.'));},[setting?.pill_always_on_top]);
   useEffect(()=>{if(tauri&&state)void invoke('set_watch_enabled',{enabled:!paused}).catch(()=>setError('Unable to apply file-switch pause.'));},[!!state,paused,active?.id]);
   useEffect(()=>{if(tauri)void invoke('set_pill_expanded',{expanded,notification:!!notice||!!recent||(!expanded&&showQuestionNotice)}).catch(()=>setError('Unable to resize the pill.'));},[expanded,notice,recent,showQuestionNotice]);
+  useEffect(()=>{if(emulator&&window.parent!==window)window.parent.postMessage({type:'timekeeper:pill-height',height:expanded?560:notice||recent||showQuestionNotice?290:54},window.location.origin);},[expanded,notice,recent,showQuestionNotice]);
   const showSwitch=useCallback(async(windowTitle:string,appName:string)=>{
     if(!coreRef.current?.activeSession||!windowTitle.trim()||!appName.trim()||previous.current===appName+':'+windowTitle)return;
     previous.current=appName+':'+windowTitle;
@@ -122,6 +124,23 @@ function Pill() {
       debounce.current=window.setTimeout(()=>void showSwitch(event.payload.windowTitle,event.payload.appName),3000);
     }).then(stop=>{if(cancelled)stop();else unlisten=stop;});
     return()=>{cancelled=true;unlisten?.();window.clearTimeout(debounce.current);};
+  },[showSwitch]);
+  useEffect(()=>{
+    if(!emulator||window.parent===window)return;
+    const onMessage=(event:MessageEvent)=>{
+      if(event.origin!==window.location.origin||event.source!==window.parent)return;
+      const value=event.data;
+      if(value?.type==='timekeeper:theme'){
+        if(value.theme==='dark'||value.theme==='light')document.documentElement.dataset.theme=value.theme;
+        else document.documentElement.removeAttribute('data-theme');
+        return;
+      }
+      if(value?.type!=='timekeeper:active-window-changed'||typeof value.windowTitle!=='string'||typeof value.appName!=='string')return;
+      window.clearTimeout(debounce.current);
+      debounce.current=window.setTimeout(()=>void showSwitch(value.windowTitle,value.appName),3000);
+    };
+    window.addEventListener('message',onMessage);
+    return()=>{window.removeEventListener('message',onMessage);window.clearTimeout(debounce.current);};
   },[showSwitch]);
   const switchTo=useCallback(async(target:Notice,caseId:string|null)=>{
     if(switching.current)return;
@@ -182,7 +201,7 @@ function Pill() {
       if(response.error)throw Error('Unable to change pause state.');await refresh();
     }catch(error){setError(String(error));}finally{setBusy(false);}
   };
-  const openDay=()=>{if(tauri)void invoke('open_my_day').catch(()=>setError('Unable to open TimeKeeper.'));else window.open('/','_blank');};
+  const openDay=()=>{if(tauri)void invoke('open_my_day').catch(()=>setError('Unable to open TimeKeeper.'));else if(emulator&&window.parent!==window)window.parent.postMessage({type:'timekeeper:open-app'},window.location.origin);else window.open('/','_blank');};
   const openCases=state?.matter.filter(m=>m.status==='open')??[];
   return <main className="pill-root">
     <button className={'pill-bar '+(offline?'offline':'')} onClick={()=>offline?void refresh():setExpanded(!expanded)} aria-expanded={expanded} aria-label={offline?'TimeKeeper disconnected, retry':'TimeKeeper, toggle panel'}>
@@ -220,7 +239,7 @@ function Pill() {
       <small>{questionPeriod?.startedAt.slice(11,16)}–{questionPeriod?.endedAt?.slice(11,16)??'…'} · {questionPeriod?.label}</small>
       <div className="pill-note-actions"><select aria-label="Choose a case for this period" value={selectedCase} onChange={event=>setSelectedCase(event.target.value)}><option value="">Choose a case</option>{openCases.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="pill-button action" disabled={!selectedCase||busy} onClick={()=>void assign(questionPeriod!.id,selectedCase)}>Answer</button></div>
       <div className="pill-note-actions"><button className="pill-button text" disabled={busy} onClick={()=>void excludeQuestion()}>Not client work</button><button className="pill-button text" onClick={()=>setDismissedQuestion(question!.questionId)}>Later</button></div></div></section>}
-    {!tauri&&<label className="pill-simulate">Simulate file switch<select aria-label="Simulate file switch" value="" onChange={event=>void showSwitch(event.target.value,'Demo documents')}><option value="">Choose a demo document</option>{demoDocuments.map(file=><option key={file} value={file}>{file}</option>)}</select></label>}
+    {!tauri&&!emulator&&<label className="pill-simulate">Simulate file switch<select aria-label="Simulate file switch" value="" onChange={event=>void showSwitch(event.target.value,'Demo documents')}><option value="">Choose a demo document</option>{demoDocuments.map(file=><option key={file} value={file}>{file}</option>)}</select></label>}
     {error&&<p className="pill-error" role="alert">{error}</p>}
   </main>;
 }

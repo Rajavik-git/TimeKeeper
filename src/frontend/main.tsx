@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api, today, type State, type CoreState, type View } from "./api/client";
 import { Desk } from "./features/desk/Desk";
+import { Desktop } from "./features/emulator/Desktop";
 import { MyDay } from "./features/workday/MyDay";
 import { Cases } from "./features/cases/Cases";
 import { PreInvoices } from "./features/billing-status/PreInvoices";
@@ -21,9 +22,11 @@ const primaryViews = [
   ["preInvoices", "Billing", "pre", "3"],
   ["source", "Activity", "source", "4"],
   ["settings", "Settings", "settings", "5"],
+  ["desktop", "Desktop", "desk", "6"],
 ] as const;
 
 function App() {
+  const embedded = new URLSearchParams(window.location.search).has('embedded');
   const [s, setS] = useState<State>();
   const [core, setCore] = useState<CoreState>();
   const [view, setView] = useState<View>(new URLSearchParams(window.location.search).get('view')==='desk'?'desk':'myDay');
@@ -63,6 +66,7 @@ function App() {
     }
   };
   const navigate = (v: View, matterId?: number) => {
+    if (embedded && v === 'desktop') return;
     if (view === 'source' && v === 'myDay' && sourceId) setReturnFocusId(sourceId);
     if (matterId) setSelectedCase(matterId);
     else if (v === 'matters' || v === 'preInvoices') setSelectedCase(undefined);
@@ -90,7 +94,7 @@ function App() {
         (event.target instanceof HTMLElement && event.target.isContentEditable)
       )
         return;
-      const next = primaryViews.find((item) => item[3] === event.key);
+      const next = primaryViews.find((item) => item[3] === event.key && (!embedded || item[0] !== 'desktop'));
       if (next) navigate(next[0]);
     };
     document.addEventListener("keydown", onKey);
@@ -106,7 +110,7 @@ function App() {
         <header className="floating-nav">
           <Logo compact />
           <nav className="floating-tabs" aria-label="Screens">
-            {primaryViews.map(([key,title,icon]) => <button key={key} aria-current={view===key?'page':undefined} aria-label={title} onClick={()=>navigate(key)}>
+            {primaryViews.filter(([key])=>!embedded||key!=='desktop').map(([key,title,icon]) => <button key={key} aria-current={view===key?'page':undefined} aria-label={title} onClick={()=>navigate(key)}>
               <Icon name={icon}/><span className="tab-label">{title}</span>
               {key==='myDay'&&<span className="cnt">{pending}</span>}
               {key==='matters'&&<span className="cnt">{s?.matter.length??0}</span>}
@@ -123,6 +127,8 @@ function App() {
         <main id="main" className="page">
           {!props ? (
             <p>Loading local data…</p>
+          ) : view === "desktop" ? (
+            <Desktop />
           ) : view === "desk" ? (
             <Desk {...props} />
           ) : view === "myDay" ? (
