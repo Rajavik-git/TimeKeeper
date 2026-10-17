@@ -34,7 +34,7 @@
 .page .billing-card-value span { font-size:var(--fs-md); }
 .page .billing-card-foot { margin-top:0; }
 .page .billing-card-foot .pill,.page .billing-hero .pill { color:var(--ink-2);font-size:var(--fs-sm);white-space:nowrap;display:inline-flex;align-items:center;gap:6px; }
-.page .billing-card-foot small { font-size:var(--fs-xs);white-space:normal;line-height:1.5; }
+.page .billing-card-foot small { min-width:0;font-size:var(--fs-xs);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5; }
 
 .page .billing-hero { padding:16px;min-height:82px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:none;backdrop-filter:none;gap:12px 24px;flex-wrap:wrap; }
 .page .billing-hero h2 { font-size:var(--fs-lg);font-weight:600;line-height:1.5; }
