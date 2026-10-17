@@ -126,6 +126,16 @@ Billing extensions are in scope by decision 1 (agreed 2026-10-17). [Requirements
 | `GET /api/invoices/{id}/csv` | ui | Invoice export, returned as `{"csv": "..."}`. |
 | `POST /api/client-rules`, `DELETE /api/client-rules/{id}` | ui | Client billing rules. |
 
+#### Clients, cases, and settings
+
+Canonical reads ([A13](#why-a12-and-a13-were-added)). String IDs, camelCase fields. These are the lists to build on; the demo `GET /api/state` and `GET /api/cases/search` return mockup records.
+
+| Method and path | Callers | Purpose | Responses declared |
+| --- | --- | --- | --- |
+| `GET /api/clients` | ui, workflow, chat | All clients, ordered by name. Fields: `id`, `name`, `code`, `type`, `mode`, `hourlyRateCents` (`null` = no own rate), `vatApplicable`, `active`. | 200, 500 |
+| `GET /api/cases` | ui, workflow, chat | All cases, ordered by reference; optional filters `clientId` and `status` (`active` or `archived`; any other value is `400`). Fields: `id`, `clientId`, `reference`, `title`, `category`, `caseNumber`, `opposingParty`, `status`, `mode`, `hourlyRateCents` (`null` = client or global rate applies), `flatFeeCents`, `budgetCents`, `openedOn`. This is the candidate list for assignment and JEV. | 200, 400, 500 |
+| `GET /api/settings` | ui, workflow, chat | `globalHourlyRateCents`, `currency`, `workspaceId`, `vatRate`, `confidenceThreshold`. `404` when settings are not configured yet. | 200, 404, 500 |
+
 #### Configuration and recognition (mockup routes)
 
 | Method and path | Callers | Purpose |
@@ -272,7 +282,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A10 | Undo time and source validation with `{"validated": false}`. | **Decided**, see [D2](#d2-undo-a-validation-through-the-same-endpoint). |
 | A11 | Replace `pending` refusals with `rule-not-decided` and `conflict`. | **Decided**, see [D4](#d4-error-codes-replacing-pending-for-refusals). Fixes [E1](#e1-undecided-rules-are-returned-as-successful-202-pending). |
 | A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Proposed.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
-| A13 | Canonical reads: `GET /api/clients`, `GET /api/cases` (filter `clientId`), `GET /api/settings`. | **Proposed.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). Complements the writes in A5. |
+| A13 | Canonical reads: `GET /api/clients`, `GET /api/cases` (filters `clientId`, `status`), `GET /api/settings`. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added) and [Clients, cases, and settings](#clients-cases-and-settings). Complements the writes in A5. |
 
 ### Why A12 and A13 were added
 
@@ -295,8 +305,9 @@ Both were found by walking through the [requirements acceptance journey](REQUIRE
   - The workflow needs the list of existing cases so JEV chooses among real case IDs and never invents one ([architecture](ARCHITECTURE.md), [AGENTS.md](../AGENTS.md) rule 7).
   - Chat needs them to answer "which cases do I have?" ([D3](#d3-read-only-chat-uses-existing-read-endpoints)).
   - The interface needs them to stop depending on `GET /api/state`.
-- **Responses:** canonical fields only, with string IDs. `GET /api/cases` includes `clientId`, `reference`, `title`, and `hourlyRateCents` (`null` when the global rate applies). `GET /api/settings` includes the global hourly rate and currency.
-- **Service:** the repository only has `caseExists` today; it needs list reads for clients and cases. No business rule changes.
+- **Responses:** canonical fields only, with string IDs; see [Clients, cases, and settings](#clients-cases-and-settings) for the exact fields.
+- **Service:** read-only `listClients`, `listCases`, and `settings` methods on the repository port. No business rule changes.
+- **Privacy:** cases include `opposingParty` and `caseNumber`, which are client information. The workflow decides what reaches hosted JEV through its own allow-list (`JEV_ALLOWED_FIELDS` in the JEV pipe); this API does not send anything to JEV.
 
 ## Possible later cleanups
 

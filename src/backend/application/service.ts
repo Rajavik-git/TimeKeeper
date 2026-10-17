@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { CommandOutcome, EndCommand, PeriodView, QuestionAnswer, StartCommand } from '../../contracts/index.js';
 import { canApplyQuestion, changePeriod, endSession, resolveRate, timeIsValidated, validateTime } from '../domain/rules.js';
 import type { Clock } from '../ports/index.js';
-import type { CommandRecord, PeriodRecord, Repository, SessionRecord } from '../ports/repository.js';
+import type { CaseRecord, ClientRecord, CommandRecord, PeriodRecord, Repository, SessionRecord, SettingsRecord } from '../ports/repository.js';
 import { AppError, isAppErrorCode } from '../ports/errors.js';
 
 export { AppError } from '../ports/errors.js';
@@ -138,6 +138,14 @@ export class TimeKeeperService {
     const rate = resolveRate(rates.caseRateCents,rates.globalRateCents,rates.clientRateCents ?? null);
     if (rate === null) throw new AppError('conflict','global hourly rate is not configured');
     return rate;
+  }
+  listClients(): ClientRecord[] { return this.repo.listClients(); }
+  listCases(filter: { clientId?: string; status?: string }): CaseRecord[] {
+    if (filter.status !== undefined && filter.status !== 'active' && filter.status !== 'archived') throw new AppError('invalid-request','status must be active or archived');
+    return this.repo.listCases({ ...(filter.clientId ? { clientId:filter.clientId } : {}), ...(filter.status ? { status:filter.status } : {}) });
+  }
+  getSettings(): SettingsRecord {
+    const s = this.repo.settings(); if (!s) throw new AppError('not-found','settings are not configured'); return s;
   }
   getSession(id: string): SessionRecord {
     const s = this.repo.session(id); if (!s) throw new AppError('not-found','session not found'); return s;

@@ -2294,6 +2294,35 @@
             }
           }
         }
+      },
+      "get": {
+        "summary": "List clients",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogClient"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/tasks": {
@@ -4780,6 +4809,106 @@
           }
         }
       }
+    },
+    "/api/cases": {
+      "get": {
+        "summary": "List cases, the canonical candidates for assignment and JEV",
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "archived"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogCase"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "summary": "Read application settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSettings"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6871,6 +7000,162 @@
         "properties": {
           "status": {
             "const": "ok"
+          }
+        }
+      },
+      "CatalogClient": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "code",
+          "type",
+          "mode",
+          "hourlyRateCents",
+          "vatApplicable",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "hourlyRateCents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "`null` when the client has no own rate."
+          },
+          "vatApplicable": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CatalogCase": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "clientId",
+          "reference",
+          "title",
+          "category",
+          "caseNumber",
+          "opposingParty",
+          "status",
+          "mode",
+          "hourlyRateCents",
+          "flatFeeCents",
+          "budgetCents",
+          "openedOn"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "opposingParty": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "archived"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "flat_fee"
+            ]
+          },
+          "hourlyRateCents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "`null` when the client or global rate applies."
+          },
+          "flatFeeCents": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "budgetCents": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "openedOn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AppSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "globalHourlyRateCents",
+          "currency",
+          "workspaceId",
+          "vatRate",
+          "confidenceThreshold"
+        ],
+        "properties": {
+          "globalHourlyRateCents": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "vatRate": {
+            "type": "number"
+          },
+          "confidenceThreshold": {
+            "type": "number"
           }
         }
       }

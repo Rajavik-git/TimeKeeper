@@ -28,6 +28,13 @@ export function coreRoutes(db: DatabaseSync): Hono {
   // Errors propagate to the application's single handler (src/backend/api/http.ts).
   // Readiness for the launcher and Tauri (docs/API.md A1). Answering means the API and its database are open.
   router.get('/health',c=>c.json({status:'ok'}));
+  // Canonical catalogue reads for the interface, workflow case lookup, and chat (docs/API.md A13).
+  router.get('/clients',c=>c.json(service.listClients()));
+  router.get('/cases',c=>{
+    const {clientId,status}=c.req.query();
+    return c.json(service.listCases({...(clientId ? {clientId} : {}),...(status === undefined ? {} : {status})}));
+  });
+  router.get('/settings',c=>c.json(service.getSettings()));
   router.get('/sessions/active',c=>c.json(service.activeSession()));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));

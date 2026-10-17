@@ -25,6 +25,18 @@ export interface SourceRecord {
   validationStatus: 'unvalidated' | 'validated'; validatedAt: string | null; availabilityStatus: 'unknown' | 'available' | 'unavailable'; availabilityCheckedAt: string | null;
 }
 export interface CoverageGap { id:string; sessionId:string; startedAt:string; endedAt:string; status:'pending'|'failed' }
+export interface ClientRecord {
+  id: string; name: string; code: string | null; type: string; mode: string;
+  hourlyRateCents: number | null; vatApplicable: boolean; active: boolean;
+}
+export interface CaseRecord {
+  id: string; clientId: string; reference: string; title: string; category: string; caseNumber: string;
+  opposingParty: string; status: 'active' | 'archived'; mode: 'hourly' | 'flat_fee';
+  hourlyRateCents: number | null; flatFeeCents: number | null; budgetCents: number | null; openedOn: string | null;
+}
+export interface SettingsRecord {
+  globalHourlyRateCents: number; currency: string; workspaceId: string; vatRate: number; confidenceThreshold: number;
+}
 export interface Repository {
   transaction<T>(work: () => T): T;
   activeSession(): SessionRecord | null;
@@ -44,6 +56,9 @@ export interface Repository {
   insertPeriod(period: PeriodRecord, now: string): void;
   savePeriod(period: PeriodRecord, now: string): void;
   caseExists(id: string): boolean;
+  listClients(): ClientRecord[];
+  listCases(filter: { clientId?: string; status?: 'active' | 'archived' }): CaseRecord[];
+  settings(): SettingsRecord | null;
   createClient(id: string, name: string, now: string): void;
   createCase(id: string, clientId: string, reference: string, title: string, hourlyRateCents: number | null, now: string): void;
   setGlobalRate(rateCents: number, currency: string, workspaceId: string, now: string): void;

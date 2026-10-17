@@ -436,7 +436,36 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List clients */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CatalogClient"][];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         /** Create a client */
         post: operations["clients_post"];
@@ -2457,6 +2486,117 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List cases, the canonical candidates for assignment and JEV */
+        get: {
+            parameters: {
+                query?: {
+                    clientId?: string;
+                    status?: "active" | "archived";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CatalogCase"][];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read application settings */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AppSettings"];
+                    };
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Internal error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2925,6 +3065,42 @@ export interface components {
         Health: {
             /** @constant */
             status: "ok";
+        };
+        CatalogClient: {
+            id: string;
+            name: string;
+            code: string | null;
+            type: string;
+            mode: string;
+            /** @description `null` when the client has no own rate. */
+            hourlyRateCents: number | null;
+            vatApplicable: boolean;
+            active: boolean;
+        };
+        CatalogCase: {
+            id: string;
+            clientId: string;
+            reference: string;
+            title: string;
+            category: string;
+            caseNumber: string;
+            opposingParty: string;
+            /** @enum {string} */
+            status: "active" | "archived";
+            /** @enum {string} */
+            mode: "hourly" | "flat_fee";
+            /** @description `null` when the client or global rate applies. */
+            hourlyRateCents: number | null;
+            flatFeeCents: number | null;
+            budgetCents: number | null;
+            openedOn: string | null;
+        };
+        AppSettings: {
+            globalHourlyRateCents: number;
+            currency: string;
+            workspaceId: string;
+            vatRate: number;
+            confidenceThreshold: number;
         };
     };
     responses: never;

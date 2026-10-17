@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { CommandRecord, CoverageGap, PeriodRecord, QuestionRecord, Repository, SessionRecord, SourceRecord } from '../../ports/repository.js';
+import type { CaseRecord, ClientRecord, CommandRecord, CoverageGap, PeriodRecord, QuestionRecord, Repository, SessionRecord, SettingsRecord, SourceRecord } from '../../ports/repository.js';
 import { migrate } from './migrate.js';
 
 type Row = Record<string, unknown>;
@@ -128,6 +128,25 @@ export class SqliteRepository implements Repository {
     }
   }
   caseExists(id: string): boolean { return !!this.db.prepare('SELECT 1 FROM cases WHERE id=?').get(id); }
+  listClients(): ClientRecord[] {
+    return (this.db.prepare('SELECT * FROM clients ORDER BY name, id').all() as Row[]).map(r=>({
+      id:str(r.id),name:str(r.name),code:nullable(r.code),type:str(r.type),mode:str(r.mode),
+      hourlyRateCents:r.hourly_rate_cents as number | null,vatApplicable:r.vat_applicable === 1,active:r.active === 1 }));
+  }
+  listCases(filter: { clientId?: string; status?: 'active' | 'archived' }): CaseRecord[] {
+    const clientId=filter.clientId ?? null, status=filter.status ?? null;
+    return (this.db.prepare(`SELECT * FROM cases WHERE (? IS NULL OR client_id=?) AND (? IS NULL OR status=?) ORDER BY reference, id`)
+      .all(clientId,clientId,status,status) as Row[]).map(r=>({
+      id:str(r.id),clientId:str(r.client_id),reference:str(r.reference),title:str(r.title),category:str(r.category),
+      caseNumber:str(r.case_number),opposingParty:str(r.opposing_party),status:r.status as CaseRecord['status'],mode:r.mode as CaseRecord['mode'],
+      hourlyRateCents:r.hourly_rate_cents as number | null,flatFeeCents:r.flat_fee_cents as number | null,
+      budgetCents:r.budget_cents as number | null,openedOn:nullable(r.opened_on) }));
+  }
+  settings(): SettingsRecord | null {
+    const r=row(this.db.prepare('SELECT * FROM settings WHERE id=1').get());
+    return r ? {globalHourlyRateCents:num(r.global_hourly_rate_cents),currency:str(r.currency),workspaceId:str(r.workspace_id),
+      vatRate:num(r.vat_rate),confidenceThreshold:num(r.confidence_threshold)} : null;
+  }
   createClient(id: string, name: string, now: string): void {
     this.db.prepare('INSERT INTO clients(id,name,created_at,updated_at) VALUES (?,?,?,?)').run(id,name,now,now);
   }
