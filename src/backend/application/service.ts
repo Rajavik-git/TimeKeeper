@@ -161,7 +161,7 @@ export class TimeKeeperService {
     this.getPeriod(periodId); return this.repo.listSources(periodId);
   }
   // The caller supplies an explicit established transition. Folder recognition and duration derivation remain open: docs/DESIGN_REVIEW.md.
-  openPeriod(input: { id: string; sessionId: string; caseId: string | null; startedAt: string; origin: 'automatic' | 'lawyer' | 'unresolved'; mode: 'current' | 'recovery' }): PeriodView | { status: 'pending'; conflictId: string } {
+  openPeriod(input: { id: string; sessionId: string; caseId: string | null; startedAt: string; origin: 'automatic' | 'lawyer' | 'unresolved'; mode: 'current' | 'recovery'; demoApp?:string; demoWindowTitle?:string; excluded?:boolean }): PeriodView | { status: 'pending'; conflictId: string } {
     return this.repo.transaction(() => {
       assertId(input.id); assertTime(input.startedAt);
       const existing = this.repo.period(input.id);
@@ -185,12 +185,23 @@ export class TimeKeeperService {
       const nextPeriod = this.repo.nextPeriodAfter(s.id,input.startedAt);
       const p: PeriodRecord = { id:input.id,sessionId:s.id,caseId:input.caseId,initialCaseId:input.caseId,initialOrigin:input.origin,startedAt:input.startedAt,endedAt:active?.endedAt ?? nextPeriod?.startedAt ?? s.endedAt,
         detectedDurationMs:null,durationOverrideMs:null,assignmentOrigin:input.origin,assignmentRevision:0,effectiveRevision:0,
-        validatedEffectiveRevision:null,timeValidatedAt:null,billingStatus:'unbilled',billedAt:null,revision:0 };
+        validatedEffectiveRevision:null,timeValidatedAt:null,billingStatus:'unbilled',billedAt:null,revision:0,
+        demoApp:input.demoApp??null,demoWindowTitle:input.demoWindowTitle??null,excluded:input.excluded??false };
       this.repo.insertPeriod(p,this.clock.now());
-      if (p.caseId === null) this.repo.saveQuestion({questionId:`period:${p.id}`,sessionId:p.sessionId,periodId:p.id,
+      if (p.caseId === null&&!p.excluded) this.repo.saveQuestion({questionId:`period:${p.id}`,sessionId:p.sessionId,periodId:p.id,
         expectedAssignmentRevision:p.assignmentRevision,status:'pending',responseCommandId:null,responseResultJson:null});
       return view(p);
     });
+  }
+  switchPeriod(input: { caseId: string | null; windowTitle: string; appName: string; at: string; notClientWork?:boolean }): PeriodView | { status: 'pending'; conflictId: string } {
+    if (!input.windowTitle.trim() || !input.appName.trim()) throw new AppError('invalid-request','window title and app name required');
+    if (input.notClientWork&&input.caseId!==null) throw new AppError('invalid-request','non-client work cannot have a case');
+    assertTime(input.at);
+    const session = this.repo.activeSession();
+    if (!session) throw new AppError('no-active-session','no active session');
+    return this.openPeriod({ id:randomUUID(), sessionId:session.id, caseId:input.caseId,
+      startedAt:input.at, origin:input.caseId === null ? 'unresolved' : 'lawyer', mode:'current',
+      demoApp:input.appName,demoWindowTitle:input.windowTitle,excluded:input.notClientWork??false });
   }
   // All assignment writes, including question answers and inference, enter here.
   assignPeriod(id: string, caseId: string, expectedAssignmentRevision: number, origin: 'automatic' | 'lawyer'): PeriodView {

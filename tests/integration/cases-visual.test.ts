@@ -24,9 +24,9 @@ it('excludes flat fees from Cases to-bill totals while retaining their pricing m
     const sarah = state.client.find(client => client.name === 'Sarah Bennett')!;
     expect(clientMetrics(state, core, sarah.id).toBill).toBe(163750);
     const total = state.client.reduce((sum, client) => sum + clientMetrics(state, core, client.id).toBill, 0);
-    expect(total).toBe(933950);
+    expect(total).toBe(969950);
     const previous = previousMonthMetrics(state, core, '2026-10-16');
-    expect(Math.round((total - previous.previousToBill) * 100 / previous.previousToBill)).toBe(72);
+    expect(Math.round((total - previous.previousToBill) * 100 / previous.previousToBill)).toBe(78);
     expect(previous.previousMinutes).toBe(1200);
   } finally {
     db.close();

@@ -10,12 +10,16 @@ Examples from the fictional seed:
 
 | Block / signal                                                | Best matter         |     Score | Explanation                               |
 | ------------------------------------------------------------- | ------------------- | --------: | ----------------------------------------- |
-| `[2025-031] Opposing documents`                               | Dupont v Martin     |      0.95 | Short reference                           |
-| `2025-031 Conclusions v3.docx` and Martin Distribution in OCR | Dupont v Martin     |      0.99 | Reference and opposing party, capped      |
-| JAF appeal deadline research                                  | Divorce             |      0.60 | Explicit JAF file cue; proposed in My day |
-| Martin Distribution alone                                     | Dupont v Martin     |      0.60 | Opposing party; proposed                  |
-| Paul Dupont alone                                             | Both Dupont matters | 0.30 each | Ambiguous client name; no assignment      |
+| `[2025-031] Opposing documents`                               | Dawson v Martin     |      0.95 | Short reference                           |
+| `2025-031 Opposition Brief v3.docx` and Martin Distribution in OCR | Dawson v Martin | 0.99 | Reference and opposing party, capped |
+| Family court appeal deadline research                         | Divorce             |      0.60 | Explicit file cue; proposed in My day     |
+| Martin Distribution alone                                     | Dawson v Martin     |      0.60 | Opposing party; proposed                  |
+| Paul Dawson alone                                             | Both Dawson matters | 0.30 each | Ambiguous client name; no assignment      |
 
 The seed loader calculates each block's confidence from its actual stored signals. Existing historical assignments remain as recorded, including manual approvals and the active block. Therefore some `assigned` blocks score below today's 0.8 automatic threshold: blocks 1, 5, 7, 8, 12 and 19. Block 13 is unassigned with the Divorce suggestion at 0.60; discarded blocks have confidence zero. The demo marker `hits` and `last_seen_at` also come from the engine. A hit counts a recognized explicit cue per block, including a proposed candidate.
 
-The retained legacy time-entry route still creates a learned `file` marker from the window title, or an `email` marker when the app is a messaging application. It uses weight 0.6 and avoids an existing marker with the same matter, type and value. Assigning demo entry 13 to Divorce learns `JAF appeal deadline research` as a file cue. The read route `GET /api/blocks/{id}/recognition` does not change counts or learn cues.
+The retained legacy time-entry route still creates a learned `file` marker from the window title, or an `email` marker when the app is a messaging application. It uses weight 0.6 and avoids an existing marker with the same matter, type and value. Assigning demo entry 13 to Divorce learns `Family court appeal deadline research` as a file cue. The read route `GET /api/blocks/{id}/recognition` does not change counts or learn cues.
+
+## Window suggestions for the desk pill
+
+`POST /api/recognize` accepts a window title and app name. It uses the same weighted matching rules against open demo cases, including implicit case references, client names, and opposing parties as well as stored markers. The response gives one suggestion, up to three alternatives, and a high or low confidence label. A unique score of at least 0.8 is high; weaker or tied matches are low, and a file with no matching cue returns no suggestion. This route does not assign or create a period. The pill asks the lawyer to confirm or choose another case; a high-confidence suggestion may be accepted automatically after a visible 20-second countdown. `POST /api/periods/switch` records the accepted transition separately.

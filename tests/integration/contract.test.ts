@@ -67,6 +67,8 @@ const cases: Record<string, { path?: string; body?: unknown }> = {
     lines:[{origin:'work_period',originId:'2',label:'Work on case',billedMinutes:66,rateCents:30000,amountCents:33000,vat:true}],
   } },
   'GET /api/sessions/active': {},
+  'POST /api/recognize': {body:{windowTitle:'2025-031 Opposition Brief v3.docx',appName:'Word'}},
+  'POST /api/periods/switch': {body:{caseId:'1',windowTitle:'2025-031 Opposition Brief v3.docx',appName:'Word',at:'2026-10-16T16:43:00Z'}},
   'GET /api/sessions': {},
   'GET /api/work-periods': {},
   'GET /api/sources': {},

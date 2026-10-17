@@ -42,8 +42,8 @@ describe('React billing calculations and frozen invoice application',()=>{
   it('matches the corrected fictional day and Dawson invoice reference',()=>{
     const f=fixture();try {
       const core=f.core();
-      expect(summarizeWork(core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')),core.sources).roundedMinutes).toBe(267);
-      expect(dayFees(f.legacy,core,core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')))).toBe(91250);
+      expect(summarizeWork(core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')),core.sources).roundedMinutes).toBe(387);
+      expect(dayFees(f.legacy,core,core.periods.filter(p=>p.startedAt.startsWith('2026-10-16')))).toBe(151250);
       expect(core.periods.find(p=>p.id==='14')).toMatchObject({detectedDurationMs:152*60000,durationOverrideMs:108*60000});
       const draft=draftInvoice(f.legacy,core,1,'final');
       expect(draft).toMatchObject({billedMinutes:608,feesCents:304000,pendingPeriods:2});

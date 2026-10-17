@@ -35,10 +35,10 @@ fn set_watch_enabled(state: tauri::State<WatchState>, enabled: bool) {
     state.enabled.store(enabled, Ordering::Relaxed);
 }
 
-const PILL_WIDTH: u32 = 340;
+const PILL_WIDTH: u32 = 380;
 const PILL_HEIGHT: u32 = 58;
-const NOTICE_HEIGHT: u32 = 150;
-const PANEL_HEIGHT: u32 = 490;
+const NOTICE_HEIGHT: u32 = 270;
+const PANEL_HEIGHT: u32 = 560;
 
 fn position_pill(window: &tauri::WebviewWindow, height: u32) -> tauri::Result<()> {
     let monitor = window.primary_monitor()?;

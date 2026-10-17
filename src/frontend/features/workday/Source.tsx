@@ -10,6 +10,47 @@ const clock = (value: string) =>
   Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
 const dollars = (cents: number) =>
   `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Blocks that run at the same time on one day (two cases worked in parallel) get their own lane,
+// so both stay visible on the same row. Thin overlap markers (overlaps_block_id) keep their own style.
+function laneLayout(
+  rows: { id: number; block_id: number | null }[],
+  blocks: { id: number; start_time: string; end_time: string | null; overlaps_block_id: number | null }[],
+) {
+  const toMin = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+  const items = rows
+    .map((row) => ({ row, block: blocks.find((b) => b.id === row.block_id) }))
+    .filter((x) => x.block && !x.block.overlaps_block_id)
+    .sort((a, b) => toMin(a.block!.start_time) - toMin(b.block!.start_time));
+  const ends: number[] = [];
+  const lane = new Map<number, number>();
+  for (const { row, block } of items) {
+    const start = toMin(block!.start_time);
+    const end = toMin(block!.end_time ?? block!.start_time);
+    let i = ends.findIndex((e) => e <= start);
+    if (i < 0) { i = ends.length; ends.push(end); } else ends[i] = end;
+    lane.set(row.id, i);
+  }
+  return { lane, count: Math.max(1, ends.length) };
+}
+
+function laneStyle(
+  lanes: { lane: Map<number, number>; count: number },
+  entryId: number,
+  overlapsBlockId: number | null,
+  rows: { id: number; block_id: number | null }[],
+): React.CSSProperties {
+  if (lanes.count < 2) return {};
+  if (overlapsBlockId) {
+    // Thin overlap marker: keep it at the bottom of the lane of the block it overlaps.
+    const parent = rows.find((row) => row.block_id === overlapsBlockId);
+    const lane = parent ? lanes.lane.get(parent.id) ?? 0 : 0;
+    return { top: `calc(${((lane + 1) * 100) / lanes.count}% - 11px)`, bottom: "auto" };
+  }
+  const lane = lanes.lane.get(entryId);
+  if (lane === undefined) return {};
+  return { top: `calc(${(lane * 100) / lanes.count}% + 3px)`, bottom: "auto", height: `calc(${100 / lanes.count}% - 5px)` };
+}
+
 export function Source({ s, core, selected, action, navigate }: Props) {
   const [clientId, setClientId] = useState("");
   const [caseId, setCaseId] = useState("");
@@ -286,7 +327,7 @@ export function Source({ s, core, selected, action, navigate }: Props) {
             <div
               className="activity-grid"
               style={{
-                gridTemplateRows: `16px repeat(${days}, minmax(22px,1fr))`,
+                gridTemplateRows: `16px ${byDate.map(([, r]) => laneLayout(r, activity.block).count > 1 ? 'minmax(52px,2.4fr)' : 'minmax(22px,1fr)').join(' ')}`,
               }}
               onMouseLeave={() => {
                 setCursor(null);
@@ -312,7 +353,7 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                   </span>
                 )}
               </div>
-              {byDate.map(([date, rows]) => (
+              {byDate.map(([date, rows]) => { const lanes = laneLayout(rows, activity.block); return (
                 <Fragment key={date}>
                   <span
                     className={`activity-date ${date === today ? "today" : ""}`}
@@ -413,7 +454,7 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                         <button
                           key={entry.id}
                           className={`activity-segment ${!entry.matter_id ? "unassigned" : !entry.billable ? "nonbill" : canonical?.timeValidated || entry.review_status === "approved" ? "ok" : "pending"} ${recorded.overlaps_block_id ? "overlap" : ""}`}
-                          style={{ left: `${start}%`, width: `${width}%` }}
+                          style={{ left: `${start}%`, width: `${width}%`, ...laneStyle(lanes, entry.id, recorded.overlaps_block_id, rows) }}
                           aria-pressed={entry.id === selectedEntry?.id}
                           aria-label={`${client?.name ?? "No case"} · ${caseItem?.title ?? "Unassigned"}, ${recorded.start_time} to ${recorded.end_time ?? "now"}. Click to inspect`}
                           onMouseMove={(event) => {
@@ -514,7 +555,7 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                     })}
                   </div>
                 </Fragment>
-              ))}
+              ); })}
             </div>
           )}
         </div>

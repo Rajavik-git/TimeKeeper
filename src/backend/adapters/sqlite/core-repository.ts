@@ -103,10 +103,10 @@ export class SqliteRepository implements Repository {
   savePeriod(p: PeriodRecord, now: string): void {
     this.db.prepare(`UPDATE work_periods SET case_id=?,ended_at=?,detected_duration_ms=?,duration_override_ms=?,assignment_origin=?,
       time_validation_status=?,effective_revision=?,validated_effective_revision=?,time_validated_at=?,billing_status=?,billed_at=?,
-      revision=?,assignment_revision=?,updated_at=?,applied_hourly_rate_cents=?,applied_currency=?,task_type_id=?,label=?,billable=?,nonbillable_reason=?,excluded=?,invoice_id=? WHERE id=?`).run(p.caseId,p.endedAt,p.detectedDurationMs,p.durationOverrideMs,p.assignmentOrigin,
+      revision=?,assignment_revision=?,updated_at=?,applied_hourly_rate_cents=?,applied_currency=?,task_type_id=?,label=?,billable=?,nonbillable_reason=?,excluded=?,demo_app=?,demo_window_title=?,demo_confidence=?,invoice_id=? WHERE id=?`).run(p.caseId,p.endedAt,p.detectedDurationMs,p.durationOverrideMs,p.assignmentOrigin,
       p.validatedEffectiveRevision === p.effectiveRevision && p.timeValidatedAt ? 'validated' : 'unvalidated',p.effectiveRevision,p.validatedEffectiveRevision,p.timeValidatedAt,
       p.billingStatus,p.billedAt,p.revision,p.assignmentRevision,now,p.appliedHourlyRateCents ?? null,p.appliedCurrency ?? null,
-      p.taskTypeId ?? null,p.label ?? '',p.billable === false ? 0 : 1,p.nonbillableReason ?? null,p.excluded ? 1 : 0,p.invoiceId ?? null,p.id);
+      p.taskTypeId ?? null,p.label ?? '',p.billable === false ? 0 : 1,p.nonbillableReason ?? null,p.excluded ? 1 : 0,p.demoApp ?? null,p.demoWindowTitle ?? null,p.demoConfidence ?? null,p.invoiceId ?? null,p.id);
     this.syncDemoPeriod(p);
   }
   private syncDemoPeriod(p: PeriodRecord): void {

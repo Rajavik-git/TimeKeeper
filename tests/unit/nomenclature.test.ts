@@ -76,7 +76,7 @@ describe("matter nomenclature and learning", () => {
             "SELECT COUNT(*) AS n FROM time_entry WHERE date='2026-10-16'",
           )
           .get(),
-      ).toEqual({ n: 5 });
+      ).toEqual({ n: 6 });
       const added = db
         .prepare(
           "SELECT id, matter_id, date, tenths_of_hour, amount_cents, rate_origin, review_status, billing_status, invoice_id FROM time_entry WHERE id BETWEEN 20 AND 27 ORDER BY id",
