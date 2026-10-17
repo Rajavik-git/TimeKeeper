@@ -20,6 +20,7 @@ use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
     ShellExt,
 };
+use serde::Serialize;
 
 mod window_filter;
 #[cfg(windows)]
@@ -40,6 +41,17 @@ const PILL_WIDTH: u32 = 340;
 const PILL_HEIGHT: u32 = 38;
 const NOTICE_HEIGHT: u32 = 270;
 const PANEL_HEIGHT: u32 = 560;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PillPlacement {
+    anchor_x: i32,
+    anchor_y: i32,
+    above: bool,
+    width: i32,
+    height: i32,
+    bar_height: i32,
+}
 
 fn position_pill(window: &tauri::WebviewWindow, width: u32, height: u32) -> tauri::Result<()> {
     let monitor = window.primary_monitor()?;
@@ -63,7 +75,9 @@ fn set_pill_expanded(
     notification: bool,
     content_width: Option<u32>,
     content_height: Option<u32>,
-) -> Result<(), String> {
+    anchor_x: Option<i32>,
+    anchor_y: Option<i32>,
+) -> Result<PillPlacement, String> {
     if window.label() != "pill" {
         return Err("Pill window required".into());
     }
@@ -76,7 +90,30 @@ fn set_pill_expanded(
     };
     let width = content_width.unwrap_or(PILL_WIDTH).max(1);
     let height = content_height.unwrap_or(fallback_height).max(PILL_HEIGHT);
-    position_pill(&window, width, height).map_err(|error| error.to_string())
+    let monitor = window.primary_monitor().map_err(|error| error.to_string())?
+        .ok_or("Primary monitor unavailable")?;
+    let bounds = monitor.size();
+    let origin = monitor.position();
+    let scale = monitor.scale_factor();
+    let width_px = (width as f64 * scale).round() as i32;
+    let height_px = (height as f64 * scale).round() as i32;
+    let bar_px = (PILL_HEIGHT as f64 * scale).round() as i32;
+    let right = origin.x + bounds.width as i32;
+    let bottom = origin.y + bounds.height as i32;
+    let center_x = anchor_x.unwrap_or(origin.x + bounds.width as i32 / 2);
+    let bar_y = anchor_y.unwrap_or(origin.y + 16);
+    let below = bottom - bar_y;
+    let above_space = bar_y + bar_px - origin.y;
+    let above = height_px > bar_px && below < height_px && above_space >= below;
+    let raw_x = center_x - width_px / 2;
+    let raw_y = if above { bar_y - (height_px - bar_px) } else { bar_y };
+    let x = raw_x.clamp(origin.x, (right - width_px).max(origin.x));
+    let y = raw_y.clamp(origin.y, (bottom - height_px).max(origin.y));
+    window.set_size(LogicalSize::new(width, height)).map_err(|error| error.to_string())?;
+    window.set_position(PhysicalPosition::new(x, y)).map_err(|error| error.to_string())?;
+    Ok(PillPlacement { anchor_x: x + width_px / 2,
+        anchor_y: if above { y + height_px - bar_px } else { y },
+        above, width: width_px, height: height_px, bar_height: bar_px })
 }
 
 #[tauri::command]
