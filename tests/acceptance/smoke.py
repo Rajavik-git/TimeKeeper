@@ -61,7 +61,7 @@ with sync_playwright() as p:
             assert page.get_by_role('columnheader', name='Weight').count()==0
     page.get_by_role('group', name='Theme').get_by_role('button', name='Auto').click()
     nav.get_by_role('button', name='My day', exact=False).click()
-    page.get_by_text('$912.50', exact=True).wait_for()
+    page.get_by_text('$1,152.50', exact=True).wait_for()
     assert page.locator('.datebadge').inner_text() == '1'
     assert page.locator('.datebadge').get_attribute('title') == '1 other day with periods to validate (15 Oct)'
     page.locator('.datebtn').click()
