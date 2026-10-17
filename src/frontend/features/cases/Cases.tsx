@@ -8,6 +8,12 @@ import { MatterReference } from '../../shared/components/MatterReference';
 import { SourcePackDialog } from '../../shared/components/SourcePackDialog';
 
 type Suggestion = { kind: 'client'; client: Client; caption: string } | { kind: 'case'; item: Matter; caption: string };
+type ClientSort = 'toBill' | 'name' | 'lastActivity' | 'cases' | 'rate';
+const clientSortStorageKey = 'timekeeper-client-sort';
+function storedClientSort(): ClientSort {
+  const value = sessionStorage.getItem(clientSortStorageKey);
+  return value === 'name' || value === 'lastActivity' || value === 'cases' || value === 'rate' ? value : 'toBill';
+}
 const recentStorageKey = 'timekeeper-recent-cases';
 function storedRecent(): number[] {
   try {
@@ -37,12 +43,14 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   const [searchCases, setSearchCases] = useState<Matter[]>([]);
   const [searchActive, setSearchActive] = useState(0);
   const [recentIds, setRecentIds] = useState(storedRecent);
+  const [clientSort, setClientSort] = useState<ClientSort>(storedClientSort);
   const [notice, setNotice] = useState('');
   const [sorts, setSorts] = useState<Record<string,{column:number; direction:1|-1}>>(() => {
     try { return JSON.parse(sessionStorage.getItem('timekeeper-case-sorts') ?? '{}'); } catch { return {}; }
   });
   const [pack, setPack] = useState(false);
   useEffect(() => { sessionStorage.setItem('timekeeper-case-sorts', JSON.stringify(sorts)); }, [sorts]);
+  useEffect(() => { sessionStorage.setItem(clientSortStorageKey, clientSort); }, [clientSort]);
   const searchRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!query.trim()) { setSearchClients([]); setSearchCases([]); return; }
@@ -167,6 +175,17 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
     const allPeriods = core.periods.filter(period => !period.excluded && period.startedAt.slice(0,7) === today.slice(0,7) && period.startedAt.slice(0,10) <= today);
     const october = Math.ceil(allPeriods.reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
     const clients = s.client.map(item => ({ item, metrics: clientMetrics(s, core, item.id) }));
+    const sortedClients = [...clients].sort((a, b) => {
+      let comparison = 0;
+      switch (clientSort) {
+        case 'name': comparison = a.item.name.localeCompare(b.item.name, 'en-US'); break;
+        case 'lastActivity': comparison = a.metrics.latest ? b.metrics.latest ? b.metrics.latest.localeCompare(a.metrics.latest) : -1 : b.metrics.latest ? 1 : 0; break;
+        case 'cases': comparison = b.metrics.cases.length - a.metrics.cases.length; break;
+        case 'rate': comparison = b.item.rate_cents - a.item.rate_cents; break;
+        default: comparison = b.metrics.toBill - a.metrics.toBill;
+      }
+      return comparison || a.item.name.localeCompare(b.item.name, 'en-US');
+    });
     const toBill = clients.reduce((sum, row) => sum + row.metrics.toBill, 0);
     const maxToBill = Math.max(1, ...clients.map(row => row.metrics.toBill));
     const budgetAlerts = attentionRows.filter(row => (row.metrics.budgetPercent ?? 0) >= 85);
@@ -181,8 +200,8 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
         ['Cases', s.matter.length, `${s.client.length} clients · ${openCases} open`, delta(s.matter.length, prior.previousCases, prior.previousDay)],
         ['Time in October', formatRoundedMinutes(october), 'All cases', delta(october, prior.previousMinutes, prior.previousDay)]])}
       <div className="cases-dashboard cases-fill">
-        <section className="card cases-clients"><div className="card-h"><div className="t"><h2>Clients</h2><p>{s.client.length} clients</p></div></div>
-          <div className="case-scroll client-grid">{clients.map(({ item, metrics }) => <button className="client-tile" key={item.id} onClick={() => openClient(item.id)}>
+        <section className="card cases-clients"><div className="card-h"><div className="t"><h2>Clients</h2><p>{s.client.length} clients</p></div><label className="client-sort" htmlFor="client-sort">Sort by <select id="client-sort" className="field" value={clientSort} onChange={event => setClientSort(event.target.value as ClientSort)}><option value="toBill">To bill</option><option value="name">Name</option><option value="lastActivity">Last activity</option><option value="cases">Cases</option><option value="rate">Rate</option></select></label></div>
+          <div className="case-scroll client-grid">{sortedClients.map(({ item, metrics }) => <button className="client-tile" key={item.id} onClick={() => openClient(item.id)}>
             <div className="case-tile-top"><strong>{item.name}</strong><span className="muted">{item.type === 'company' ? 'Company' : 'Individual'}</span></div>
             <dl className="case-tile-facts"><div><dt>Cases</dt><dd>{metrics.cases.length}</dd></div><div><dt>Rate</dt><dd>{formatRate(item.rate_cents)}</dd></div><div><dt>To bill</dt><dd>{money(metrics.toBill)}</dd></div><div><dt>Last activity</dt><dd>{metrics.latest ? shortDate(metrics.latest) : '—'}</dd></div></dl>
           </button>)}</div>

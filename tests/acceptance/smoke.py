@@ -53,6 +53,14 @@ with sync_playwright() as p:
     page.locator('[data-calendar-day="2026-10-15"]').click()
     page.locator('.ph p').first.get_by_text('Thursday 15 October 2026', exact=False).wait_for()
     nav.get_by_role('button', name='Cases').click()
+    client_sort = page.get_by_label('Sort by')
+    assert client_sort.input_value() == 'toBill'
+    client_sort.select_option('name')
+    client_names = page.locator('.client-tile .case-tile-top strong').all_inner_texts()
+    assert client_names == sorted(client_names, key=str.casefold), client_names
+    nav.get_by_role('button', name='Billing').click()
+    nav.get_by_role('button', name='Cases').click()
+    assert page.get_by_label('Sort by').input_value() == 'name'
     page.get_by_role('searchbox', name='Search a client or a case').fill('Dawson')
     page.get_by_role('option').first.wait_for()
     nav.get_by_role('button', name='Billing').click()
@@ -70,5 +78,5 @@ with sync_playwright() as p:
     pill.get_by_role('button', name='TimeKeeper, toggle panel').wait_for()
     assert page.request.post(f'{url}api/demo/reset').ok
     assert not errors, errors
-    print('Five screens, date picker, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
+    print('Five screens, date picker, Clients sort, Cases search, Billing, Activity, Desk preview, 1440×900 and 1280×800 shells passed; no console errors.')
     browser.close()
