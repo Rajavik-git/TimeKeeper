@@ -56,9 +56,9 @@ export class SqliteRepository implements Repository {
   }
   close(): void { this.db.close(); }
   transaction<T>(work: () => T): T {
-    this.db.exec('BEGIN IMMEDIATE');
-    try { const value = work(); this.db.exec('COMMIT'); return value; }
-    catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    this.db.exec('SAVEPOINT core_tx');
+    try { const value = work(); this.db.exec('RELEASE core_tx'); return value; }
+    catch (error) { this.db.exec('ROLLBACK TO core_tx'); this.db.exec('RELEASE core_tx'); throw error; }
   }
   activeSession(): SessionRecord | null { return session(this.db.prepare('SELECT * FROM sessions WHERE ended_at IS NULL').get()); }
   listSessions(): SessionRecord[] { return this.db.prepare('SELECT * FROM sessions ORDER BY started_at').all().map(value=>session(value)!); }
@@ -107,6 +107,25 @@ export class SqliteRepository implements Repository {
       p.validatedEffectiveRevision === p.effectiveRevision && p.timeValidatedAt ? 'validated' : 'unvalidated',p.effectiveRevision,p.validatedEffectiveRevision,p.timeValidatedAt,
       p.billingStatus,p.billedAt,p.revision,p.assignmentRevision,now,p.appliedHourlyRateCents ?? null,p.appliedCurrency ?? null,
       p.taskTypeId ?? null,p.label ?? '',p.billable === false ? 0 : 1,p.nonbillableReason ?? null,p.excluded ? 1 : 0,p.invoiceId ?? null,p.id);
+    this.syncDemoPeriod(p);
+  }
+  private syncDemoPeriod(p: PeriodRecord): void {
+    // The imported demo tables are compatibility projections of canonical review state.
+    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='time_entry'").get()) return;
+    const link=row(this.db.prepare('SELECT block_id FROM demo_block_periods WHERE period_id=?').get(p.id));
+    const entry=row(this.db.prepare(`SELECT e.id,e.block_id,e.matter_id FROM time_entry e
+      LEFT JOIN demo_block_periods link ON link.block_id=e.block_id
+      WHERE link.period_id=? OR (e.block_id IS NULL AND CAST(e.id AS TEXT)=?) LIMIT 1`).get(p.id,p.id));
+    if (entry) this.db.prepare('UPDATE time_entry SET matter_id=?,review_status=? WHERE id=?').run(
+      p.caseId,p.validatedEffectiveRevision===p.effectiveRevision&&p.timeValidatedAt?'approved':'to_review',Number(entry.id));
+    if (link) {
+      const block=row(this.db.prepare('SELECT state,matter_id FROM block WHERE id=?').get(Number(link.block_id)));
+      if (!block) return;
+      const caseChanged=(block.matter_id===null?null:String(block.matter_id))!==p.caseId;
+      const wasDiscarded=block.state==='discarded';
+      const state=p.excluded?'discarded':wasDiscarded||caseChanged?(p.caseId?'assigned':'to_check'):String(block.state);
+      this.db.prepare('UPDATE block SET matter_id=?,state=? WHERE id=?').run(p.caseId,state,Number(link.block_id));
+    }
   }
   caseExists(id: string): boolean { return !!this.db.prepare('SELECT 1 FROM cases WHERE id=?').get(id); }
   createClient(id: string, name: string, now: string): void {

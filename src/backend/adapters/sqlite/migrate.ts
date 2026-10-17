@@ -281,4 +281,29 @@ export function migrate(db: DatabaseSync): void {
       throw error;
     }
   }
+  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version = 4').get()) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`CREATE TABLE demo_block_periods (
+        block_id INTEGER PRIMARY KEY,
+        period_id TEXT NOT NULL UNIQUE REFERENCES work_periods(id) ON DELETE RESTRICT
+      )`);
+      if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='block'").get()) {
+        db.exec(`INSERT OR IGNORE INTO demo_block_periods(block_id,period_id)
+          SELECT b.id,p.id FROM block b JOIN work_periods p
+            ON p.started_at=b.date||'T'||b.start_time||':00Z'
+            AND p.demo_app=b.app AND p.demo_window_title=b.window_title`);
+        db.exec(`INSERT OR IGNORE INTO demo_block_periods(block_id,period_id)
+          SELECT e.block_id,p.id FROM time_entry e JOIN work_periods p ON p.id=CAST(e.id AS TEXT)
+          WHERE e.block_id IS NOT NULL`);
+        db.exec(`INSERT OR IGNORE INTO demo_block_periods(block_id,period_id)
+          SELECT b.id,p.id FROM block b JOIN work_periods p ON p.id='excluded-'||b.id`);
+      }
+      db.prepare('INSERT INTO schema_migrations(version) VALUES (4)').run();
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
 }
