@@ -1,6 +1,6 @@
 # SQLite data model
 
-TimeKeeper has a local SQLite database, separate from Screenpipe storage. This is a documentation design, not an implemented schema. No migration exists. The [requirements](REQUIREMENTS.md) define business behavior; the [architecture](ARCHITECTURE.md) defines component ownership.
+TimeKeeper has a local SQLite database, separate from Screenpipe storage. This document distinguishes the agreed logical design from the implemented MVP core schema. An initial migration now exists at `src/backend/adapters/sqlite/migrate.ts`; integration-dependent behavior remains proposed. The [requirements](REQUIREMENTS.md) define business behavior; the [architecture](ARCHITECTURE.md) defines component ownership.
 
 The agreed logical model replaces the original task/subtask hierarchy with work periods. English entity names below identify the current design. The [original schema](reference/ORIGINAL_DATABASE.md) preserves the supplied identifiers and earlier review notes.
 
@@ -24,7 +24,7 @@ Assignment, time correction, time validation, and billed/unbilled status belong 
 
 ## Proposed fields and constraints
 
-The fields below make the agreed model concrete for implementation review. Exact SQL types, enum names, indexes, and migration syntax remain proposals. Use stable opaque IDs, explicit foreign keys, and a consistent timestamp representation with UTC meaning and unrounded precision. Store event time separately from ingestion time. Integer milliseconds are proposed for duration storage; the interface expresses working time in minutes.
+The fields below make the agreed model concrete for implementation review. The initial SQL migration creates the listed tables, foreign keys, uniqueness rules, nonnegative duration and rate checks, session and period bounds, and restricted deletion. The service layer owns revision transitions and question-answer guards. Source-tag delivery, stopped-app command receipt, provider-dependent mapping, and unresolved product transitions remain proposals. Use stable opaque IDs, explicit foreign keys, and a consistent timestamp representation with UTC meaning and unrounded precision. Store event time separately from ingestion time. Integer milliseconds are proposed for duration storage; the interface expresses working time in minutes.
 
 ### `clients`
 
@@ -68,6 +68,7 @@ The first applied end fixes the boundary. Repeated ends return the existing outc
 | --- | --- |
 | `id`, `session_id` | Primary key and required session foreign key. |
 | `case_id` | Nullable case foreign key; `NULL` represents an unresolved assignment. |
+| `initial_case_id`, `initial_origin` | Implemented immutable opening intent used to deduplicate a replay after later assignment corrections. |
 | `started_at`, `ended_at` | Recorded boundaries, with nullable end while a period is open. |
 | `detected_duration_ms` | Nullable unrounded derived duration; derivation is not defined yet. |
 | `duration_override_ms` | Nullable lawyer correction, converted from minutes; zero differs from no correction. |
@@ -134,7 +135,7 @@ All aliases of a target must agree with its owner. Changing the owner or its des
 | `workspace_id` | Stable local identity used in TimeKeeper-owned Screenpipe tags. |
 | `updated_at` | Record timestamp. |
 
-Monetary representation must be chosen before migrations. Use an exact representation suitable for the selected currency; do not carry the original diagram's `REAL` choice into implementation without a decision. A case rate of zero is valid and must not trigger the fallback.
+Implemented storage proposal: `hourly_rate_cents`, `global_hourly_rate_cents`, and `applied_hourly_rate_cents` are nonnegative SQLite `INTEGER` values in minor currency units. This avoids floating-point rate storage; rate snapshot timing, currency policy, and monetary rounding remain open decisions. A case rate of zero is valid and must not trigger the fallback. The corresponding implemented columns are `cases.hourly_rate_cents`, `settings.global_hourly_rate_cents`, and `work_periods.applied_hourly_rate_cents`; the latter remains nullable until a snapshot rule is agreed.
 
 ## Technical persistence
 
@@ -180,12 +181,12 @@ Two periods of 20 seconds total 40 seconds and display as 1 minute, not 2. Compu
 10. Answer an old unknown-folder question after moving to another period: update only the original target if its question is current and expected assignment revision still matches. Ordinary closure or new evidence must not reject this answer. Otherwise report a conflict. Repeating the answer must not write again.
 11. Import two source records that share a provider tag target: store their distinct source identities, but keep one authoritative owner and one target delivery sequence. An old owner's retry or acknowledgement cannot supersede the new owner.
 
-## Decisions required before migration
+## Decisions still required for dependent behavior
 
 - Folder identification, case-reference uniqueness, and unmatched-evidence association.
 - Duration derivation and overlap handling.
 - Time/source review states, validation prerequisites, manual entries without sources, and the treatment of edits to billed periods.
-- Rate snapshot timing, monetary representation, monetary rounding, and which states contribute to each displayed total. Advanced currency behavior is deferred.
+- Rate snapshot timing, monetary rounding, and which states contribute to each displayed total. Exact integer-cent rate storage is implemented as a proposal. Advanced currency behavior is deferred.
 - Off-app command durability, command contracts, and concrete retrieval checkpoints.
 - Final SQL constraints, supported deletion/archive behavior, audit-history requirements, and indexes.
 
