@@ -15,8 +15,12 @@ const tabs: [Tab, string][] = [
 ];
 const dollars = (cents: number) =>
   `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-const cents = (value: string) =>
-  Math.round(Number(value.replaceAll(",", "")) * 100);
+const parseAmount = (value: string) => {
+  const normalized = value.trim().replace(",", ".");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const result = Math.round(Number(normalized) * 100);
+  return Number.isSafeInteger(result) ? result : null;
+};
 let rememberedSorts: Record<string, SortState> = {};
 function sorted<T>(
   rows: T[],
@@ -45,6 +49,32 @@ export function Settings({ s, action, navigate }: ScreenProps) {
   const [code, setCode] = useState("");
   const [amount, setAmount] = useState("");
   const [toast, setToast] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const setFieldError = (key: string, message: string) =>
+    setFieldErrors((old) => ({ ...old, [key]: message }));
+  const fieldError = (key: string) =>
+    fieldErrors[key] ? (
+      <span className="settings-error" role="alert">
+        {fieldErrors[key]}
+      </span>
+    ) : null;
+  const commitAmount = (
+    key: string,
+    value: string,
+    current: number | null,
+    patch: (next: number) => Promise<boolean>,
+  ) => {
+    const parsed = parseAmount(value);
+    if (parsed === null) {
+      setFieldError(
+        key,
+        "Enter a non-negative amount (up to two decimal places).",
+      );
+      return;
+    }
+    setFieldError(key, "");
+    if (parsed !== current) void patch(parsed);
+  };
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2200);
@@ -52,7 +82,9 @@ export function Settings({ s, action, navigate }: ScreenProps) {
   }, [toast]);
   const saved = async (operation: Promise<unknown>) => {
     setToast("Saving…");
-    setToast((await operation) !== undefined ? "Saved" : "");
+    const success = (await operation) !== undefined;
+    setToast(success ? "Saved" : "");
+    return success;
   };
   const blurOnEnter = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") event.currentTarget.blur();
@@ -64,6 +96,10 @@ export function Settings({ s, action, navigate }: ScreenProps) {
   const patchClient = (id: number, body: Record<string, unknown>) =>
     saved(
       action(api.PATCH("/api/client/{id}", { params: { path: { id } }, body })),
+    );
+  const patchMatter = (id: number, body: Record<string, unknown>) =>
+    saved(
+      action(api.PATCH("/api/matter/{id}", { params: { path: { id } }, body })),
     );
   const patchTask = (id: number, body: Record<string, unknown>) =>
     saved(
@@ -289,11 +325,16 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                     }
                     onKeyDown={blurOnEnter}
                     onBlur={(event) =>
-                      void patchClient(editClient, {
-                        rate_cents: cents(event.target.value),
-                      })
+                      commitAmount(
+                        `client-${editClient}-rate`,
+                        event.target.value,
+                        s.client.find((item) => item.id === editClient)
+                          ?.rate_cents ?? null,
+                        (rate_cents) => patchClient(editClient, { rate_cents }),
+                      )
                     }
                   />
+                  {fieldError(`client-${editClient}-rate`)}
                 </label>
                 <label className="check">
                   <input
@@ -317,17 +358,28 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 className="settings-inline"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  await saved(
+                  const rate = parseAmount(amount);
+                  if (rate === null) {
+                    setFieldError(
+                      "new-client-rate",
+                      "Enter a non-negative amount (up to two decimal places).",
+                    );
+                    return;
+                  }
+                  setFieldError("new-client-rate", "");
+                  const success = await saved(
                     action(
                       api.POST("/api/clients", {
-                        body: { name, code, rate_cents: cents(amount) },
+                        body: { name, code, rate_cents: rate },
                       }),
                     ),
                   );
-                  setName("");
-                  setCode("");
-                  setAmount("");
-                  setAdd(false);
+                  if (success) {
+                    setName("");
+                    setCode("");
+                    setAmount("");
+                    setAdd(false);
+                  }
                 }}
               >
                 <input
@@ -357,6 +409,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
                 />
+                {fieldError("new-client-rate")}
                 <button className="btn primary">Add client</button>
               </form>
             )}
@@ -411,11 +464,15 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   defaultValue={(s.firm[0].base_rate_cents / 100).toFixed(2)}
                   onKeyDown={blurOnEnter}
                   onBlur={(event) =>
-                    void patchFirm({
-                      base_rate_cents: cents(event.target.value),
-                    })
+                    commitAmount(
+                      "base-rate",
+                      event.target.value,
+                      s.firm[0].base_rate_cents,
+                      (base_rate_cents) => patchFirm({ base_rate_cents }),
+                    )
                   }
                 />
+                {fieldError("base-rate")}
                 <label htmlFor="base-unit">Unit</label>
                 <select
                   className="select"
@@ -436,15 +493,104 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   defaultValue={
                     s.firm[0].vat_rate ? String(s.firm[0].vat_rate) : "None"
                   }
-                  onBlur={(event) =>
-                    patchFirm({
-                      vat_rate:
-                        event.target.value === "None"
-                          ? 0
-                          : Number(event.target.value),
-                    })
-                  }
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    const normalized = value.replace(",", ".");
+                    const next = value.toLowerCase() === "none"
+                      ? 0 : /^\d+(?:\.\d+)?$/.test(normalized)
+                        ? Number(normalized) : NaN;
+                    if (!value || !Number.isFinite(next) || next < 0) {
+                      setFieldError(
+                        "sales-tax",
+                        "Enter a non-negative tax rate.",
+                      );
+                      return;
+                    }
+                    setFieldError("sales-tax", "");
+                    if (next !== s.firm[0].vat_rate)
+                      void patchFirm({ vat_rate: next });
+                  }}
                 />
+                {fieldError("sales-tax")}
+              </div>
+            </section>
+            <section className="settings-card settings-case-rates">
+              {cardHead(
+                "Cases",
+                "Set each case's billing mode, rate, flat fee and budget.",
+              )}
+              <div className="settings-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Case</th>
+                      <th scope="col">Mode</th>
+                      <th scope="col">Own rate $/h</th>
+                      <th scope="col">Flat fee $</th>
+                      <th scope="col">Budget $</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {s.matter.map((item) => (
+                      <tr key={item.id}>
+                        <td title={item.title}>{item.title}</td>
+                        <td>
+                          <select
+                            className="select"
+                            aria-label={`${item.title} billing mode`}
+                            value={item.mode}
+                            onChange={(event) =>
+                              void patchMatter(item.id, {
+                                mode: event.target.value,
+                              })
+                            }
+                          >
+                            <option value="hourly">Hourly</option>
+                            <option value="flat_fee">Flat fee</option>
+                          </select>
+                        </td>
+                        {(
+                          [
+                            "own_rate_cents",
+                            "flat_fee_cents",
+                            "budget_cents",
+                          ] as const
+                        ).map((field) => (
+                          <td key={field}>
+                            <input
+                              className="input"
+                              aria-label={`${item.title} ${field.replaceAll("_", " ")}`}
+                              key={`${item.id}-${field}-${item[field]}`}
+                              defaultValue={
+                                item[field] === null
+                                  ? ""
+                                  : (item[field] / 100).toFixed(2)
+                              }
+                              placeholder="—"
+                              inputMode="decimal"
+                              onKeyDown={blurOnEnter}
+                              onBlur={(event) => {
+                                if (
+                                  !event.target.value.trim() &&
+                                  item[field] === null
+                                )
+                                  return;
+                                commitAmount(
+                                  `${item.id}-${field}`,
+                                  event.target.value,
+                                  item[field],
+                                  (value) =>
+                                    patchMatter(item.id, { [field]: value }),
+                                );
+                              }}
+                            />
+                            {fieldError(`${item.id}-${field}`)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </section>
           </>
@@ -481,22 +627,18 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                     Number(task.billable_by_default),
                     Number(task.off_screen),
                   ]).map((task) => (
-                    <tr
-                      key={task.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={editTask === task.id}
-                      onClick={() =>
-                        setEditTask(editTask === task.id ? null : task.id)
-                      }
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setEditTask(editTask === task.id ? null : task.id);
-                        }
-                      }}
-                    >
-                      <td title={task.label}>{task.label}</td>
+                    <tr key={task.id} data-editing={editTask === task.id}>
+                      <td title={task.label}>
+                        <button
+                          className="settings-task-edit"
+                          aria-expanded={editTask === task.id}
+                          onClick={() =>
+                            setEditTask(editTask === task.id ? null : task.id)
+                          }
+                        >
+                          {task.label}
+                        </button>
+                      </td>
                       <td>
                         {task.billable_by_default ? (
                           "Yes"
@@ -553,21 +695,24 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 className="settings-inline"
                 onSubmit={async (event) => {
                   event.preventDefault();
-                  await saved(
+                  const success = await saved(
                     action(
                       api.POST("/api/tasks", {
                         body: { code: code.toUpperCase(), label: name },
                       }),
                     ),
                   );
-                  setCode("");
-                  setName("");
-                  setAdd(false);
+                  if (success) {
+                    setCode("");
+                    setName("");
+                    setAdd(false);
+                  }
                 }}
               >
                 <input
                   className="input"
                   placeholder="CODE"
+                  aria-label="Task code"
                   required
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
@@ -575,6 +720,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 <input
                   className="input"
                   placeholder="Label"
+                  aria-label="Task label"
                   required
                   value={name}
                   onChange={(event) => setName(event.target.value)}
@@ -649,6 +795,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
               <div className="settings-inline">
                 <select
                   className="select"
+                  aria-label="Client"
                   value={ruleClient}
                   onChange={(event) =>
                     setRuleClient(Number(event.target.value))
@@ -662,6 +809,7 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 </select>
                 <select
                   className="select"
+                  aria-label="Rule"
                   value={ruleType}
                   onChange={(event) =>
                     setRuleType(event.target.value as typeof ruleType)
@@ -677,14 +825,16 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 <button
                   className="btn primary"
                   onClick={async () => {
-                    await saved(
-                      action(
-                        api.POST("/api/client-rules", {
-                          body: { client_id: ruleClient, type: ruleType },
-                        }),
-                      ),
-                    );
-                    setAdd(false);
+                    if (
+                      await saved(
+                        action(
+                          api.POST("/api/client-rules", {
+                            body: { client_id: ruleClient, type: ruleType },
+                          }),
+                        ),
+                      )
+                    )
+                      setAdd(false);
                   }}
                 >
                   Add rule
@@ -701,10 +851,11 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                 "The small bar at the top centre of your screen, above every application.",
               )}
               <div className="settings-form">
-                <label>Show the pill</label>
+                <label htmlFor="pill-top">Show the pill</label>
                 <label className="check">
                   <input
                     type="checkbox"
+                    id="pill-top"
                     checked={s.setting[0].pill_always_on_top}
                     onChange={(event) =>
                       patchSetting({ pill_always_on_top: event.target.checked })
@@ -725,10 +876,11 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   <option value="time">Time on the current case</option>
                   <option value="case">Current case only</option>
                 </select>
-                <label>Notifications</label>
+                <label htmlFor="pill-notifications">Notifications</label>
                 <label className="check">
                   <input
                     type="checkbox"
+                    id="pill-notifications"
                     checked={s.setting[0].notifications}
                     onChange={(event) =>
                       patchSetting({ notifications: event.target.checked })
@@ -736,10 +888,11 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   />{" "}
                   Tell me when a period needs my answer
                 </label>
-                <label>During calls</label>
+                <label htmlFor="pill-calls">During calls</label>
                 <label className="check">
                   <input
                     type="checkbox"
+                    id="pill-calls"
                     checked={s.setting[0].pill_withhold_calls}
                     onChange={(event) =>
                       patchSetting({
@@ -775,9 +928,10 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   id="excluded"
                   key={s.setting[0].excluded_apps}
                   defaultValue={s.setting[0].excluded_apps}
-                  onBlur={(event) =>
-                    patchSetting({ excluded_apps: event.target.value })
-                  }
+                  onBlur={(event) => {
+                    if (event.target.value !== s.setting[0].excluded_apps)
+                      void patchSetting({ excluded_apps: event.target.value });
+                  }}
                 />
                 <label htmlFor="retention">Keep captures for</label>
                 <input
@@ -785,16 +939,19 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   id="retention"
                   key={s.setting[0].capture_retention}
                   defaultValue={s.setting[0].capture_retention}
-                  onBlur={(event) =>
-                    patchSetting({ capture_retention: event.target.value })
-                  }
+                  onBlur={(event) => {
+                    if (event.target.value !== s.setting[0].capture_retention)
+                      void patchSetting({
+                        capture_retention: event.target.value,
+                      });
+                  }}
                 />
               </div>
             </section>
             <section className="settings-card">
               {cardHead(
                 "Invoices",
-                "Numbering is continuous and cannot be reset.",
+                "Next number must be higher than the last issued.",
               )}
               <div className="settings-form">
                 <label htmlFor="prefix">Prefix</label>
@@ -804,9 +961,10 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                   key={s.setting[0].invoice_prefix}
                   defaultValue={s.setting[0].invoice_prefix}
                   onKeyDown={blurOnEnter}
-                  onBlur={(event) =>
-                    void patchSetting({ invoice_prefix: event.target.value })
-                  }
+                  onBlur={(event) => {
+                    if (event.target.value !== s.setting[0].invoice_prefix)
+                      void patchSetting({ invoice_prefix: event.target.value });
+                  }}
                 />
                 <label htmlFor="next">Next number</label>
                 <input
@@ -820,12 +978,26 @@ export function Settings({ s, action, navigate }: ScreenProps) {
                     "0",
                   )}
                   onKeyDown={blurOnEnter}
-                  onBlur={(event) =>
-                    void patchSetting({
-                      next_number: Number(event.target.value),
-                    })
-                  }
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    const next = /^\d+$/.test(value) ? Number(value) : NaN;
+                    const lastIssued = Math.max(0, ...s.invoice
+                      .filter((invoice) => invoice.number.startsWith(s.setting[0].invoice_prefix))
+                      .map((invoice) => Number(invoice.number.slice(s.setting[0].invoice_prefix.length)))
+                      .filter(Number.isSafeInteger));
+                    if (!Number.isSafeInteger(next) || next <= lastIssued) {
+                      setFieldError(
+                        "next-number",
+                        `Enter a whole number higher than ${lastIssued}.`,
+                      );
+                      return;
+                    }
+                    setFieldError("next-number", "");
+                    if (next !== s.setting[0].next_number)
+                      void patchSetting({ next_number: next });
+                  }}
                 />
+                {fieldError("next-number")}
               </div>
             </section>
             <section className="settings-card">

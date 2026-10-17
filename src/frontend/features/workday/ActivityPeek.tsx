@@ -44,7 +44,7 @@ export function ActivityPeek({
   y: number;
 }) {
   const start = seconds(block.start_time);
-  const end = seconds(block.end_time ?? block.start_time);
+  const end = seconds(block.end_time ?? new Date().toTimeString().slice(0, 8));
   const timestamp = start + fraction * (end - start);
   const nearest = sources.reduce<Source | undefined>(
     (current, source) =>
@@ -117,7 +117,8 @@ export function ActivityPeek({
         <div className="meta">
           <span />
           <span>
-            {audio ? "Audio" : "Screen"} · {block.start_time}–{block.end_time}
+            {audio ? "Audio" : "Screen"} · {block.start_time}–
+            {block.end_time ?? "now"}
           </span>
         </div>
       </div>

@@ -2,9 +2,6 @@
   gap: 12px;
   padding-top: 14px;
 }
-.page:has(.activity-timeline) > footer {
-  display: none;
-}
 .activity-crumbs {
   flex: none;
   display: flex;
@@ -269,7 +266,7 @@ html[data-theme="dark"] .activity-track .activity-segment:hover { filter: bright
   box-shadow: 0 0 0 1.5px var(--subtle);
   z-index: 3;
 }
-.activity-track .activity-segment[aria-pressed="true"] {
+.activity-track .activity-segment[aria-pressed="true"]:not(:focus-visible) {
   outline: 0;
   box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--ink);
   z-index: 2;
@@ -598,7 +595,7 @@ html[data-theme="dark"] .activity-track .activity-segment:hover { filter: bright
   border-radius: var(--r-md);
   cursor: pointer;
 }
-.activity-source-pack.modal label.activity-pack-option {
+.activity-source-pack.modal .activity-pack-option {
   flex-direction: row;
   gap: 10px;
 }
@@ -615,8 +612,10 @@ html[data-theme="dark"] .activity-track .activity-segment:hover { filter: bright
   flex: 1;
   line-height: 22.5px;
 }
-.activity-pack-option-content > b {
+.activity-pack-option-content > label {
   font-weight: 600;
+  display: inline;
+  cursor: pointer;
 }
 .activity-pack-lines {
   display: flex;

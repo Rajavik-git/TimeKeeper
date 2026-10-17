@@ -49,11 +49,22 @@ export function Source({ s, core, selected, action, navigate }: Props) {
       })
       .then((result) => {
         if (live && result.data) setActivity(result.data);
+      })
+      .catch(() => {
+        if (live) setNotice("Could not refresh activity.");
       });
     return () => {
       live = false;
     };
   }, [s, clientId, caseId]);
+  useEffect(() => {
+    const hidePreview = () => setPreview(null);
+    window.addEventListener("scroll", hidePreview, true);
+    return () => {
+      window.removeEventListener("scroll", hidePreview, true);
+      if (flashTimer.current !== null) window.clearTimeout(flashTimer.current);
+    };
+  }, []);
   const entries = activity.time_entry.filter(
     (entry) => entry.block_id !== null,
   );
@@ -62,7 +73,23 @@ export function Source({ s, core, selected, action, navigate }: Props) {
       (groups[entry.date] ??= []).push(entry);
       return groups;
     }, {}),
-  ).sort(([a], [b]) => b.localeCompare(a));
+  )
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(
+      ([date, rows]) =>
+        [
+          date,
+          [...rows].sort((a, b) => {
+            const startA =
+              activity.block.find((item) => item.id === a.block_id)
+                ?.start_time ?? "";
+            const startB =
+              activity.block.find((item) => item.id === b.block_id)
+                ?.start_time ?? "";
+            return startA.localeCompare(startB) || a.id - b.id;
+          }),
+        ] as const,
+    );
   const selectedEntry =
     entries.find((entry) => entry.id === picked) ??
     entries.find((entry) => String(entry.id) === selected) ??
@@ -87,11 +114,14 @@ export function Source({ s, core, selected, action, navigate }: Props) {
       item.matter_id === matter?.id &&
       sources.some((source) => source.detected_marker === item.value),
   );
+  const markerSource = sources.find(
+    (source) => source.detected_marker === firstMarker?.value,
+  );
   const recognized =
     matter && block && firstMarker ? (
       <>
-        Recognized from <b>{matter.reference.slice(0, 8)}</b> (window title) and{" "}
-        <b>{firstMarker.value}</b> (screen {sources[0]?.timestamp ?? "—"}).
+        Recognized from <b>{block.window_title}</b> (window title) and{" "}
+        <b>{firstMarker.value}</b> (screen {markerSource?.timestamp ?? "—"}).
       </>
     ) : null;
   const days = Math.max(1, byDate.length);
@@ -330,7 +360,10 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                       const start =
                         ((clock(recorded.start_time) - 480) / 660) * 100;
                       const width = Math.max(
-                        ((clock(recorded.end_time ?? recorded.start_time) -
+                        ((clock(
+                          recorded.end_time ??
+                            new Date().toTimeString().slice(0, 8),
+                        ) -
                           clock(recorded.start_time)) /
                           660) *
                           100,
@@ -380,7 +413,7 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                           className={`activity-segment ${!entry.matter_id ? "unassigned" : !entry.billable ? "nonbill" : canonical?.timeValidated || entry.review_status === "approved" ? "ok" : "pending"} ${recorded.overlaps_block_id ? "overlap" : ""}`}
                           style={{ left: `${start}%`, width: `${width}%` }}
                           aria-pressed={entry.id === selectedEntry?.id}
-                          aria-label={`${client?.name ?? "No case"} · ${caseItem?.title ?? "Unassigned"}, ${recorded.start_time} to ${recorded.end_time}. Click to inspect`}
+                          aria-label={`${client?.name ?? "No case"} · ${caseItem?.title ?? "Unassigned"}, ${recorded.start_time} to ${recorded.end_time ?? "now"}. Click to inspect`}
                           onMouseMove={(event) => {
                             const box =
                               event.currentTarget.getBoundingClientRect();
@@ -397,6 +430,16 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                             );
                           }}
                           onMouseLeave={() => setPreview(null)}
+                          onFocus={(event) => {
+                            const box =
+                              event.currentTarget.getBoundingClientRect();
+                            show(
+                              box.left + box.width / 2,
+                              box.top + box.height / 2,
+                              0.5,
+                            );
+                          }}
+                          onBlur={() => setPreview(null)}
                           onKeyDown={(event) => {
                             if (
                               ![
@@ -497,7 +540,9 @@ export function Source({ s, core, selected, action, navigate }: Props) {
                 {owner?.name ?? "No case"} · {matter?.title ?? "Unassigned"} ·{" "}
                 {matter?.reference ?? ""} ·{" "}
                 {selectedEntry ? shortDate(selectedEntry.date) : ""}
-                {block ? `, ${block.start_time}–${block.end_time}` : ""}
+                {block
+                  ? `, ${block.start_time}–${block.end_time ?? "now"}`
+                  : ""}
               </p>
             </div>
             <div className="activity-summary">
