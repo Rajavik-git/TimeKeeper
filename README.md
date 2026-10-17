@@ -4,11 +4,11 @@ TimeKeeper is a planned desktop application for macOS and Windows. It uses Scree
 
 ## Status and scope
 
-The repository contains documentation and the folder skeleton defined in [AGENTS.md](AGENTS.md). Empty folders contain `.gitkeep` placeholders so Git can retain them. The selected stack is Tauri, React, a local Node.js backend, and SQLite. A single Node.js/TypeScript package now provides the MVP core, SQLite migration, local API module, and automated tests. No desktop executable or Screenpipe runtime integration exists yet.
+The validated six-screen mockup now lives in the agreed source layout. It has a React and Vite interface, a local Hono API, an 18-table SQLite demo database, generated OpenAPI types, and a Windows Tauri shell with a floating pill. The demo uses fictional data dated 16 October 2026. The app does not yet execute Screenpipe workflows or implement the session and work-period behavior in the requirements; see the [mockup gap](docs/MOCKUP_GAP.md).
 
-The lawyer starts and ends a session through explicit commands in Screenpipe. Closing TimeKeeper exits the desktop app and backend but leaves the session active. Reopening reconciles recorded history and preserves manual corrections.
+Node.js 22.13 or newer is required. From the repository root, run `npm ci`, `npm run db:reset`, then `npm run dev` to open the UI at `http://127.0.0.1:5173`. Run `npm test` (45 imported tests), `npm run typecheck`, and `npm run build` to verify the package. `npm run contract:gen` refreshes generated API types. The browser smoke test at `tests/acceptance/smoke.py` covers six screens and the pill in a local Chromium with Python Playwright installed.
 
-Screenpipe executes the workflow after a trigger. It retrieves recorded evidence through its API and submits session and assignment commands through TimeKeeper's MCP server and application API. Event delivery and command handling while the app is closed still require implementation decisions and verification.
+For Tauri development, run `npm run dev:server` separately, then `npm run desktop:dev`. `npm run desktop:build` builds the Windows desktop shell. The Node API is still a separate process and is not packaged in the installer. Native Windows and macOS acceptance, Screenpipe capture and event delivery, and installed-app behavior remain unverified.
 
 ## MVP behavior
 
@@ -40,16 +40,17 @@ Chat-calculated summaries, reusable folder learning, and advanced currency behav
 | [Design review](docs/DESIGN_REVIEW.md) | Remaining risks and implementation checkpoints. |
 | [Contributor instructions](AGENTS.md) | Code organization, dependency rules, and working practices. |
 | [Mockup gap](docs/MOCKUP_GAP.md) | Differences between the validated mockup and the requirements. |
+| [Mockup implementation](docs/implementation/architecture.md) | Imported schema, architecture, recognition, interface, and desktop behavior. |
 
 The requirements define product behavior. The architecture and database documents explain its intended implementation. Research evidence does not establish runtime support in an installed release.
 
 ## Decisions to make
 
-The team builds from the validated mockup's structure, inside the code organization above. These decisions block parts of the MVP. Each line gives a proposed option for discussion; none is agreed until the authoritative document records it. See the [mockup gap](docs/MOCKUP_GAP.md) and the [design review](docs/DESIGN_REVIEW.md) for details.
+The team builds from the validated mockup's structure, inside the code organization above. Decision 1 is agreed; the requirements document still awaits its author’s update. The remaining decisions block parts of the MVP and show proposed options for discussion. See the [mockup gap](docs/MOCKUP_GAP.md) and the [design review](docs/DESIGN_REVIEW.md) for details.
 
-| Priority | Decision | Proposed option |
+| Priority | Decision | Status or proposed option |
 | --- | --- | --- |
-| 1 | Product scope: keep invoice preparation, client rates, flat fees, budgets, and client rules from the mockup, or keep the requirements' billed/unbilled status only. | Keep pre-invoices without numbered invoice issuing; keep case and global rates only. |
+| 1 | Billing scope. | **Agreed (2026-10-17): keep the mockup's billing features**: pre-invoices; numbered deposit and final invoices with frozen lines; expenses, disbursements, VAT; client rates with case > client > base cascade; flat fees; budgets with an 85% alert; and client rules. The requirements author must update `docs/REQUIREMENTS.md`. |
 | 2 | Folder identification. | Match the case reference, case title, or a known folder or file name in the window title, file path, or URL. Otherwise, create an unresolved period and ask the lawyer. |
 | 3 | Duration derivation from observations. | A period runs from one case transition to the next. A gap of more than five minutes without observations is shown as missing coverage and not counted. |
 | 4 | End command while TimeKeeper is closed. | The Screenpipe pipe writes commands to a local inbox folder; TimeKeeper imports them in order at startup. |
