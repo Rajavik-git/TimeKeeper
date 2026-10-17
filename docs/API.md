@@ -265,7 +265,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A6 | Reconstruction conflict endpoints: list and resolve. | **Open.** Conflicts are stored, but the lawyer's resolution action is undefined ([design review](DESIGN_REVIEW.md)). |
 | A7 | Read-only chat tools use existing read endpoints. | **Decided**, see [D3](#d3-read-only-chat-uses-existing-read-endpoints). Needs the A4 filters. |
 | A8 | No local access control for the hackathon. | **Decided**, see [D1](#d1-no-local-access-token-for-the-hackathon). |
-| A9 | Command delivery while TimeKeeper is closed. | **Open**, decision 4. The API only receives commands while the backend runs; this needs a mechanism outside the API. |
+| A9 | Command delivery while TimeKeeper is closed. | **Decided**, see [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder). Not built yet. |
 | A10 | Undo time and source validation with `{"validated": false}`. | **Decided**, see [D2](#d2-undo-a-validation-through-the-same-endpoint). |
 | A11 | Replace `pending` refusals with `rule-not-decided` and `conflict`. | **Decided**, see [D4](#d4-error-codes-replacing-pending-for-refusals). Fixes [E1](#e1-undecided-rules-are-returned-as-successful-202-pending). |
 | A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Proposed.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
@@ -400,6 +400,87 @@ This is about the **outgoing** calls TimeKeeper makes to Screenpipe (the Screenp
 - **Not verified:** Screenpipe documents custom HTTP MCP connections for chat. Whether a scheduled pipe can use the same MCP tools has not been tested, and the [pipe permissions](https://docs.screenpipe.com/pipe-permissions) page only describes rules for Screenpipe's own endpoints. Test this with the installed release before relying on it.
 - **Fallback, if pipes cannot use MCP tools:** the pipe calls the same API endpoints over HTTP at `http://127.0.0.1:8787` (or `TIMEKEEPER_PORT`). Screenpipe documents that its pipe restrictions do not sandbox shell commands such as `curl`, and D1 means no token is needed. The rules stay the same: same endpoints, same idempotency, and the pipe must treat a refused connection as "TimeKeeper not running", never as success ([A9](#missing-endpoints-and-rules)).
 
+### D7. The lawyer starts and ends a session with a button in Screenpipe
+
+- **Decision:** the lawyer presses a button in Screenpipe to start a session and another to end it. A session does not start or end when Screenpipe or TimeKeeper starts or stops; it is always this explicit action ([requirements](REQUIREMENTS.md#sessions-and-desktop-lifecycle)). The team may move the button into TimeKeeper later; the API stays the same either way, because both call the same endpoints.
+- **Flow:** button → Screenpipe pipe run manually → TimeKeeper MCP tools `start_session` / `end_session` ([D6](#d6-screenpipe-reaches-the-api-through-the-timekeeper-mcp-server)) → `POST /api/commands/start` / `POST /api/commands/end`.
+- **Command fields:** each press creates a new `commandId` and records `occurredAt` at the moment of the press. `producerId` identifies the pipe. The end command carries the start's `commandId` as `prerequisiteCommandId`, so an end that arrives first waits as `pending`.
+- **What exists:** both endpoints, with idempotency, one active session, preserved end boundary, and prerequisite ordering, covered by tests.
+- **What is missing:**
+  1. The MCP tools `start_session` and `end_session` (`src/mcp/` is empty).
+  2. The Screenpipe pipe the lawyer runs as the button. Michel's JEV pipe (`feat/jev-implementation`) already runs manually; showing it as a one-click button must be checked on an installed Screenpipe.
+  3. The launcher (`integrations/screenpipe/launcher/`): on start, open TimeKeeper if it is closed and wait for `GET /api/health` ([A1](#missing-endpoints-and-rules)) before sending the command.
+  4. Pressing end while TimeKeeper is closed: handled by [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder).
+
+### D8. Synchronization at startup through a local inbox folder
+
+Solves "end while TimeKeeper is closed" (README decision 4, [design review](DESIGN_REVIEW.md) critical item). It follows the option proposed in the [README](../README.md#decisions-to-make).
+
+**Problem:** the lawyer presses start at 09:00, closes TimeKeeper at 12:00 (the session stays active), and presses end at 18:00. TimeKeeper's API is not running at 18:00, so the command cannot be received. It must not be lost, and the pipe must not report it as applied.
+
+**Decision:** commands that cannot be delivered are kept in a local inbox folder. When TimeKeeper starts, it synchronizes: it applies those commands in order with their original times, then catches up on the recordings it missed.
+
+**1. Location**
+
+- A folder in TimeKeeper's local data directory: `%APPDATA%\TimeKeeper\inbox\` on Windows, `~/Library/Application Support/TimeKeeper/inbox/` on macOS.
+- The pipe reads the path from `TIMEKEEPER_INBOX` in its configuration.
+
+**2. File format**
+
+One JSON file per command, named `<commandId>.json`, with the same fields as the command endpoints plus `kind`:
+
+```json
+{
+  "kind": "end",
+  "producerId": "screenpipe-pipe",
+  "commandId": "end-2026-10-17-1800-a1b2",
+  "sessionId": "session-2026-10-17",
+  "occurredAt": "2026-10-17T18:00:00.000Z",
+  "prerequisiteCommandId": "start-2026-10-17-0900-c3d4"
+}
+```
+
+Files contain only IDs and timestamps, never screen content or client information.
+
+**3. Writing (pipe)**
+
+- The pipe always tries the API first (through MCP, [D6](#d6-screenpipe-reaches-the-api-through-the-timekeeper-mcp-server)). It writes to the inbox only when TimeKeeper does not answer.
+- It writes `<commandId>.json.tmp`, then renames it to `<commandId>.json`, so TimeKeeper never reads a half-written file.
+- It reports "saved, waiting for TimeKeeper", never "applied".
+
+**4. Synchronization at startup (TimeKeeper)**
+
+Before the API reports ready on `GET /api/health`:
+
+1. List `inbox/*.json` (ignore `.tmp`), parse each file, and sort by `occurredAt`, then `commandId`.
+2. Apply each command through the same application service as `POST /api/commands/start` and `/end`. All existing rules apply unchanged: a repeated `commandId` has no further effect, a reused `commandId` with a different payload is refused, and an end waits for its start.
+3. Move each file according to the result:
+   - applied → `inbox/done/` (kept as a trace);
+   - `pending` (waiting for its prerequisite) → left in `inbox/` and retried at the next synchronization;
+   - refused, or the file is not valid → `inbox/failed/`, with a sibling `<commandId>.error.json` holding `{error, message}`. The interface shows a notice so the lawyer can act.
+4. Catch up on recordings: for each session whose time was not covered while TimeKeeper was closed, read the missed window from Screenpipe through the adapter ([D5](#d5-calling-screenpipes-api-with-its-token)), only within the session's start and end boundaries, deduplicating sources ([A12](#why-a12-and-a13-were-added) rules). This is the "reopen and reconcile" step of the [requirements](REQUIREMENTS.md#sessions-and-desktop-lifecycle). Manual corrections are preserved.
+
+The same synchronization may also run on a timer while TimeKeeper is open, so a file written during a short outage is picked up without a restart.
+
+**5. Why**
+
+- It works while TimeKeeper is fully stopped. A queue inside TimeKeeper cannot receive anything then ([AGENTS.md](../AGENTS.md)).
+- No new server, endpoint, or business rule: it reuses the tested command service.
+- Crash-safe: an unprocessed file stays in the folder, and applying it twice is harmless.
+
+**6. Limits and accepted risks**
+
+- The pipe must be able to write files. Screenpipe documents that pipe restrictions do not sandbox shell commands; this is not yet tested on an installed release.
+- If TimeKeeper is never reopened, commands wait. Nothing is applied without the application.
+- Any local program can write to the folder: same accepted risk as [D1](#d1-no-local-access-token-for-the-hackathon).
+- Order relies on the computer's clock (`occurredAt`), which is sufficient on one machine.
+
+**7. What to build**
+
+- In TimeKeeper: an inbox adapter (`src/backend/adapters/inbox/`) behind a port, and a startup worker (`src/backend/workers/`) that runs steps 1 to 4 before readiness ([AGENTS.md](../AGENTS.md) rule 4).
+- In the pipe: the fallback write when the API does not answer.
+- Tests: end written while closed is applied at startup with its original time; duplicate files; end before start; invalid file; crash between apply and move.
+
 ## Open questions
 
-None for the API at the moment. Product decisions still open elsewhere (duration derivation, folder identification, command delivery while closed, reconstruction conflicts) are tracked in the [design review](DESIGN_REVIEW.md) and the [README](../README.md#decisions-to-make).
+None for the API at the moment. Product decisions still open elsewhere (duration derivation, folder identification, reconstruction conflicts) are tracked in the [design review](DESIGN_REVIEW.md) and the [README](../README.md#decisions-to-make).
