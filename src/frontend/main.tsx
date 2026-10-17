@@ -1,11 +1,15 @@
-import React, { useEffect, useState } from "react";
+import { calendarTime } from "../shared/dates";
+import { useToday } from "./shared/hooks/useToday";
+import { performAction } from "./api/actions";
+import React, { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { api, today, type State, type CoreState, type View } from "./api/client";
+import { type View, type EntityId } from "./api/client";
+import { loadApplication, useResource, refreshApplication } from "./api/queries";
 import { Desk } from "./features/desk/Desk";
 import { MyDay } from "./features/workday/MyDay";
 import { Cases } from "./features/cases/Cases";
 import { PreInvoices } from "./features/billing-status/PreInvoices";
-import { Source } from "./features/workday/Source";
+import { PeriodActivity } from "./features/workday/PeriodActivity";
 import { Settings } from "./features/settings/Settings";
 import { ThemeSwitch, restoreTheme } from "./shared/components/ThemeSwitch";
 import { Icon } from "./shared/components/Icon";
@@ -23,62 +27,43 @@ const primaryViews = [
 ] as const;
 
 function App() {
-  const [s, setS] = useState<State>();
-  const [core, setCore] = useState<CoreState>();
-  const [view, setView] = useState<View>(new URLSearchParams(window.location.search).get('view')==='desk'?'desk':'myDay');
-  const [sourceId, setSourceId] = useState('');
-  const [selectedCase, setSelectedCase] = useState<number>();
+  const today = useToday();
+  const application = useResource("application", loadApplication, 5000);
+  const catalogState = application.data?.catalogState;
+  const workspaceState = application.data?.workspaceState;
+  const [view, setView] = useState<View>(
+    new URLSearchParams(window.location.search).get("view") === "desk" ? "desk" : "myDay",
+  );
+  const [activityPeriodId, setActivityPeriodId] = useState("");
+  const [selectedCase, setSelectedCase] = useState<EntityId>();
   const [returnFocusId, setReturnFocusId] = useState<string | null>(null);
-  const refresh = async () => {
-    const [legacy, active, sessions, periods, sources, questions, billing, coverageGaps] = await Promise.all([
-      api.GET('/api/state'), api.GET('/api/sessions/active'), api.GET('/api/sessions'),
-      api.GET('/api/work-periods'), api.GET('/api/sources'), api.GET('/api/questions'),api.GET('/api/billing/state'),api.GET('/api/coverage-gaps'),
-    ]);
-    for (const response of [legacy,active,sessions,periods,sources,questions,billing,coverageGaps])
-      if (response.error) throw Error(JSON.stringify(response.error));
-    setS(legacy.data);
-    setCore({activeSession:active.data ?? null,sessions:sessions.data ?? [],periods:periods.data ?? [],
-      sources:sources.data ?? [],questions:questions.data ?? [],coverageGaps:coverageGaps.data ?? [],billing:billing.data ?? {invoices:[],lines:[],expenses:[]}});
-  };
-  useEffect(() => {
-    refresh().catch((e) => showToast(String(e)));
-  }, []);
-  const action = async <T,>(
-    promise: Promise<{ data?: T; error?: unknown }>,
-  ): Promise<T | undefined> => {
-    try {
-      const r = await promise;
-      if (r.error)
-        throw Error(
-          typeof r.error === "object" && r.error && "error" in r.error
-            ? String(r.error.error)
-            : JSON.stringify(r.error),
-        );
-      await refresh();
-      return r.data;
-    } catch (e) {
-      showToast(String(e));
-      return undefined;
-    }
-  };
-  const navigate = (v: View, matterId?: number) => {
-    if (view === 'source' && v === 'myDay' && sourceId) setReturnFocusId(sourceId);
-    if (matterId) setSelectedCase(matterId);
-    else if (v === 'matters' || v === 'preInvoices') setSelectedCase(undefined);
-    setView(v);
-    if(v==='desk') window.history.replaceState(null,'','?view=desk');
-    else if(window.location.search.includes('view=desk')) window.history.replaceState(null,'',window.location.pathname);
-    document.querySelector(".shell-main")?.scrollTo(0, 0);
-    window.scrollTo(0, 0);
-  };
-  const source = (id: string) => {
-    setSourceId(id);
+  const refresh = refreshApplication;
+  const action = <T,>(promise: Promise<{ data?: T; error?: unknown }>) =>
+    performAction(promise, refresh, showToast);
+  const navigate = useCallback(
+    (v: View, caseId?: EntityId) => {
+      if (view === "source" && v === "myDay" && activityPeriodId)
+        setReturnFocusId(activityPeriodId);
+      if (caseId) setSelectedCase(caseId);
+      else if (v === "matters" || v === "preInvoices") setSelectedCase(undefined);
+      setView(v);
+      if (v === "desk") window.history.replaceState(null, "", "?view=desk");
+      else if (window.location.search.includes("view=desk"))
+        window.history.replaceState(null, "", window.location.pathname);
+      document.querySelector(".shell-main")?.scrollTo(0, 0);
+      window.scrollTo(0, 0);
+    },
+    [view, activityPeriodId],
+  );
+  const openPeriodActivity = (periodId: string) => {
+    setActivityPeriodId(periodId);
     setReturnFocusId(null);
     navigate("source");
   };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (
+        (event.target instanceof HTMLElement && event.target.closest("dialog[open]")) ||
         event.altKey ||
         event.ctrlKey ||
         event.metaKey ||
@@ -94,44 +79,95 @@ function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
-  const props = s && core
-    ? { s, core, refresh, action, navigate, source, selectedCase }
-    : undefined;
-  const pending = core?.periods.filter(p=>p.startedAt.startsWith(today) && !p.excluded && !p.timeValidated).length ?? 0;
+  }, [navigate]);
+  const props =
+    catalogState && workspaceState
+      ? {
+          catalogState,
+          workspaceState,
+          refresh,
+          action,
+          navigate,
+          openPeriodActivity,
+          selectedCase,
+        }
+      : undefined;
+  const pending =
+    workspaceState?.periods.filter(
+      (p) => p.startedAt.startsWith(today) && !p.excluded && !p.timeValidated,
+    ).length ?? 0;
   return (
     <div className="app floating-shell">
       <div className="shell-main">
         <header className="floating-nav">
           <Logo compact />
           <nav className="floating-tabs" aria-label="Screens">
-            {primaryViews.map(([key,title,icon]) => <button key={key} aria-current={view===key?'page':undefined} aria-label={title} onClick={()=>navigate(key)}>
-              <Icon name={icon}/><span className="tab-label">{title}</span>
-              {key==='myDay'&&<span className="cnt">{pending}</span>}
-              {key==='matters'&&<span className="cnt">{s?.matter.length??0}</span>}
-            </button>)}
+            {primaryViews.map(([key, title, icon]) => (
+              <button
+                key={key}
+                aria-current={view === key ? "page" : undefined}
+                aria-label={title}
+                onClick={() => navigate(key)}
+              >
+                <Icon name={icon} />
+                <span className="tab-label">{title}</span>
+                {key === "myDay" && <span className="cnt">{pending}</span>}
+                {key === "matters" && (
+                  <span className="cnt">{catalogState?.cases.length ?? 0}</span>
+                )}
+              </button>
+            ))}
           </nav>
           <div className="floating-tools">
-            <span className="session-chip" title={core?.activeSession?`Started from Screenpipe at ${core.activeSession.startedAt.slice(11,16)}. Closing TimeKeeper keeps the session open.`:'Start from Screenpipe to begin a session.'}>
-              <span className="live" aria-hidden="true"/>{core?.activeSession?`Session since ${core.activeSession.startedAt.slice(11,16)}`:'No active session'}
+            <span
+              className="session-chip"
+              title={
+                workspaceState?.activeSession
+                  ? `Started from Screenpipe at ${calendarTime(workspaceState.activeSession.startedAt)}. Closing TimeKeeper keeps the session open.`
+                  : "Start from Screenpipe to begin a session."
+              }
+            >
+              <span className="live" aria-hidden="true" />
+              {workspaceState?.activeSession
+                ? `Session since ${calendarTime(workspaceState.activeSession.startedAt)}`
+                : "No active session"}
             </span>
             <ThemeSwitch />
           </div>
         </header>
         <ToastHost />
         <main id="main" className="page">
+          {props && application.isError && (
+            <p role="alert">
+              Could not refresh local data. Displayed data may be out of date.{" "}
+              <button className="btn" onClick={() => void application.refetch()}>
+                Refresh
+              </button>
+            </p>
+          )}
           {!props ? (
-            <p>Loading local data…</p>
+            <p role={application.isError ? "alert" : "status"}>
+              {application.isError ? "Could not load local data." : "Loading local data…"}
+              {application.isError && (
+                <button className="btn" onClick={() => void application.refetch()}>
+                  Retry
+                </button>
+              )}
+            </p>
           ) : view === "desk" ? (
             <Desk {...props} />
           ) : view === "myDay" ? (
-            <MyDay {...props} returnFocusId={returnFocusId} onFocusReturned={() => setReturnFocusId(null)} />
+            <MyDay
+              {...props}
+              returnFocusId={returnFocusId}
+              onFocusReturned={() => setReturnFocusId(null)}
+            />
           ) : view === "matters" ? (
             <Cases {...props} />
           ) : view === "preInvoices" ? (
             <PreInvoices {...props} />
           ) : view === "source" ? (
-            <Source {...props} selected={sourceId} />
+            <PeriodActivity {...props} selected={activityPeriodId} />
           ) : (
             <Settings {...props} />
           )}

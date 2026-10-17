@@ -8,14 +8,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowSyntheticDefaultImports": true,
-    "types": [
-      "vite/client",
-      "node"
-    ]
+    "types": ["vite/client", "node"]
   },
-  "include": [
-    "src/frontend/**/*.ts",
-    "src/frontend/**/*.tsx",
-    "src/contracts/**/*.ts"
-  ]
+  "include": ["src/frontend/**/*.ts", "src/frontend/**/*.tsx", "src/contracts/**/*.ts"]
 }

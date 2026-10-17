@@ -1,135 +1,74 @@
-import { useEffect, useRef, useState } from "react";
-import { api, shortDate, type ScreenProps } from "../../api/client";
+import { calendarDay } from "../../../shared/dates";
+import type { SourcePackScope, SourcePackOption } from "../../api/source-pack";
+import { useSourcePackExport } from "../../shared/hooks/useSourcePackExport";
+import { Modal } from "../../shared/components/Modal";
+import { useState } from "react";
+import { shortDate, type EntityId, type ScreenProps } from "../../api/client";
 import { effectiveMs, formatPreciseDuration } from "../../calculations/billing";
 
-type Scope = "invoice" | "case" | "period" | "chosen";
-type Props = Pick<ScreenProps, "s" | "core" | "action"> & {
-  matterId: number;
-  initialPeriodId?: number;
+type Scope = SourcePackScope;
+type Props = Pick<ScreenProps, "catalogState" | "workspaceState" | "action"> & {
+  caseId: EntityId;
+  initialPeriodId?: number | string;
   close: () => void;
 };
 export function ActivitySourcePackDialog({
-  s,
-  core,
+  catalogState,
+  workspaceState,
   action,
-  matterId,
+  caseId,
   initialPeriodId,
   close,
 }: Props) {
-  const matter = s.matter.find((item) => item.id === matterId);
-  const client = s.client.find((item) => item.id === matter?.client_id);
-  const invoices = s.invoice.filter((item) => item.matter_id === matterId);
-  const entries = s.time_entry
-    .filter((item) => item.matter_id === matterId && item.block_id !== null)
-    .sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  const caseItem = catalogState.cases.find((item) => String(item.id) === String(caseId));
+  const client = catalogState.clients.find(
+    (item) => String(item.id) === String(caseItem?.clientId),
+  );
+  const invoices = workspaceState.billing.invoices.filter(
+    (invoice) => invoice.caseId === String(caseId),
+  );
+  const entries = workspaceState.periods
+    .filter((period) => period.caseId === String(caseId))
+    .map((period) => ({ id: period.id, date: calendarDay(period.startedAt), label: period.label }))
+    .sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
   const [scope, setScope] = useState<Scope>(
-    initialPeriodId ? "chosen" : invoices.length ? "invoice" : "case",
+    initialPeriodId ? "selectedPeriods" : invoices.length ? "invoice" : "case",
   );
   const [invoiceId, setInvoiceId] = useState(invoices[0]?.id);
-  const [from, setFrom] = useState(
-    entries.at(-1)?.date.replace(/-\d\d$/, "-01") ?? "",
-  );
+  const [from, setFrom] = useState(entries.at(-1)?.date.replace(/-\d\d$/, "-01") ?? "");
   const [to, setTo] = useState(entries[0]?.date ?? "");
-  const [selected, setSelected] = useState<number[]>(
-    initialPeriodId ? [initialPeriodId] : [],
+  const [selected, setSelected] = useState<string[]>(
+    initialPeriodId ? [String(initialPeriodId)] : [],
   );
-  const [options, setOptions] = useState<string[]>([
-    "blur",
-    "personal",
-    "audit",
-  ]);
-  const [receipt, setReceipt] = useState("");
-  const [busy, setBusy] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-    dialogRef.current
-      ?.querySelector<HTMLInputElement>('input[type="radio"]')
-      ?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = [
-        ...(dialogRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ) ?? []),
-      ];
-      if (!items.length) return;
-      const first = items[0],
-        last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      previous?.focus();
-    };
-  }, []);
-  if (!matter) return null;
-  const toggleOption = (value: string) =>
+  const [options, setOptions] = useState<SourcePackOption[]>(["blur", "personal", "audit"]);
+  const {
+    receipt,
+    busy,
+    create: exportPack,
+  } = useSourcePackExport(action, caseId, caseItem?.reference ?? "");
+  if (!caseItem) return null;
+  const toggleOption = (value: SourcePackOption) =>
     setOptions((current) =>
-      current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value],
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value],
     );
-  const toggleEntry = (id: number) =>
+  const toggleEntry = (id: string) =>
     setSelected((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     );
-  const create = async () => {
-    setBusy(true);
-    try {
-      const result = await action(
-        api.POST("/api/cases/{id}/source-pack", {
-          params: { path: { id: matterId } },
-          body: {
-            scope,
-            options,
-            ...(scope === "invoice" ? { invoiceId } : {}),
-            ...(scope === "period" ? { from, to } : {}),
-            ...(scope === "chosen" ? { periodIds: selected } : {}),
-          },
-        }),
-      );
-      if (result) {
-        setReceipt(result.export.sha256);
-        const url = URL.createObjectURL(
-          new Blob([result.payload], {
-            type: "application/json;charset=utf-8",
-          }),
-        );
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `source-pack-${matter.reference}-${result.export.id}.json`;
-        link.click();
-        window.setTimeout(() => URL.revokeObjectURL(url), 0);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
+  const create = () =>
+    exportPack({
+      scope,
+      options,
+      ...(scope === "invoice" ? { invoiceId } : {}),
+      ...(scope === "dateRange" ? { from, to } : {}),
+      ...(scope === "selectedPeriods" ? { periodIds: selected } : {}),
+    });
   const option = (value: Scope, label: string, detail?: React.ReactNode) => (
     <div
       className={`activity-pack-option ${scope === value ? "on" : ""}`}
       key={value}
       onClick={(event) => {
-        if (!(event.target as HTMLElement).closest("input, select, button, label"))
-          setScope(value);
+        if (!(event.target as HTMLElement).closest("input, select, button, label")) setScope(value);
       }}
     >
       <input
@@ -144,13 +83,10 @@ export function ActivitySourcePackDialog({
           <b>{label}</b>
           {detail && <span className="muted"> · {detail}</span>}
         </label>
-        {scope === "chosen" && value === "chosen" && (
+        {scope === "selectedPeriods" && value === "selectedPeriods" && (
           <div className="activity-pack-lines">
             {entries.map((entry) => {
-              const block = s.block.find((item) => item.id === entry.block_id);
-              const period = core.periods.find(
-                (item) => item.id === String(entry.id),
-              );
+              const period = workspaceState.periods.find((item) => item.id === String(entry.id));
               return (
                 <label
                   className="activity-pack-line"
@@ -166,47 +102,26 @@ export function ActivitySourcePackDialog({
                     {shortDate(entry.date)} · {entry.label}
                   </span>
                   <span className="muted">
-                    {formatPreciseDuration(
-                      period
-                        ? effectiveMs(period)
-                        : block
-                          ? block.minutes * 60000
-                          : entry.tenths_of_hour * 360000,
-                    )}
+                    {formatPreciseDuration(period ? effectiveMs(period) : null)}
                   </span>
                 </label>
               );
             })}
           </div>
         )}
-        {scope === "period" && value === "period" && (
-          <div
-            className="activity-pack-dates"
-            onClick={(event) => event.stopPropagation()}
-          >
+        {scope === "dateRange" && value === "dateRange" && (
+          <div className="activity-pack-dates" onClick={(event) => event.stopPropagation()}>
             <label>
               From{" "}
-              <input
-                type="date"
-                value={from}
-                onChange={(event) => setFrom(event.target.value)}
-              />
+              <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
             </label>
             <label>
-              To{" "}
-              <input
-                type="date"
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-              />
+              To <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
             </label>
           </div>
         )}
         {scope === "invoice" && value === "invoice" && invoices.length > 1 && (
-          <select
-            value={invoiceId}
-            onChange={(event) => setInvoiceId(Number(event.target.value))}
-          >
+          <select value={invoiceId} onChange={(event) => setInvoiceId(Number(event.target.value))}>
             {invoices.map((invoice) => (
               <option key={invoice.id} value={invoice.id}>
                 {invoice.number}
@@ -218,25 +133,13 @@ export function ActivitySourcePackDialog({
     </div>
   );
   return (
-    <div
-      className="modal-back"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) close();
-      }}
-    >
-      <div
-        className="modal activity-source-pack"
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Export source pack"
-      >
+    <Modal close={close} label="Export source pack">
+      <div className="modal activity-source-pack" aria-label="Export source pack">
         <div className="card-h">
           <div className="t">
             <h2>Export source pack</h2>
             <p>
-              {client?.name} · {matter.title}{" "}
-              <span className="ref">{matter.reference}</span>
+              {client?.name} · {caseItem.title} <span className="ref">{caseItem.reference}</span>
             </p>
           </div>
           <button className="iconbtn" aria-label="Close" onClick={close}>
@@ -252,34 +155,32 @@ export function ActivitySourcePackDialog({
                   "invoice",
                   "An invoice",
                   invoices
-                    .map(
-                      (invoice) =>
-                        `${invoice.number} (${shortDate(invoice.date)})`,
-                    )
+                    .map((invoice) => `${invoice.number} (${shortDate(invoice.date)})`)
                     .join(", "),
                 )}
+              {option("case", "The whole case", `${entries.length} recorded periods`)}
               {option(
-                "case",
-                "The whole case",
-                `${entries.length} recorded periods`,
+                "dateRange",
+                "A date range",
+                from && to
+                  ? `from ${shortDate(from)} to ${shortDate(to)}`
+                  : "Choose start and end dates",
               )}
-              {option(
-                "period",
-                "A period",
-                `from ${shortDate(from)} to ${shortDate(to)}`,
-              )}
-              {option("chosen", "Lines I choose")}
+              {option("selectedPeriods", "Lines I choose")}
             </div>
           </div>
           <div>
-            <div className="activity-pack-label">Protect confidentiality</div>
+            <div className="activity-pack-label">Export contents</div>
+            <p className="muted">
+              Other client names are redacted from exported text. Application filters apply where an
+              app name is recorded. Media files are not included.
+            </p>
             <div className="activity-pack-checks">
               {(
                 [
-                  ["blur", "Blur other clients visible on screen"],
-                  ["personal", "Leave out personal apps"],
-                  ["transcripts", "Include call transcripts"],
-                  ["audit", "Include the audit trail"],
+                  ["personal", "Exclude configured applications"],
+                  ["audio", "Include stored audio text"],
+                  ["audit", "Include audit history"],
                 ] as const
               ).map(([value, label]) => (
                 <label key={value}>
@@ -293,9 +194,7 @@ export function ActivitySourcePackDialog({
               ))}
             </div>
           </div>
-          {receipt && (
-            <p role="status">Source pack created · SHA-256 {receipt}</p>
-          )}
+          {receipt && <p role="status">Source pack created · SHA-256 {receipt}</p>}
           <div className="activity-pack-footer">
             <button className="btn ghost" onClick={close}>
               Cancel
@@ -306,7 +205,7 @@ export function ActivitySourcePackDialog({
               disabled={
                 busy ||
                 (scope === "invoice" && !invoiceId) ||
-                (scope === "chosen" && !selected.length)
+                (scope === "selectedPeriods" && !selected.length)
               }
             >
               <svg className="i sm" viewBox="0 0 24 24" aria-hidden="true">
@@ -317,6 +216,6 @@ export function ActivitySourcePackDialog({
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

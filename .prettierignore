@@ -1,0 +1,7 @@
+# Generated files have their own writers. Git-ignored files are also excluded.
+package-lock.json
+src/contracts/generated.ts
+src/contracts/request-contract.generated.ts
+src-tauri/gen/
+graphify-out/
+.archify/

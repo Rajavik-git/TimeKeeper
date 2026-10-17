@@ -21,14 +21,7 @@
     "invoice_prefix",
     "next_number"
   ],
-  "task": [
-    "id",
-    "code",
-    "label",
-    "billable_by_default",
-    "off_screen",
-    "sort_order"
-  ],
+  "task": ["id", "code", "label", "billable_by_default", "off_screen", "sort_order"],
   "client": [
     "id",
     "name",
@@ -56,23 +49,8 @@
     "status",
     "opened_on"
   ],
-  "marker": [
-    "id",
-    "matter_id",
-    "type",
-    "value",
-    "weight",
-    "learned",
-    "hits",
-    "last_seen_at"
-  ],
-  "client_rule": [
-    "id",
-    "client_id",
-    "type",
-    "value",
-    "label"
-  ],
+  "marker": ["id", "matter_id", "type", "value", "weight", "learned", "hits", "last_seen_at"],
+  "client_rule": ["id", "client_id", "type", "value", "label"],
   "block": [
     "id",
     "date",
@@ -97,22 +75,8 @@
     "detected_marker",
     "available"
   ],
-  "pause": [
-    "id",
-    "date",
-    "start_time",
-    "end_time",
-    "origin",
-    "reason"
-  ],
-  "jev_review": [
-    "id",
-    "block_id",
-    "question",
-    "answer",
-    "probability",
-    "sent_data"
-  ],
+  "pause": ["id", "date", "start_time", "end_time", "origin", "reason"],
+  "jev_review": ["id", "block_id", "question", "answer", "probability", "sent_data"],
   "time_entry": [
     "id",
     "block_id",
@@ -129,15 +93,7 @@
     "billing_status",
     "invoice_id"
   ],
-  "expense": [
-    "id",
-    "matter_id",
-    "date",
-    "label",
-    "type",
-    "amount_cents",
-    "invoice_id"
-  ],
+  "expense": ["id", "matter_id", "date", "label", "type", "amount_cents", "invoice_id"],
   "invoice": [
     "id",
     "matter_id",
@@ -170,16 +126,6 @@
     "before",
     "after"
   ],
-  "source_export": [
-    "id",
-    "time_entry_ids",
-    "options",
-    "sha256",
-    "created_at"
-  ],
-  "schema_version": [
-    "version",
-    "applied_on",
-    "description"
-  ]
+  "source_export": ["id", "time_entry_ids", "options", "sha256", "created_at"],
+  "schema_version": ["version", "applied_on", "description"]
 }

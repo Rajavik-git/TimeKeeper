@@ -28,11 +28,11 @@ export function calculateLine(input: {
   travel_excluded: boolean;
   billed_amount?: number;
 }) {
-  const value_cents = Math.round(input.tenths * input.reference_cents / 10);
-  const amount_cents = input.billed_amount ?? (
-    input.billable && !input.rate.flat_fee && !input.travel_excluded
-      ? Math.round(input.tenths * input.rate.rate_cents / 10)
-      : 0
-  );
+  const value_cents = Math.round((input.tenths * input.reference_cents) / 10);
+  const amount_cents =
+    input.billed_amount ??
+    (input.billable && !input.rate.flat_fee && !input.travel_excluded
+      ? Math.round((input.tenths * input.rate.rate_cents) / 10)
+      : 0);
   return { ...input.rate, value_cents, amount_cents };
 }

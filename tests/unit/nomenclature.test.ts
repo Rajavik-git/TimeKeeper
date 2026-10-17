@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { memoryDb } from "../../src/backend/adapters/sqlite/repository";
+import { memoryDb } from "../fixtures/database.js";
 import { createApp } from "../../src/backend/api/app";
 
 describe("matter nomenclature and learning", () => {
@@ -19,12 +19,8 @@ describe("matter nomenclature and learning", () => {
       };
       const second = (await (await create(2)).json()) as { reference: string };
       const year = new Date().getFullYear();
-      expect(first.reference).toBe(
-        `${year}-${year === 2026 ? "022" : "001"}-DAWSON`,
-      );
-      expect(second.reference).toBe(
-        `${year}-${year === 2026 ? "023" : "002"}-LUMEN`,
-      );
+      expect(first.reference).toBe(`${year}-${year === 2026 ? "022" : "001"}-DAWSON`);
+      expect(second.reference).toBe(`${year}-${year === 2026 ? "023" : "002"}-LUMEN`);
       const change = await app.request(`/api/matter/${first.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
@@ -33,20 +29,20 @@ describe("matter nomenclature and learning", () => {
       expect(change.status).toBe(400);
       expect(
         (
-          db
-            .prepare("SELECT reference FROM matter WHERE id=?")
-            .get(first.id) as { reference: string }
+          db.prepare("SELECT reference FROM cases WHERE id=?").get(String(first.id)) as {
+            reference: string;
+          }
         ).reference,
       ).toBe(first.reference);
       expect(() =>
         db
-          .prepare("UPDATE matter SET reference=? WHERE id=?")
-          .run(second.reference, first.id),
+          .prepare("UPDATE cases SET reference=? WHERE id=?")
+          .run(second.reference, String(first.id)),
       ).toThrow();
       expect(() =>
         db
-          .prepare("UPDATE matter SET reference=? WHERE id=?")
-          .run("2000-001-OTHER", first.id),
+          .prepare("UPDATE cases SET reference=? WHERE id=?")
+          .run("2000-001-OTHER", String(first.id)),
       ).toThrow();
     } finally {
       db.close();
@@ -65,17 +61,11 @@ describe("matter nomenclature and learning", () => {
       expect(count("matter")).toBe(12);
       expect(count("marker")).toBe(25);
       expect(count("time_entry")).toBe(37);
+      expect(db.prepare("SELECT COUNT(*) AS n FROM matter WHERE status='closed'").get()).toEqual({
+        n: 1,
+      });
       expect(
-        db
-          .prepare("SELECT COUNT(*) AS n FROM matter WHERE status='closed'")
-          .get(),
-      ).toEqual({ n: 1 });
-      expect(
-        db
-          .prepare(
-            "SELECT COUNT(*) AS n FROM time_entry WHERE date='2026-10-16'",
-          )
-          .get(),
+        db.prepare("SELECT COUNT(*) AS n FROM time_entry WHERE date='2026-10-16'").get(),
       ).toEqual({ n: 5 });
       const added = db
         .prepare(
@@ -89,15 +79,17 @@ describe("matter nomenclature and learning", () => {
         expect(entry.billing_status).toBe("to_bill");
         expect(entry.invoice_id).toBeNull();
         expect(entry.amount_cents).toBe(0);
-        const period=db.prepare('SELECT duration_override_ms FROM work_periods WHERE id=?').get(String(entry.id)) as {duration_override_ms:number};
-        expect(period.duration_override_ms).toBe(Number(entry.tenths_of_hour)*360000);
+        const period = db
+          .prepare("SELECT duration_override_ms FROM work_periods WHERE id=?")
+          .get(String(entry.id)) as { duration_override_ms: number };
+        expect(period.duration_override_ms).toBe(Number(entry.tenths_of_hour) * 360000);
       }
       expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     } finally {
       db.close();
     }
   });
-  it("learns a file marker when assigning the JAF block", async () => {
+  it("assigns the JAF block without learning a marker", async () => {
     const db = memoryDb();
     try {
       const response = await createApp(db).request("/api/time-entries/13", {
@@ -107,19 +99,16 @@ describe("matter nomenclature and learning", () => {
       });
       expect(response.status).toBe(200);
       expect(
+        db.prepare("SELECT case_id,assignment_revision FROM work_periods WHERE id='13'").get(),
+      ).toMatchObject({
+        case_id: "5",
+        assignment_revision: 1,
+      });
+      expect(
         db
-          .prepare(
-            "SELECT type,value,weight,learned FROM marker WHERE matter_id=5 AND learned=1",
-          )
+          .prepare("SELECT type,value,weight,learned FROM markers WHERE case_id='5' AND learned=1")
           .all(),
-      ).toEqual([
-        {
-          type: "file",
-          value: "Family court appeal deadline research",
-          weight: 0.6,
-          learned: 1,
-        },
-      ]);
+      ).toEqual([]);
     } finally {
       db.close();
     }

@@ -1,14 +1,17 @@
 const paths = {
-  edit: (<><path d="m4 20 4.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20Z"/><path d="m14 7 3 3"/></>),
+  edit: (
+    <>
+      <path d="m4 20 4.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20Z" />
+      <path d="m14 7 3 3" />
+    </>
+  ),
   day: (
     <>
       <rect x="4" y="5" width="16" height="16" rx="2" />
       <path d="M8 3v4M16 3v4M4 10h16" />
     </>
   ),
-  cases: (
-    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-  ),
+  cases: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
   pre: (
     <>
       <path d="M6 2h9l5 5v15H6z" />
@@ -63,7 +66,11 @@ const paths = {
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   filter: <path d="M3 5h18l-7 8v6l-4-2v-4z" />,
-  down: <><path d="M12 4v12M6 10l6 6 6-6M4 20h16" /></>,
+  down: (
+    <>
+      <path d="M12 4v12M6 10l6 6 6-6M4 20h16" />
+    </>
+  ),
   chev: <path d="M9 6l6 6-6 6" />,
   alert: (
     <>
@@ -86,19 +93,9 @@ const paths = {
   ),
 } as const;
 
-export function Icon({
-  name,
-  small = false,
-}: {
-  name: keyof typeof paths;
-  small?: boolean;
-}) {
+export function Icon({ name, small = false }: { name: keyof typeof paths; small?: boolean }) {
   return (
-    <svg
-      className={`i${small ? " sm" : ""}`}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
+    <svg className={`i${small ? " sm" : ""}`} viewBox="0 0 24 24" aria-hidden="true">
       {paths[name]}
     </svg>
   );

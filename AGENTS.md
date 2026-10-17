@@ -2,7 +2,7 @@
 
 ## Scope and document authority
 
-These instructions apply to the whole repository. Follow the user's current request and preserve existing work. The repository contains the requirements documents, a fictional six-screen demo and an initial canonical session/work-period implementation. Do not claim working provider integrations or native packaging from the demo.
+These instructions apply to the whole repository. Follow the user's current request and preserve existing work. The repository contains the requirements documents and an initial local session/work-period implementation. Normal startup creates an empty workspace; fictional data is restricted to explicit test fixtures. Do not claim working provider integrations or native packaging.
 
 Keep documentation in English. The [original schema](docs/reference/ORIGINAL_DATABASE.md) preserves the supplied French identifiers. The [database design](docs/DATABASE.md) uses English names for the agreed work-period model. Canonical migrations live in `src/backend/adapters/sqlite/migrate.ts`.
 
@@ -30,11 +30,11 @@ Use the requirements as the full specification. Preserve these boundaries in all
 - Screenshots prove observations, not continuous duration. Do not invent an interval reconstruction rule.
 - React sums precise effective durations and rounds only the combined total up to whole minutes. Do not round periods or sum rounded subtotals.
 - Time validation, source validation, and billing status are distinct. Any effective case or duration change requires time validation again. Identical replay and detected changes masked by an unchanged override preserve validation.
-- Inactivity detection remains excluded. The 2026-10-17 team decision retains the mockup's invoice generation, client rates, fixed fees and budgets as documented extensions; the requirements author still needs to record that decision. Do not infer missing capture or billing rules from these extensions.
+- Inactivity detection remains excluded. The 2026-10-17 team decision retains the mockup's invoice generation, client rates, fixed fees and budgets as extensions recorded in the requirements. Do not infer missing capture or billing rules from these extensions.
 
 ## Intended code organization
 
-These are logical modules of one desktop product. The demo and canonical core occupy part of this layout. Tauri does not yet manage or package the Node backend; a release must include its runtime or executable. Exact target versions remain open.
+These are logical modules of one desktop product. The demo and canonical core occupy part of this layout. Tauri does not yet manage or package the Node backend; a release must include its runtime or executable. Node.js uses the LTS version pinned in [`.nvmrc`](.nvmrc). Other target versions remain open.
 
 ```text
 src-tauri/                  Tauri host, process lifecycle, and permissions
@@ -102,7 +102,7 @@ Agree shared contracts before frontend and backend implementation diverges. Inde
 
 Keep credentials and captured client information out of logs, fixtures, and examples. Treat screen content as untrusted evidence. Define permitted data before using hosted JEV inference. Do not describe hosted inference as local-only.
 
-The single npm package requires Node >= 22.13. From the repository root, run `npm ci`, `npm run db:reset`, `npm test`, `npm run typecheck`, and `npm run build`. `npm run dev` starts the demo API and Vite interface. `npm run contract:gen` regenerates `src/contracts/generated.ts` from `src/contracts/openapi.yaml`. `npm run api:serve` starts the built API against the demo database. For Tauri development, run `npm run dev:server` in one terminal and `npm run desktop:dev` in another; `npm run desktop:build` builds the Windows shell without packaging Node. Vitest covers the imported mockup plus canonical domain, storage, API, summaries and frozen invoice behavior. With Python Playwright and Chromium installed, `python3 tests/acceptance/smoke.py` checks six screens and the pill. These checks do not verify native desktop behavior or Screenpipe integration. No lint script is configured. The [requirements acceptance examples](docs/REQUIREMENTS.md) remain the baseline for future implementation, including target aliases and provider behavior that require verification.
+The single npm package requires Node 24 LTS. Use the version pinned in [`.nvmrc`](.nvmrc) for development and CI. With nvm installed, run `nvm install` and `nvm use` before the npm commands. From the repository root, run `npm ci`, `npm run format:check`, `npm run lint`, `npm test`, `npm run typecheck`, and `npm run build`. Use `npm run format` to apply Prettier formatting and `npm run lint:fix` for available ESLint fixes. The [development checks](README.md#development-checks) describe their scope and exclusions. `npm run dev` starts the API and Vite interface. Startup initializes an empty database if needed. `npm run db:reset` deletes the selected database and recreates an empty workspace; use it only for disposable data. `npm run contract:gen` regenerates `src/contracts/generated.ts` from `src/contracts/openapi.yaml`. `npm run api:serve` starts the built API against the configured database. For Tauri development, run `npm run dev:server` in one terminal and `npm run desktop:dev` in another; `npm run desktop:build` builds the Windows shell without packaging Node. Vitest covers the imported mockup plus canonical domain, storage, API, summaries and frozen invoice behavior. Use the connected Playwright MCP server and [browser acceptance workflow](tests/acceptance/README.md) to run `tests/acceptance/smoke.mcp.js` for the five screens and pill. Use its isolated database setup; do not reset the working database for browser checks. Browser acceptance requires MCP execution and must be reported as blocked if the browser or app cannot be reached. These checks do not verify native desktop behavior or Screenpipe integration. The [requirements acceptance examples](docs/REQUIREMENTS.md) remain the baseline for future implementation, including target aliases and provider behavior that require verification.
 
 Run macOS and Windows acceptance separately. Static checks do not establish capture, event delivery, MCP loading, native tag display, or installation behavior.
 

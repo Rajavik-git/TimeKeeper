@@ -46,3 +46,8 @@ test-results/
 *.db-wal
 *.db-shm
 *.db-journal
+
+# Generated files
+graphify-out/
+.archify/
+.playwright-mcp

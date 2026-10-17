@@ -25,77 +25,77 @@ Types follow the supplied image. Identifier types and unspecified constraints mu
 
 ### `clients`
 
-| Field | Schema type or constraint |
-| --- | --- |
-| `id` | PK |
-| `nom` | TEXT |
-| `actif` | INTEGER |
-| `cree_le` | TEXT |
+| Field     | Schema type or constraint |
+| --------- | ------------------------- |
+| `id`      | PK                        |
+| `nom`     | TEXT                      |
+| `actif`   | INTEGER                   |
+| `cree_le` | TEXT                      |
 
 ### `dossiers`
 
-| Field | Schema type or constraint |
-| --- | --- |
-| `id` | PK |
-| `client_id` | FK to `clients.id` |
-| `reference` | TEXT |
-| `intitule` | TEXT |
+| Field           | Schema type or constraint              |
+| --------------- | -------------------------------------- |
+| `id`            | PK                                     |
+| `client_id`     | FK to `clients.id`                     |
+| `reference`     | TEXT                                   |
+| `intitule`      | TEXT                                   |
 | `tarif_horaire` | REAL, `NULL` means use the global rate |
-| `statut` | TEXT |
-| `cree_le` | TEXT |
+| `statut`        | TEXT                                   |
+| `cree_le`       | TEXT                                   |
 
 ### `taches`
 
-| Field | Schema type or constraint |
-| --- | --- |
-| `id` | PK |
-| `client_id` | FK to `clients.id`, nullable |
-| `dossier_id` | FK to `dossiers.id`, nullable |
-| `titre` | TEXT |
-| `facture` | INTEGER, `0` or `1` |
-| `facture_le` | TEXT |
-| `tarif_applique` | REAL |
-| `cree_le` | TEXT |
-| `modifie_le` | TEXT |
+| Field            | Schema type or constraint     |
+| ---------------- | ----------------------------- |
+| `id`             | PK                            |
+| `client_id`      | FK to `clients.id`, nullable  |
+| `dossier_id`     | FK to `dossiers.id`, nullable |
+| `titre`          | TEXT                          |
+| `facture`        | INTEGER, `0` or `1`           |
+| `facture_le`     | TEXT                          |
+| `tarif_applique` | REAL                          |
+| `cree_le`        | TEXT                          |
+| `modifie_le`     | TEXT                          |
 
 ### `sous_taches`
 
-| Field | Schema type or constraint |
-| --- | --- |
-| `id` | PK |
-| `tache_id` | FK to `taches.id` |
-| `description` | TEXT |
-| `debut` | TEXT |
-| `fin` | TEXT |
-| `duree_minutes` | INTEGER |
-| `duree_detectee_minutes` | INTEGER |
-| `origine` | TEXT, automatic or manual |
-| `statut` | TEXT, validation |
+| Field                    | Schema type or constraint |
+| ------------------------ | ------------------------- |
+| `id`                     | PK                        |
+| `tache_id`               | FK to `taches.id`         |
+| `description`            | TEXT                      |
+| `debut`                  | TEXT                      |
+| `fin`                    | TEXT                      |
+| `duree_minutes`          | INTEGER                   |
+| `duree_detectee_minutes` | INTEGER                   |
+| `origine`                | TEXT, automatic or manual |
+| `statut`                 | TEXT, validation          |
 
 `duree_minutes` stores the retained duration after any correction. `duree_detectee_minutes` distinguishes the detected duration. The consistency rule between start, end, and corrected duration remains undecided.
 
 ### `sources`
 
-| Field | Schema type or constraint |
-| --- | --- |
-| `id` | PK |
-| `sous_tache_id` | FK to `sous_taches.id` |
-| `screenpipe_frame_id` | INTEGER |
-| `horodatage` | TEXT |
+| Field                      | Schema type or constraint                  |
+| -------------------------- | ------------------------------------------ |
+| `id`                       | PK                                         |
+| `sous_tache_id`            | FK to `sous_taches.id`                     |
+| `screenpipe_frame_id`      | INTEGER                                    |
+| `horodatage`               | TEXT                                       |
 | `app_name` / `window_name` | TEXT, exact representation to be confirmed |
-| `url` | TEXT |
-| `statut` | TEXT, validation |
+| `url`                      | TEXT                                       |
+| `statut`                   | TEXT, validation                           |
 
 The diagram groups `app_name / window_name` on one line. Whether these are two separate columns needs confirmation. `screenpipe_frame_id` is an external Screenpipe reference, not a foreign key to a local table defined here. Opening a recording through this reference still needs verification.
 
 ### `parametres`
 
-| Field | Schema type or constraint |
-| --- | --- |
-| `id` | PK, expected value `1` |
-| `tarif_horaire_global` | REAL |
-| `devise` | TEXT |
-| `modifie_le` | TEXT |
+| Field                  | Schema type or constraint |
+| ---------------------- | ------------------------- |
+| `id`                   | PK, expected value `1`    |
+| `tarif_horaire_global` | REAL                      |
+| `devise`               | TEXT                      |
+| `modifie_le`           | TEXT                      |
 
 ## Calculations and states
 

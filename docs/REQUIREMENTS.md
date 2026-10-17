@@ -1,6 +1,6 @@
 # TimeKeeper requirements
 
-This document is the authoritative record of agreed business rules, use cases, and open product decisions. The user's latest explicit decisions take precedence. The repository contains documentation and an empty folder skeleton. These requirements do not establish that the application or integrations work.
+This document is the authoritative record of agreed business rules, use cases, and open product decisions. The user's latest explicit decisions take precedence. The repository contains an implemented local session, work-period, review, and billing core. Normal startup creates an empty workspace without fictional business records. Sample records are restricted to explicit test fixtures. The Screenpipe workflows and native lifecycle still require integration verification.
 
 See [Architecture](ARCHITECTURE.md) for component ownership and integration flows, and [Data model](DATABASE.md) for storage responsibilities and constraints. Provider capabilities and verification gaps remain in the Screenpipe research documents.
 
@@ -8,7 +8,9 @@ See [Architecture](ARCHITECTURE.md) for component ownership and integration flow
 
 TimeKeeper helps a lawyer review working time by client and case using Screenpipe's recorded memory. The project is part of an École 42 and Screenpipe hackathon. The planned desktop application targets macOS and Windows with Tauri, React, a local Node.js backend, and a separate SQLite database.
 
-The MVP includes client and case configuration, work periods, source review, time correction and validation, billed/unbilled status, and interface summaries. Inactivity detection, idle-time subtraction, invoice generation, client rates, and fixed fees are outside scope. UI design is outside the current documentation session.
+The MVP includes client and case configuration, work periods, source review, time correction and validation, billed/unbilled status, and interface summaries. Inactivity detection and idle-time subtraction remain outside scope.
+
+The team decision of 2026-10-17 retains the mockup's billing extensions: pre-invoices, numbered deposit and final invoices with frozen lines, expenses, disbursements, VAT, client rates, flat fees, budgets with an 85% alert, and client rules. The rate cascade is case, then client, then global rate. An explicit zero rate is valid. These extensions do not establish capture, duration reconstruction, or additional billing rules. The implemented demo's monetary rounding and historical-rate snapshot policy remain proposals where identified below.
 
 Reusable folder learning, chat-calculated summaries, and advanced currency behavior are deferred. Chat can retrieve application details; it does not calculate summaries for the MVP.
 
@@ -56,19 +58,19 @@ Reusable folder learning, chat-calculated summaries, and advanced currency behav
 - The lawyer can review sources, correct a period's case or time, and validate time. Any change to the effective case or duration requires time validation again, regardless of its origin. An unchanged replay preserves validation. A detected-duration change masked by an existing override also preserves validation because the effective duration is unchanged.
 - Source validation, time validation, and billed/unbilled status are separate. Validating one must not implicitly change another.
 - The lawyer can mark individual work periods as billed or unbilled. This does not generate an invoice.
-- Use the case hourly rate when configured. Otherwise, use the global hourly rate. The applied rate must eventually be fixed for historical entries; the point at which this occurs remains open.
+- Use the case hourly rate when configured, otherwise the client rate, otherwise the global hourly rate. The applied rate must eventually be fixed for historical entries; the final product policy for that boundary remains open. The retained demo captures the configured currency and effective rate when the period becomes billed.
 - React calculates summaries from detailed API records. SQLite and the backend store and validate details without calculating summary totals. The interface must identify incomplete input coverage.
 
 ### State transitions
 
-| Event | Time validation | Billing status | Applied rate |
-| --- | --- | --- | --- |
-| Lawyer validates the current period | Becomes validated. | Unchanged. | Snapshot timing remains open. |
-| Effective case or duration changes | Requires review again, including automatic changes. | Editing a billed period remains an open rule. | Repricing or snapshot changes remain open. |
-| Replay leaves effective case and duration unchanged | Unchanged. | Unchanged. | Replay must not select a new rate. |
-| Lawyer changes billed/unbilled status | Unchanged. | Changes only for the selected period. | Billing-triggered snapshot timing remains open. |
-| Case has no configured hourly rate | Unchanged. | Unchanged. | Use the global rate until a historical snapshot applies. |
-| Case has its own hourly rate | Unchanged. | Unchanged. | Use the case rate until a historical snapshot applies. |
+| Event                                               | Time validation                                     | Billing status                                | Applied rate                                                                |
+| --------------------------------------------------- | --------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
+| Lawyer validates the current period                 | Becomes validated.                                  | Unchanged.                                    | Snapshot timing remains open.                                               |
+| Effective case or duration changes                  | Requires review again, including automatic changes. | Editing a billed period remains an open rule. | Repricing or snapshot changes remain open.                                  |
+| Replay leaves effective case and duration unchanged | Unchanged.                                          | Unchanged.                                    | Replay must not select a new rate.                                          |
+| Lawyer changes billed/unbilled status               | Unchanged.                                          | Changes only for the selected period.         | Billing-triggered snapshot timing remains open.                             |
+| Case has no configured hourly rate                  | Unchanged.                                          | Unchanged.                                    | Use the client rate, then global rate, until a historical snapshot applies. |
+| Case has its own hourly rate                        | Unchanged.                                          | Unchanged.                                    | Use the case rate until a historical snapshot applies.                      |
 
 Source validation remains separate throughout these transitions. The open billed-edit and rate rules are implementation gates, not permission to choose silent defaults.
 
@@ -81,24 +83,24 @@ Source validation remains separate throughout these transitions. The open billed
 
 ## MVP use cases
 
-| Use case | Expected result |
-| --- | --- |
-| Configure clients, cases, and rates | A case belongs to one client and uses its own hourly rate or the global fallback. |
-| Start through Screenpipe | TimeKeeper launches and one session starts after readiness. |
-| Work on a known case | Recorded activity supports a work period assigned to that existing case. |
-| Switch applications within a case | The active case remains unchanged unless a case-folder transition is detected. An unknown destination creates an unresolved period. |
-| Open an unknown folder | A period remains unresolved while the lawyer identifies the case. |
-| Return to an existing case | A new work period starts without duplicating the case or resetting earlier time. |
-| Close and reopen TimeKeeper | The session survives, and recorded history is reconciled without duplicate periods or lost corrections. |
-| End through Screenpipe while closed | The explicit end timestamp survives until reconciliation and bounds the recovered activity. |
-| Review recorded sources | The lawyer can inspect available evidence and validate sources separately from time. |
-| Correct a period's time or case | The correction survives replay, and time requires validation again. |
-| Review totals and billing status | React calculates summaries and shows each period's billed/unbilled status. |
-| Query through Screenpipe chat | Read-only tools retrieve application details through MCP and the API when available. |
+| Use case                            | Expected result                                                                                                                     |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Configure clients, cases, and rates | A case belongs to one client and uses the case, client, then global hourly rate cascade.                                            |
+| Start through Screenpipe            | TimeKeeper launches and one session starts after readiness.                                                                         |
+| Work on a known case                | Recorded activity supports a work period assigned to that existing case.                                                            |
+| Switch applications within a case   | The active case remains unchanged unless a case-folder transition is detected. An unknown destination creates an unresolved period. |
+| Open an unknown folder              | A period remains unresolved while the lawyer identifies the case.                                                                   |
+| Return to an existing case          | A new work period starts without duplicating the case or resetting earlier time.                                                    |
+| Close and reopen TimeKeeper         | The session survives, and recorded history is reconciled without duplicate periods or lost corrections.                             |
+| End through Screenpipe while closed | The explicit end timestamp survives until reconciliation and bounds the recovered activity.                                         |
+| Review recorded sources             | The lawyer can inspect available evidence and validate sources separately from time.                                                |
+| Correct a period's time or case     | The correction survives replay, and time requires validation again.                                                                 |
+| Review totals and billing status    | React calculates summaries and shows each period's billed/unbilled status.                                                          |
+| Query through Screenpipe chat       | Read-only tools retrieve application details through MCP and the API when available.                                                |
 
 ## Acceptance examples
 
-These examples define required behavior. No acceptance checks have run.
+These examples define required behavior. Local unit and integration tests cover parts of them. They do not establish Screenpipe or native desktop acceptance.
 
 ### First complete journey
 
@@ -126,23 +128,23 @@ The folder-identification, duration-derivation, and closed-app delivery mechanis
 9. A reviewed recording becomes unavailable. Preserve the source reference, period, and correction. Show unavailable evidence and incomplete coverage.
 10. End at 12:00. Reconcile delayed evidence recorded at 11:45 without extending the session. Exclude evidence recorded at 12:15 from that session.
 11. Two observations 30 seconds apart do not prove 30 seconds of continuous work. Two established 20-second effective periods total 40 seconds and display as one minute, not two separately rounded minutes.
-12. Use the global hourly rate for a case without its own rate. Use an explicit case rate when present. Preserve the historical applied rate once the agreed snapshot boundary is reached.
+12. Use the case rate, then the client rate, then the global rate. Preserve an explicit zero rate. Preserve the historical applied rate and currency once the agreed snapshot boundary is reached.
 13. Validate a detected 12-minute period without an override. Reconciliation changes its effective duration to 15 minutes. Require time validation again. Replaying the same 15-minute result after validation must preserve that validation.
 14. Two evidence records map to one provider tag target. Reconcile one agreed case assignment for that target. Conflicting assignments block synchronization instead of writing competing tags. Target mapping must be verified before this example can pass.
 15. During recovery, a new start depends on an earlier session's pending end. Apply that end first, then create the new session. Do not return the earlier session as if this were a repeated start.
 
 ## Decisions still required
 
-| Decision | Required before |
-| --- | --- |
-| Folder identification, matching metadata, and case-reference uniqueness | Automatic case resolution. |
-| Duration derivation, gaps, overlapping observations, and manual entries without evidence | Automatic duration calculation. |
-| When the applied rate becomes fixed and how later corrections affect it | Historical monetary totals. |
-| Which reviewed or validated periods contribute to each summary | Summary calculation acceptance. |
-| Lawyer resolution of a protected-period reconstruction conflict | Applying proposed period splits. |
-| Editing a billed period and any resulting billing-status transition | Billing-status controls. |
-| Durable end-command delivery while closed, command schemas, and crash recovery | Session lifecycle implementation. |
-| Trigger producer, bridge, and assignment acknowledgement on both platforms | Automatic workflow and Screenpipe synchronization. |
-| JEV execution contract and allowed data, local access, retention, and deletion | Model integration and persisted data handling. |
+| Decision                                                                                 | Required before                                    |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Folder identification, matching metadata, and case-reference uniqueness                  | Automatic case resolution.                         |
+| Duration derivation, gaps, overlapping observations, and manual entries without evidence | Automatic duration calculation.                    |
+| When the applied rate becomes fixed and how later corrections affect it                  | Historical monetary totals.                        |
+| Which reviewed or validated periods contribute to each summary                           | Summary calculation acceptance.                    |
+| Lawyer resolution of a protected-period reconstruction conflict                          | Applying proposed period splits.                   |
+| Editing a billed period and any resulting billing-status transition                      | Billing-status controls.                           |
+| Durable end-command delivery while closed, command schemas, and crash recovery           | Session lifecycle implementation.                  |
+| Trigger producer, bridge, and assignment acknowledgement on both platforms               | Automatic workflow and Screenpipe synchronization. |
+| JEV execution contract and allowed data, local access, retention, and deletion           | Model integration and persisted data handling.     |
 
 Technical versions, packaging, database location, migrations, and backup behavior are also pending. These choices must preserve the agreed rules above.

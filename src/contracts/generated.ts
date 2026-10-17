@@ -11,27 +11,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read local application state */
+        /**
+         * Read local application state
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         get: operations["state_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/demo/reset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset the demo database */
-        post: operations["demo_reset_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -51,7 +38,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update a time entry */
+        /**
+         * Update a time entry
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         patch: operations["time_entries_id_patch"];
         trace?: never;
     };
@@ -64,7 +55,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve a day */
+        /**
+         * Approve a day
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["day_approve_post"];
         delete?: never;
         options?: never;
@@ -81,7 +76,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve matter entries */
+        /**
+         * Approve matter entries
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["matters_id_approve_post"];
         delete?: never;
         options?: never;
@@ -98,7 +97,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Discard a work block */
+        /**
+         * Discard a work block
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["time_entries_id_discard_post"];
         delete?: never;
         options?: never;
@@ -115,7 +118,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Recover a discarded block */
+        /**
+         * Recover a discarded block
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["blocks_id_recover_post"];
         delete?: never;
         options?: never;
@@ -132,7 +139,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add off-screen time */
+        /**
+         * Legacy manual entry is unavailable
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. This legacy operation cannot supply explicit session and time boundaries. It returns 501 without creating time. The interface keeps manual entry disabled while its product rules remain open.
+         */
         post: operations["time_entries_manual_post"];
         delete?: never;
         options?: never;
@@ -149,7 +160,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a matter */
+        /**
+         * Create a matter
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["matters_post"];
         delete?: never;
         options?: never;
@@ -166,7 +181,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add a marker */
+        /**
+         * Add a marker
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["markers_post"];
         delete?: never;
         options?: never;
@@ -184,7 +203,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a marker */
+        /**
+         * Remove a marker
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         delete: operations["markers_id_delete"];
         options?: never;
         head?: never;
@@ -200,7 +223,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add an expense */
+        /**
+         * Add an expense
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["expenses_post"];
         delete?: never;
         options?: never;
@@ -218,7 +245,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove an expense */
+        /**
+         * Remove an expense
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         delete: operations["expenses_id_delete"];
         options?: never;
         head?: never;
@@ -249,7 +280,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Export an invoice as CSV */
+        /**
+         * Export an invoice as CSV
+         * @description Returns semicolon-delimited CSV with number, date, client, case, label, minutes, hourly_rate, amount, currency, and sales_tax columns. Monetary values use the currency frozen on the invoice. Historical invoices without a known currency export a blank currency.
+         */
         get: operations["invoices_id_csv_get"];
         put?: never;
         post?: never;
@@ -266,7 +300,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read a time entry source */
+        /**
+         * Read a time entry source
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Legacy time-entry operation. The id is the numeric compatibility entry ID, not a canonical period ID or provider source identity.
+         */
         get: operations["sources_id_get"];
         put?: never;
         post?: never;
@@ -285,7 +323,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a source pack hash */
+        /**
+         * Create a source pack hash
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Legacy time-entry operation. The id is the numeric compatibility entry ID, not a canonical period ID or provider source identity.
+         */
         post: operations["sources_id_export_post"];
         delete?: never;
         options?: never;
@@ -302,7 +344,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Pause capture */
+        /**
+         * Record a pause annotation
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Stores an annotation only. This operation does not start, stop, pause, or resume Screenpipe recording.
+         */
         post: operations["pauses_post"];
         delete?: never;
         options?: never;
@@ -323,7 +369,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Resume capture */
+        /**
+         * End a pause annotation
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Stores an annotation only. This operation does not start, stop, pause, or resume Screenpipe recording.
+         */
         patch: operations["pauses_id_patch"];
         trace?: never;
     };
@@ -336,7 +386,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Close the active block */
+        /**
+         * Close the active block
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["blocks_id_close_post"];
         delete?: never;
         options?: never;
@@ -357,7 +411,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update firm */
+        /**
+         * Update firm
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         patch: operations["firm_id_patch"];
         trace?: never;
     };
@@ -374,7 +432,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update setting */
+        /**
+         * Update setting
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         patch: operations["setting_id_patch"];
         trace?: never;
     };
@@ -391,7 +453,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update client */
+        /**
+         * Update client
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         patch: operations["client_id_patch"];
         trace?: never;
     };
@@ -408,7 +474,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update matter */
+        /**
+         * Update matter
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         patch: operations["matter_id_patch"];
         trace?: never;
     };
@@ -425,7 +495,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update task */
+        /**
+         * Update task
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         patch: operations["task_id_patch"];
         trace?: never;
     };
@@ -438,7 +512,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a client */
+        /**
+         * Create a client
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["clients_post"];
         delete?: never;
         options?: never;
@@ -455,7 +533,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a task */
+        /**
+         * Create a task
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["tasks_post"];
         delete?: never;
         options?: never;
@@ -472,7 +554,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a client rule */
+        /**
+         * Create a client rule
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: operations["client_rules_post"];
         delete?: never;
         options?: never;
@@ -490,7 +576,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Remove a client rule */
+        /**
+         * Remove a client rule
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         delete: operations["client_rules_id_delete"];
         options?: never;
         head?: never;
@@ -504,7 +594,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Recognize a block from its stored signals */
+        /**
+         * Recognize a block from its stored signals
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         get: operations["blocks_id_recognition_get"];
         put?: never;
         post?: never;
@@ -602,6 +696,8 @@ export interface paths {
                     to?: string;
                     clientId?: string;
                     caseId?: string;
+                    /** @description IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped. */
+                    timeZone?: string;
                 };
                 header?: never;
                 path?: never;
@@ -621,7 +717,7 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        post: operations["openPeriod"];
         delete?: never;
         options?: never;
         head?: never;
@@ -676,6 +772,8 @@ export interface paths {
             parameters: {
                 query?: {
                     date?: string;
+                    /** @description IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped. */
+                    timeZone?: string;
                 };
                 header?: never;
                 path?: never;
@@ -721,13 +819,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        producerId: string;
-                        commandId: string;
-                        sessionId: string;
-                        occurredAt: string;
-                        prerequisiteCommandId?: string;
-                    };
+                    "application/json": components["schemas"]["PostCommandsStartRequest"];
                 };
             };
             responses: {
@@ -794,13 +886,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        producerId: string;
-                        commandId: string;
-                        sessionId: string;
-                        occurredAt: string;
-                        prerequisiteCommandId?: string;
-                    };
+                    "application/json": components["schemas"]["PostCommandsEndRequest"];
                 };
             };
             responses: {
@@ -869,12 +955,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        caseId: string;
-                        expectedAssignmentRevision: number;
-                        /** @enum {string} */
-                        origin: "lawyer" | "automatic";
-                    };
+                    "application/json": components["schemas"]["PostWorkPeriodsIdAssignmentRequest"];
                 };
             };
             responses: {
@@ -943,9 +1024,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        durationMs: number | null;
-                    };
+                    "application/json": components["schemas"]["PostWorkPeriodsIdDurationOverrideRequest"];
                 };
             };
             responses: {
@@ -1014,9 +1093,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        durationMs: number | null;
-                    };
+                    "application/json": components["schemas"]["PostWorkPeriodsIdDetectedDurationRequest"];
                 };
             };
             responses: {
@@ -1085,7 +1162,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["PostWorkPeriodsIdValidateTimeRequest"];
                 };
             };
             responses: {
@@ -1154,10 +1231,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        status: "billed" | "unbilled";
-                    };
+                    "application/json": components["schemas"]["PostWorkPeriodsIdBillingStatusRequest"];
                 };
             };
             responses: {
@@ -1224,14 +1298,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        questionId: string;
-                        sessionId: string;
-                        periodId: string;
-                        expectedAssignmentRevision: number;
-                        caseId: string;
-                        responseCommandId: string;
-                    };
+                    "application/json": components["schemas"]["PostQuestionsAnswerRequest"];
                 };
             };
             responses: {
@@ -1302,7 +1369,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": components["schemas"]["PostSourcesInstanceIdContentTypeExternalIdValidateRequest"];
                 };
             };
             responses: {
@@ -1373,14 +1440,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        sessionId: string;
-                        caseId: string;
-                        startedAt: string;
-                        durationMs: number;
-                        taskTypeId: number;
-                        label: string;
-                    };
+                    "application/json": components["schemas"]["PostWorkPeriodsManualRequest"];
                 };
             };
             responses: {
@@ -1444,12 +1504,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        label?: string;
-                        billable?: boolean;
-                        nonbillableReason?: string | null;
-                        excluded?: boolean;
-                    };
+                    "application/json": components["schemas"]["PatchWorkPeriodsIdDetailsRequest"];
                 };
             };
             responses: {
@@ -1507,10 +1562,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        availability: "available" | "unavailable";
-                    };
+                    "application/json": components["schemas"]["PostSourcesInstanceIdContentTypeExternalIdAvailabilityRequest"];
                 };
             };
             responses: {
@@ -1597,14 +1649,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        caseId: string;
-                        date: string;
-                        label: string;
-                        /** @enum {string} */
-                        type: "expense" | "disbursement";
-                        amountCents: number;
-                    };
+                    "application/json": components["schemas"]["PostBillingExpensesRequest"];
                 };
             };
             responses: {
@@ -1679,6 +1724,8 @@ export interface paths {
             parameters: {
                 query?: {
                     date?: string;
+                    /** @description IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped. */
+                    timeZone?: string;
                 };
                 header?: never;
                 path?: never;
@@ -1731,8 +1778,8 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            clients: components["schemas"]["client"][];
-                            cases: components["schemas"]["matter"][];
+                            clients: components["schemas"]["CatalogClient"][];
+                            cases: components["schemas"]["CatalogCase"][];
                         };
                     };
                 };
@@ -1755,29 +1802,23 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a source pack for a case */
+        /**
+         * Create a source pack for a case
+         * @deprecated
+         * @description Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts.
+         */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    id: number;
+                    id: number | string;
                 };
                 cookie?: never;
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        /** @enum {string} */
-                        scope: "invoice" | "case" | "period" | "chosen";
-                        invoiceId?: number;
-                        /** Format: date */
-                        from?: string;
-                        /** Format: date */
-                        to?: string;
-                        periodIds?: number[];
-                        options: string[];
-                    };
+                    "application/json": components["schemas"]["PostCasesIdSourcePackRequest"];
                 };
             };
             responses: {
@@ -1802,6 +1843,308 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sources/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["importSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reconstruction/propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["proposeReconstruction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["setGlobalRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create catalog client */
+        post: operations["Create_catalog_client"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create catalog case */
+        post: operations["Create_catalog_case"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cases/{id}/rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["caseRate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read application catalog */
+        get: operations["Read_application_catalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read period audit events */
+        get: operations["Read_period_audit_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/clients/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update catalog client */
+        patch: operations["Update_catalog_client"];
+        trace?: never;
+    };
+    "/api/catalog/cases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update catalog case */
+        patch: operations["Update_catalog_case"];
+        trace?: never;
+    };
+    "/api/catalog/task-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create catalog task type */
+        post: operations["Create_catalog_task_type"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/task-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update catalog task type */
+        patch: operations["Update_catalog_task_type"];
+        trace?: never;
+    };
+    "/api/catalog/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update catalog settings */
+        patch: operations["Update_catalog_settings"];
+        trace?: never;
+    };
+    "/api/catalog/markers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create catalog marker */
+        post: operations["Create_catalog_marker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/markers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove catalog marker */
+        delete: operations["Remove_catalog_marker"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/client-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create catalog client rule */
+        post: operations["Create_catalog_client_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/client-rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove catalog client rule */
+        delete: operations["Remove_catalog_client_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/cases/{id}/source-pack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Export canonical case sources */
+        post: operations["ExportCanonicalCaseSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1816,6 +2159,7 @@ export interface components {
             /** @enum {string} */
             base_unit: "hour" | "intervention";
             vat_rate: number;
+            currency?: string;
         };
         /** @description Local preferences and invoice numbering */
         setting: {
@@ -1843,21 +2187,21 @@ export interface components {
         };
         /** @description Client and hourly rate */
         client: {
-            id: number;
+            id: number | string;
             name: string;
             /** @enum {string} */
             type: "individual" | "company";
             /** @enum {string} */
             mode: "hourly" | "subscription";
-            rate_cents: number;
+            rate_cents: number | null;
             vat_applicable: boolean;
             billing_address: string;
             code: string;
         };
         /** @description Legal matter and budget */
         matter: {
-            id: number;
-            client_id: number;
+            id: number | string;
+            client_id: number | string;
             title: string;
             category: string;
             case_number: string;
@@ -1877,7 +2221,7 @@ export interface components {
         /** @description Matter recognition cue */
         marker: {
             id: number;
-            matter_id: number;
+            matter_id: number | string;
             /** @enum {string} */
             type: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
             value: string;
@@ -1889,7 +2233,7 @@ export interface components {
         /** @description Client billing rule */
         client_rule: {
             id: number;
-            client_id: number;
+            client_id: number | string;
             /** @enum {string} */
             type: "daily_research_cap" | "nonbillable_travel";
             value: number;
@@ -1905,7 +2249,7 @@ export interface components {
             app: string;
             window_title: string;
             task_id: number | null;
-            matter_id: number | null;
+            matter_id: number | string | null;
             confidence: number;
             /** @enum {string} */
             state: "assigned" | "to_check" | "in_progress" | "discarded";
@@ -1913,8 +2257,8 @@ export interface components {
         };
         /** @description Reference to a screen or audio capture */
         source: {
-            id: number;
-            block_id: number;
+            id: number | string;
+            block_id: number | null;
             /** @enum {string} */
             type: "screen" | "audio" | "manual";
             screenpipe_ref: string;
@@ -1945,7 +2289,7 @@ export interface components {
         /** @description Issued invoice */
         invoice: {
             id: number;
-            matter_id: number;
+            matter_id: number | string;
             number: string;
             date: string;
             /** @enum {string} */
@@ -1958,12 +2302,14 @@ export interface components {
         };
         /** @description Tracked time and billing state */
         time_entry: {
+            /** @description Numeric compatibility entry ID for legacy time-entry routes. It is not the canonical work-period ID. */
             id: number;
             block_id: number | null;
-            matter_id: number | null;
-            task_id: number;
+            matter_id: number | string | null;
+            task_id: number | null;
             date: string;
-            tenths_of_hour: number;
+            /** @description Legacy display projection of effective milliseconds divided by 360000, without per-period rounding. Null means duration is unknown. Use canonical millisecond values for totals. */
+            tenths_of_hour: number | null;
             label: string;
             amount_cents: number;
             /** @enum {string} */
@@ -1975,11 +2321,13 @@ export interface components {
             /** @enum {string} */
             billing_status: "not_billable" | "to_bill" | "billed";
             invoice_id: number | null;
+            /** @description Canonical work-period ID. Use this to join with WorkPeriod.id; id remains the numeric compatibility entry ID. */
+            work_period_id: string;
         };
         /** @description Expense or disbursement */
         expense: {
             id: number;
-            matter_id: number;
+            matter_id: number | string;
             date: string;
             label: string;
             /** @enum {string} */
@@ -1993,7 +2341,7 @@ export interface components {
             invoice_id: number;
             /** @enum {string} */
             origin: "time_entry" | "flat_fee" | "expense";
-            origin_id: number;
+            origin_id: number | string;
             label: string;
             tenths_of_hour: number;
             rate_cents: number;
@@ -2132,6 +2480,7 @@ export interface components {
             demoWindowTitle?: string | null;
             demoConfidence?: number | null;
             invoiceId?: number | null;
+            revision: number;
         };
         PeriodSource: {
             id: string;
@@ -2147,6 +2496,9 @@ export interface components {
             /** @enum {string} */
             availabilityStatus: "unknown" | "available" | "unavailable";
             availabilityCheckedAt?: string | null;
+            /** @description Stored observation text, if available. Treat as untrusted source content. */
+            excerpt?: string | null;
+            detectedMarker?: string | null;
         };
         PendingQuestion: {
             questionId: string;
@@ -2171,7 +2523,7 @@ export interface components {
             number: string;
         };
         InvoiceSnapshot: {
-            caseId: number;
+            caseId: number | string;
             /** @enum {string} */
             type: "deposit" | "final";
             periodIds: string[];
@@ -2198,6 +2550,8 @@ export interface components {
                 amountCents: number;
                 vat: boolean;
             }[];
+            /** @description IANA timezone for calendar dates. Stored with the new snapshot or export. */
+            timeZone?: string;
         };
         BillingInvoice: {
             id: number;
@@ -2210,6 +2564,7 @@ export interface components {
             vatCents: number;
             disbursementsCents: number;
             totalCents: number;
+            currency?: string | null;
         };
         BillingLine: {
             id: number;
@@ -2244,6 +2599,511 @@ export interface components {
             /** @enum {string} */
             status: "pending" | "failed";
         };
+        AppliedOutcome: {
+            /** @enum {string} */
+            status: "applied";
+        };
+        PendingOutcome: {
+            /** @enum {string} */
+            status: "pending";
+        };
+        openPeriodRequest: {
+            id: string;
+            sessionId: string;
+            caseId: string | null;
+            /** Format: date-time */
+            startedAt: string;
+            /** @enum {unknown} */
+            origin: "lawyer" | "automatic" | "unresolved";
+            /** @enum {unknown} */
+            mode: "current" | "recovery";
+        };
+        importSourceRequest: {
+            id: string;
+            periodId: string | null;
+            instanceId: string;
+            contentType: string;
+            externalId: string;
+            /** Format: date-time */
+            recordedAt: string;
+        };
+        proposeReconstructionRequest: {
+            id: string;
+            periodId: string;
+            expectedRevision: number;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string | null;
+            sourceReferences: string[];
+        };
+        setGlobalRateRequest: {
+            globalHourlyRateCents: number;
+            currency: string;
+            workspaceId: string;
+        };
+        createCanonicalClientRequest: {
+            id: string;
+            name: string;
+        };
+        createCanonicalCaseRequest: {
+            id: string;
+            clientId: string;
+            reference: string;
+            title: string;
+            hourlyRateCents: number | null;
+        };
+        time_entries_id_patchRequest: {
+            /** @description Requires expected_assignment_revision when assigning a case through the compatibility route. */
+            matter_id?: number | string | null;
+            expected_assignment_revision?: number;
+            billable?: boolean;
+            reason?: ("offered" | "internal" | "admin") | null;
+            label?: string;
+            /** @enum {string} */
+            review_status?: "approved";
+        };
+        day_approve_postRequest: {
+            /** Format: date */
+            date: string;
+        };
+        time_entries_manual_postRequest: {
+            matter_id: number | string;
+            task_id: number;
+            /** Format: date */
+            date: string;
+            tenths_of_hour: number;
+            label: string;
+        };
+        matters_postRequest: {
+            client_id: number | string;
+            title: string;
+            opposing_party?: string;
+        };
+        markers_postRequest: {
+            matter_id: number | string;
+            /** @enum {unknown} */
+            type: "case_number" | "opposing_party" | "file" | "email" | "domain" | "keyword";
+            value: string;
+        };
+        expenses_postRequest: {
+            matter_id: number | string;
+            /** Format: date */
+            date: string;
+            label: string;
+            /** @enum {unknown} */
+            type: "expense" | "disbursement";
+            amount_cents: number;
+        };
+        sources_id_export_postRequest: {
+            options: string[];
+        };
+        pauses_postRequest: {
+            /** Format: date */
+            date: string;
+            start_time: string;
+            reason?: string;
+        };
+        pauses_id_patchRequest: {
+            end_time: string;
+        };
+        blocks_id_close_postRequest: {
+            minutes: number;
+        };
+        firm_id_patchRequest: {
+            lawyer_name?: string;
+            address?: string;
+            vat_number?: string;
+            base_rate_cents?: number;
+            /** @enum {string} */
+            base_unit?: "hour" | "intervention";
+            vat_rate?: number;
+        };
+        setting_id_patchRequest: {
+            confidence_threshold?: number;
+            excluded_apps?: string;
+            capture_retention?: string;
+            notifications?: boolean;
+            pill_position?: string;
+            invoice_prefix?: string;
+            next_number?: number;
+            pill_always_on_top?: boolean;
+            /** @enum {unknown} */
+            pill_display?: "fees" | "time" | "case";
+            pill_withhold_calls?: boolean;
+        };
+        client_id_patchRequest: {
+            name?: string;
+            /** @enum {string} */
+            type?: "individual" | "company";
+            /** @enum {string} */
+            mode?: "hourly" | "subscription";
+            rate_cents?: number | null;
+            vat_applicable?: boolean;
+            billing_address?: string;
+        };
+        matter_id_patchRequest: {
+            client_id?: number | string;
+            title?: string;
+            category?: string;
+            case_number?: string;
+            opposing_party?: string;
+            /** @enum {string} */
+            mode?: "hourly" | "flat_fee";
+            own_rate_cents?: number | null;
+            flat_fee_cents?: number | null;
+            hour_cap?: number | null;
+            success_fee_percent?: number | null;
+            budget_cents?: number | null;
+            /** @enum {string} */
+            status?: "open" | "closed";
+            /** Format: date */
+            opened_on?: string;
+        };
+        task_id_patchRequest: {
+            code?: string;
+            label?: string;
+            billable_by_default?: boolean;
+            off_screen?: boolean;
+            sort_order?: number;
+        };
+        clients_postRequest: {
+            name: string;
+            rate_cents: number;
+            code: string;
+        };
+        tasks_postRequest: {
+            code: string;
+            label: string;
+        };
+        client_rules_postRequest: {
+            client_id: number | string;
+            /** @enum {unknown} */
+            type: "daily_research_cap" | "nonbillable_travel";
+        };
+        createQuestionRequest: {
+            questionId: string;
+            sessionId: string;
+            periodId: string;
+            expectedAssignmentRevision: number;
+        };
+        PostCommandsStartRequest: {
+            producerId: string;
+            commandId: string;
+            sessionId: string;
+            /** Format: date-time */
+            occurredAt: string;
+            prerequisiteCommandId?: string;
+        };
+        PostCommandsEndRequest: {
+            producerId: string;
+            commandId: string;
+            sessionId: string;
+            /** Format: date-time */
+            occurredAt: string;
+            prerequisiteCommandId?: string;
+        };
+        PostWorkPeriodsIdAssignmentRequest: {
+            caseId: string;
+            expectedAssignmentRevision: number;
+            /** @enum {string} */
+            origin: "lawyer" | "automatic";
+        };
+        PostWorkPeriodsIdDurationOverrideRequest: {
+            durationMs: number | null;
+        };
+        PostWorkPeriodsIdDetectedDurationRequest: {
+            durationMs: number | null;
+        };
+        PostWorkPeriodsIdValidateTimeRequest: Record<string, never>;
+        PostWorkPeriodsIdBillingStatusRequest: {
+            /** @enum {string} */
+            status: "billed" | "unbilled";
+        };
+        PostQuestionsAnswerRequest: {
+            questionId: string;
+            sessionId: string;
+            periodId: string;
+            expectedAssignmentRevision: number;
+            caseId: string;
+            responseCommandId: string;
+        };
+        PostSourcesInstanceIdContentTypeExternalIdValidateRequest: Record<string, never>;
+        PostWorkPeriodsManualRequest: {
+            sessionId: string;
+            caseId: string;
+            /** Format: date-time */
+            startedAt: string;
+            durationMs: number;
+            taskTypeId: number;
+            label: string;
+        };
+        PatchWorkPeriodsIdDetailsRequest: {
+            label?: string;
+            billable?: boolean;
+            nonbillableReason?: string | null;
+            excluded?: boolean;
+        };
+        PostSourcesInstanceIdContentTypeExternalIdAvailabilityRequest: {
+            /** @enum {string} */
+            availability: "available" | "unavailable";
+        };
+        PostBillingExpensesRequest: {
+            caseId: string;
+            /** Format: date */
+            date: string;
+            label: string;
+            /** @enum {string} */
+            type: "expense" | "disbursement";
+            amountCents: number;
+        };
+        PostCasesIdSourcePackRequest: {
+            /** @enum {string} */
+            scope: "invoice" | "case" | "period" | "chosen";
+            invoiceId?: number;
+            /** Format: date */
+            from?: string;
+            /** Format: date */
+            to?: string;
+            periodIds?: (string | number)[];
+            options: string[];
+            /** @description IANA timezone for calendar dates. Stored with the new snapshot or export. */
+            timeZone?: string;
+        };
+        PostApiDemoResetRequest: Record<string, never>;
+        PostApiMattersIdApproveRequest: Record<string, never>;
+        PostApiTimeEntriesIdDiscardRequest: Record<string, never>;
+        PostApiBlocksIdRecoverRequest: Record<string, never>;
+        CatalogClient: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            type: "individual" | "company";
+            /** @enum {string} */
+            mode: "hourly" | "subscription";
+            hourlyRateCents: number | null;
+            vatApplicable: boolean;
+            billingAddress: string;
+            code: string | null;
+            active: boolean;
+        };
+        CatalogCase: {
+            id: string;
+            clientId: string;
+            title: string;
+            category: string;
+            caseNumber: string;
+            opposingParty: string;
+            /** @enum {string} */
+            mode: "hourly" | "flat_fee";
+            hourlyRateCents: number | null;
+            flatFeeCents: number | null;
+            hourCap: number | null;
+            successFeePercent: number | null;
+            budgetCents: number | null;
+            /** @enum {string} */
+            status: "active" | "archived";
+            openedOn: string | null;
+            reference: string;
+        };
+        CatalogSettings: {
+            id: number;
+            lawyerName: string;
+            address: string;
+            vatNumber: string;
+            globalHourlyRateCents: number;
+            /** @enum {string} */
+            baseUnit: "hour" | "intervention";
+            vatRate: number;
+            currency: string;
+            confidenceThreshold: number;
+            excludedApps: string;
+            captureRetention: string;
+            notifications: boolean;
+            pillPosition: string;
+            invoicePrefix: string;
+            nextNumber: number;
+            pillAlwaysOnTop: boolean;
+            /** @enum {string} */
+            pillDisplay: "fees" | "time" | "case";
+            pillWithholdCalls: boolean;
+            workspaceId: string;
+        };
+        CatalogTaskType: {
+            id: number;
+            code: string;
+            label: string;
+            billableByDefault: boolean;
+            offScreen: boolean;
+            sortOrder: number;
+        };
+        CatalogMarker: {
+            id: number;
+            caseId: string;
+            /** @enum {string} */
+            type: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
+            value: string;
+            learned: boolean;
+            weight: number;
+            hits: number;
+            lastSeenAt: string | null;
+        };
+        CatalogClientRule: {
+            id: number;
+            clientId: string;
+            /** @enum {string} */
+            type: "daily_research_cap" | "nonbillable_travel";
+            value: number;
+            label: string;
+        };
+        Catalog: {
+            settings: components["schemas"]["CatalogSettings"];
+            clients: components["schemas"]["CatalogClient"][];
+            cases: components["schemas"]["CatalogCase"][];
+            taskTypes: components["schemas"]["CatalogTaskType"][];
+            markers: components["schemas"]["CatalogMarker"][];
+            clientRules: components["schemas"]["CatalogClientRule"][];
+        };
+        AuditEvent: {
+            id: number;
+            periodId: string | null;
+            timestamp: string;
+            actor: string;
+            action: string;
+            before: string;
+            after: string;
+        };
+        CreateCatalogClientRequest: {
+            id?: string;
+            name: string;
+            /** @enum {string} */
+            type?: "individual" | "company";
+            /** @enum {string} */
+            mode?: "hourly" | "subscription";
+            hourlyRateCents?: number | null;
+            vatApplicable?: boolean;
+            billingAddress?: string;
+            code?: string | null;
+            active?: boolean;
+        };
+        PatchCatalogClientRequest: {
+            name?: string;
+            /** @enum {string} */
+            type?: "individual" | "company";
+            /** @enum {string} */
+            mode?: "hourly" | "subscription";
+            hourlyRateCents?: number | null;
+            vatApplicable?: boolean;
+            billingAddress?: string;
+            code?: string | null;
+            active?: boolean;
+        };
+        CreateCatalogCaseRequest: {
+            id?: string;
+            clientId: string;
+            title: string;
+            category?: string;
+            caseNumber?: string;
+            opposingParty?: string;
+            /** @enum {string} */
+            mode?: "hourly" | "flat_fee";
+            hourlyRateCents?: number | null;
+            flatFeeCents?: number | null;
+            hourCap?: number | null;
+            successFeePercent?: number | null;
+            budgetCents?: number | null;
+            /** @enum {string} */
+            status?: "active" | "archived";
+            openedOn?: string | null;
+            reference?: string;
+        };
+        PatchCatalogCaseRequest: {
+            title?: string;
+            category?: string;
+            caseNumber?: string;
+            opposingParty?: string;
+            /** @enum {string} */
+            mode?: "hourly" | "flat_fee";
+            hourlyRateCents?: number | null;
+            flatFeeCents?: number | null;
+            hourCap?: number | null;
+            successFeePercent?: number | null;
+            budgetCents?: number | null;
+            /** @enum {string} */
+            status?: "active" | "archived";
+        };
+        PatchCatalogSettingsRequest: {
+            lawyerName?: string;
+            address?: string;
+            vatNumber?: string;
+            globalHourlyRateCents?: number;
+            /** @enum {string} */
+            baseUnit?: "hour" | "intervention";
+            vatRate?: number;
+            currency?: string;
+            confidenceThreshold?: number;
+            excludedApps?: string;
+            captureRetention?: string;
+            notifications?: boolean;
+            pillPosition?: string;
+            invoicePrefix?: string;
+            nextNumber?: number;
+            pillAlwaysOnTop?: boolean;
+            /** @enum {string} */
+            pillDisplay?: "fees" | "time" | "case";
+            pillWithholdCalls?: boolean;
+        };
+        CreateCatalogTaskTypeRequest: {
+            code: string;
+            label: string;
+            billableByDefault?: boolean;
+            offScreen?: boolean;
+            sortOrder?: number;
+        };
+        PatchCatalogTaskTypeRequest: {
+            code?: string;
+            label?: string;
+            billableByDefault?: boolean;
+            offScreen?: boolean;
+            sortOrder?: number;
+        };
+        CreateCatalogMarkerRequest: {
+            caseId: string;
+            /** @enum {string} */
+            type: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
+            value: string;
+            weight?: number;
+        };
+        CreateCatalogClientRuleRequest: {
+            clientId: string;
+            /** @enum {string} */
+            type: "daily_research_cap" | "nonbillable_travel";
+            value?: number;
+        };
+        CanonicalSourcePackRequest: {
+            /** @enum {string} */
+            scope: "invoice" | "case" | "dateRange" | "selectedPeriods";
+            options: ("blur" | "personal" | "audio" | "audit")[];
+            invoiceId?: number;
+            /** Format: date */
+            from?: string;
+            /** Format: date */
+            to?: string;
+            periodIds?: string[];
+            timeZone?: string;
+        };
+        SourceExportReceipt: {
+            id: number;
+            periodIds: string[];
+            options: string[];
+            sha256: string;
+            createdAt: string;
+        };
+        CanonicalSourcePackResponse: {
+            export: components["schemas"]["SourceExportReceipt"];
+            /** @description Version 2 JSON snapshot using canonical period and source identities, exact milliseconds, and the selected timezone. Receipt SHA-256 hashes this exact string. */
+            payload: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2259,45 +3119,9 @@ export interface operations {
                 date?: string;
                 clientId?: string;
                 caseId?: string;
+                /** @description IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped. */
+                timeZone?: string;
             };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["State"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-            /** @description Not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Error"];
-                };
-            };
-        };
-    };
-    demo_reset_post: {
-        parameters: {
-            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -2344,16 +3168,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    /** @description Requires expected_assignment_revision when assigning a case through the compatibility route. */
-                    matter_id?: number | null;
-                    expected_assignment_revision?: number;
-                    billable?: boolean;
-                    reason?: ("offered" | "internal" | "admin") | null;
-                    label?: string;
-                    /** @enum {string} */
-                    review_status?: "approved";
-                };
+                "application/json": components["schemas"]["time_entries_id_patchRequest"];
             };
         };
         responses: {
@@ -2395,9 +3210,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    date: string;
-                };
+                "application/json": components["schemas"]["day_approve_postRequest"];
             };
         };
         responses: {
@@ -2438,11 +3251,15 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                id: number;
+                id: number | string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PostApiMattersIdApproveRequest"];
+            };
+        };
         responses: {
             /** @description Success */
             200: {
@@ -2484,7 +3301,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PostApiTimeEntriesIdDiscardRequest"];
+            };
+        };
         responses: {
             /** @description Success */
             200: {
@@ -2524,7 +3345,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PostApiBlocksIdRecoverRequest"];
+            };
+        };
         responses: {
             /** @description Success */
             200: {
@@ -2564,25 +3389,10 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    matter_id: number;
-                    task_id: number;
-                    date: string;
-                    tenths_of_hour: number;
-                    label: string;
-                };
+                "application/json": components["schemas"]["time_entries_manual_postRequest"];
             };
         };
         responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["time_entry"];
-                };
-            };
             /** @description Invalid request */
             400: {
                 headers: {
@@ -2592,13 +3402,17 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            /** @description Not found */
-            404: {
+            /** @description Manual entry through the legacy route is unavailable */
+            501: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Error"];
+                    "application/json": {
+                        /** @enum {string} */
+                        error: "unavailable";
+                        message: string;
+                    };
                 };
             };
         };
@@ -2612,11 +3426,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    client_id: number;
-                    title: string;
-                    opposing_party?: string;
-                };
+                "application/json": components["schemas"]["matters_postRequest"];
             };
         };
         responses: {
@@ -2658,12 +3468,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    matter_id: number;
-                    /** @enum {unknown} */
-                    type: "case_number" | "opposing_party" | "file" | "email" | "domain" | "keyword";
-                    value: string;
-                };
+                "application/json": components["schemas"]["markers_postRequest"];
             };
         };
         responses: {
@@ -2747,14 +3552,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    matter_id: number;
-                    date: string;
-                    label: string;
-                    /** @enum {unknown} */
-                    type: "expense" | "disbursement";
-                    amount_cents: number;
-                };
+                "application/json": components["schemas"]["expenses_postRequest"];
             };
         };
         responses: {
@@ -2918,6 +3716,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Numeric compatibility time-entry ID. */
                 id: number;
             };
             cookie?: never;
@@ -2958,15 +3757,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Numeric compatibility time-entry ID. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": {
-                    options: string[];
-                };
+                "application/json": components["schemas"]["sources_id_export_postRequest"];
             };
         };
         responses: {
@@ -3008,11 +3806,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    date: string;
-                    start_time: string;
-                    reason?: string;
-                };
+                "application/json": components["schemas"]["pauses_postRequest"];
             };
         };
         responses: {
@@ -3056,9 +3850,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    end_time: string;
-                };
+                "application/json": components["schemas"]["pauses_id_patchRequest"];
             };
         };
         responses: {
@@ -3102,9 +3894,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    minutes: number;
-                };
+                "application/json": components["schemas"]["blocks_id_close_postRequest"];
             };
         };
         responses: {
@@ -3148,15 +3938,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    lawyer_name?: string;
-                    address?: string;
-                    vat_number?: string;
-                    base_rate_cents?: number;
-                    /** @enum {string} */
-                    base_unit?: "hour" | "intervention";
-                    vat_rate?: number;
-                };
+                "application/json": components["schemas"]["firm_id_patchRequest"];
             };
         };
         responses: {
@@ -3200,15 +3982,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    confidence_threshold?: number;
-                    excluded_apps?: string;
-                    capture_retention?: string;
-                    notifications?: boolean;
-                    pill_position?: string;
-                    invoice_prefix?: string;
-                    next_number?: number;
-                };
+                "application/json": components["schemas"]["setting_id_patchRequest"];
             };
         };
         responses: {
@@ -3246,22 +4020,13 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                id: number;
+                id: number | string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": {
-                    name?: string;
-                    /** @enum {string} */
-                    type?: "individual" | "company";
-                    /** @enum {string} */
-                    mode?: "hourly" | "subscription";
-                    rate_cents?: number;
-                    vat_applicable?: boolean;
-                    billing_address?: string;
-                };
+                "application/json": components["schemas"]["client_id_patchRequest"];
             };
         };
         responses: {
@@ -3299,29 +4064,13 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                id: number;
+                id: number | string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": {
-                    client_id?: number;
-                    title?: string;
-                    category?: string;
-                    case_number?: string;
-                    opposing_party?: string;
-                    /** @enum {string} */
-                    mode?: "hourly" | "flat_fee";
-                    own_rate_cents?: number | null;
-                    flat_fee_cents?: number | null;
-                    hour_cap?: number | null;
-                    success_fee_percent?: number | null;
-                    budget_cents?: number | null;
-                    /** @enum {string} */
-                    status?: "open" | "closed";
-                    opened_on?: string;
-                };
+                "application/json": components["schemas"]["matter_id_patchRequest"];
             };
         };
         responses: {
@@ -3365,13 +4114,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    code?: string;
-                    label?: string;
-                    billable_by_default?: boolean;
-                    off_screen?: boolean;
-                    sort_order?: number;
-                };
+                "application/json": components["schemas"]["task_id_patchRequest"];
             };
         };
         responses: {
@@ -3413,11 +4156,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    name: string;
-                    rate_cents: number;
-                    code: string;
-                };
+                "application/json": components["schemas"]["clients_postRequest"];
             };
         };
         responses: {
@@ -3459,10 +4198,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    code: string;
-                    label: string;
-                };
+                "application/json": components["schemas"]["tasks_postRequest"];
             };
         };
         responses: {
@@ -3504,11 +4240,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    client_id: number;
-                    /** @enum {unknown} */
-                    type: "daily_research_cap" | "nonbillable_travel";
-                };
+                "application/json": components["schemas"]["client_rules_postRequest"];
             };
         };
         responses: {
@@ -3614,6 +4346,30 @@ export interface operations {
             };
         };
     };
+    openPeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["openPeriodRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkPeriod"];
+                };
+            };
+        };
+    };
     createQuestion: {
         parameters: {
             query?: never;
@@ -3623,12 +4379,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    questionId: string;
-                    sessionId: string;
-                    periodId: string;
-                    expectedAssignmentRevision: number;
-                };
+                "application/json": components["schemas"]["createQuestionRequest"];
             };
         };
         responses: {
@@ -3644,6 +4395,686 @@ export interface operations {
                         questionId: string;
                     };
                 };
+            };
+        };
+    };
+    importSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["importSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppliedOutcome"];
+                };
+            };
+        };
+    };
+    proposeReconstruction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["proposeReconstructionRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingOutcome"];
+                };
+            };
+        };
+    };
+    setGlobalRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["setGlobalRateRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppliedOutcome"];
+                };
+            };
+        };
+    };
+    Create_catalog_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogClientRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogClient"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Create_catalog_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogCaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogCase"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    caseRate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        hourlyRateCents: number;
+                    };
+                };
+            };
+        };
+    };
+    Read_application_catalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Catalog"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Read_period_audit_events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEvent"][];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Update_catalog_client: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchCatalogClientRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogClient"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Update_catalog_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchCatalogCaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogCase"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Create_catalog_task_type: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogTaskTypeRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogTaskType"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Update_catalog_task_type: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchCatalogTaskTypeRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogTaskType"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Update_catalog_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchCatalogSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogSettings"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Create_catalog_marker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogMarkerRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogMarker"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Remove_catalog_marker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted: boolean;
+                    };
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Create_catalog_client_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCatalogClientRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogClientRule"];
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    Remove_catalog_client_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        deleted: boolean;
+                    };
+                };
+            };
+            /** @description Success */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Success */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    ExportCanonicalCaseSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CanonicalSourcePackRequest"];
+            };
+        };
+        responses: {
+            /** @description Canonical source export and receipt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanonicalSourcePackResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Case not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

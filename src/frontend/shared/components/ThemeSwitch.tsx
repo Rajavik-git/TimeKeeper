@@ -27,12 +27,7 @@ export function ThemeSwitch() {
             applyTheme(value);
           }}
         >
-          <Icon
-            name={
-              value === "light" ? "sun" : value === "dark" ? "moon" : "auto"
-            }
-            small
-          />
+          <Icon name={value === "light" ? "sun" : value === "dark" ? "moon" : "auto"} small />
           <span className="theme-label">{value[0].toUpperCase() + value.slice(1)}</span>
         </button>
       ))}

@@ -792,11 +792,7 @@ button {
   background: var(--muted2);
 }
 .bar .bar-nonbillable {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--muted2) 0 5px,
-    var(--blob2) 5px 10px
-  );
+  background: repeating-linear-gradient(135deg, var(--muted2) 0 5px, var(--blob2) 5px 10px);
 }
 
 mark {

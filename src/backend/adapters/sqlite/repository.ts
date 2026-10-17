@@ -1,10 +1,13 @@
+import { readRow, readRows, writeRow } from "./table-access.js";
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 const projectRoot = process.cwd();
-import { refreshDemoRecognition } from "./recognition.js";
-import { seedCanonicalDemo } from "./demo-core.js";
+import { initializeDatabase } from "./initialize.js";
 import type { components } from "../../../contracts/generated.js";
+import { blocks, entries, insertEntry, updateEntry } from "./entries.js";
+import { catalogRows, catalogWrite } from "./catalog.js";
+import { transaction as sqliteTransaction } from "./transaction.js";
 import { chooseRate } from "../../domain/pricing.js";
 
 export const tables = [
@@ -44,103 +47,71 @@ const bools = new Set([
 export function openDb(
   path = resolve(projectRoot, process.env.TIMEKEEPER_DB ?? "data/timekeeper.db"),
 ) {
+  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
-  const settingColumns=new Set((db.prepare('PRAGMA table_info(setting)').all() as Array<{name:string}>).map(row=>row.name));
-  if(settingColumns.size){
-    if(!settingColumns.has('pill_always_on_top')) db.exec("ALTER TABLE setting ADD COLUMN pill_always_on_top INTEGER NOT NULL DEFAULT 1 CHECK(pill_always_on_top IN (0,1))");
-    if(!settingColumns.has('pill_display')) db.exec("ALTER TABLE setting ADD COLUMN pill_display TEXT NOT NULL DEFAULT 'fees' CHECK(pill_display IN ('fees','time','case'))");
-    if(!settingColumns.has('pill_withhold_calls')) db.exec("ALTER TABLE setting ADD COLUMN pill_withhold_calls INTEGER NOT NULL DEFAULT 1 CHECK(pill_withhold_calls IN (0,1))");
+  try {
+    initializeDatabase(db);
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
   }
-  seedCanonicalDemo(db);
-  return db;
-}
-export function memoryDb() {
-  const db = new DatabaseSync(":memory:");
-  db.exec(readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/schema.sql"), "utf8"));
-  db.exec(readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/seed.sql"), "utf8"));
-  refreshDemoRecognition(db);
-  seedCanonicalDemo(db);
-  return db;
-}
-export function reset(db: DatabaseSync) {
-  for (const table of [
-    "assignment_deliveries", "retrieval_progress", "reconstruction_conflicts",
-    "pending_questions", "processed_commands", "sources", "tag_targets",
-    "source_exports", "jev_reviews", "audit_events", "invoice_lines",
-    "expenses", "demo_block_periods", "work_periods", "invoices", "client_rules", "markers",
-    "task_types", "sessions", "cases", "clients", "settings",
-  ]) db.exec(`DELETE FROM ${table}`);
-  for (const t of [...tables].reverse()) db.exec(`DELETE FROM ${t}`);
-  db.exec(readFileSync(resolve(projectRoot, "src/backend/adapters/sqlite/seed.sql"), "utf8"));
-  refreshDemoRecognition(db);
-  seedCanonicalDemo(db);
 }
 export function normalize(row: Row): Row {
   const out = { ...row };
-  for (const [k, v] of Object.entries(out))
-    if (bools.has(k) && v !== null) out[k] = Boolean(v);
+  for (const [k, v] of Object.entries(out)) if (bools.has(k) && v !== null) out[k] = Boolean(v);
   return out;
 }
 export function sqlValue(v: unknown) {
   return typeof v === "boolean" ? (v ? 1 : 0) : v;
 }
-export function all(db: DatabaseSync, table: Table): Row[] {
-  return (db.prepare(`SELECT * FROM ${table}`).all() as Row[]).map(normalize);
+function databaseValue(value: unknown): string | number | null {
+  const result = sqlValue(value);
+  if (result === null || typeof result === "string" || typeof result === "number") return result;
+  throw Error("Invalid database value");
 }
-export function one(
-  db: DatabaseSync,
-  table: Table,
-  id: number,
-): Row | undefined {
-  const pk = table === "schema_version" ? "version" : "id";
-  const row = db.prepare(`SELECT * FROM ${table} WHERE ${pk}=?`).get(id) as
-    Row | undefined;
+export function all(db: DatabaseSync, table: Table): Row[] {
+  if (table === "time_entry") return entries(db);
+  if (table === "block") return blocks(db);
+  return (catalogRows(db, table) ?? readRows(db, table)).map(normalize);
+}
+export function one(db: DatabaseSync, table: Table, id: number | string): Row | undefined {
+  if (table === "time_entry")
+    return entries(db, true).find((item) => String(item.id) === String(id));
+  if (table === "block") return blocks(db).find((item) => String(item.id) === String(id));
+  const projected = catalogRows(db, table);
+  if (projected) return projected.map(normalize).find((row) => String(row.id) === String(id));
+  const row = readRow(db, table, id);
   return row ? normalize(row) : undefined;
 }
 export function insert(db: DatabaseSync, table: Table, data: Row): Row {
-  const keys = Object.keys(data);
-  const id = Number(
-    db
-      .prepare(
-        `INSERT INTO ${table} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`,
-      )
-      .run(...keys.map((k) => sqlValue(data[k]) as string | number | null))
-      .lastInsertRowid,
+  if (table === "time_entry") return insertEntry(db, data);
+  const projected = catalogWrite(db, table, data);
+  if (projected) return normalize(projected);
+  const values = Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [key, databaseValue(value)]),
   );
+  const id = Number(writeRow(db, table, values).lastInsertRowid);
   return one(db, table, id)!;
 }
-export function update(
-  db: DatabaseSync,
-  table: Table,
-  id: number,
-  data: Row,
-): Row {
+export function update(db: DatabaseSync, table: Table, id: number | string, data: Row): Row {
+  if (table === "time_entry") return updateEntry(db, Number(id), data);
+  if (table === "block")
+    data = Object.fromEntries(Object.entries(data).filter(([key]) => key !== "matter_id"));
+  const projected = catalogWrite(db, table, data, id);
+  if (projected) return normalize(projected);
   const allowed = new Set(
-    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
-      (x) => x.name,
-    ),
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((x) => x.name),
   );
-  const keys = Object.keys(data).filter(
-    (k) => allowed.has(k) && k !== "id" && k !== "version",
-  );
+  const keys = Object.keys(data).filter((k) => allowed.has(k) && k !== "id" && k !== "version");
   if (!keys.length) throw Error("No updatable field");
-  db.prepare(
-    `UPDATE ${table} SET ${keys.map((k) => `${k}=?`).join(",")} WHERE id=?`,
-  ).run(...keys.map((k) => sqlValue(data[k]) as string | number | null), id);
+  writeRow(db, table, Object.fromEntries(keys.map((key) => [key, databaseValue(data[key])])), id);
   const row = one(db, table, id);
   if (!row) throw Error("Not found");
   return row;
 }
 export function transaction<T>(db: DatabaseSync, work: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const value = work();
-    db.exec("COMMIT");
-    return value;
-  } catch (e) {
-    db.exec("ROLLBACK");
-    throw e;
-  }
+  return sqliteTransaction(db, work);
 }
 export function audit(
   db: DatabaseSync,
@@ -149,31 +120,44 @@ export function audit(
   after = "",
   time_entry_id: number | null = null,
   block_id: number | null = null,
-  actor = "Claire Morel",
+  actor?: string,
 ) {
-  const timestamp = `2026-10-16 ${new Date().toTimeString().slice(0, 5)}`;
-  insert(db, "audit_event", {
-    time_entry_id,
-    block_id,
+  const timestamp = new Date().toISOString();
+  const auditActor = actor ?? (String(one(db, "firm", 1)?.lawyer_name ?? "").trim() || "User");
+  db.prepare(
+    `INSERT INTO audit_events(work_period_id,timestamp,actor,action,before,after) VALUES (?,?,?,?,?,?)`,
+  ).run(
+    time_entry_id === null
+      ? block_id === null
+        ? null
+        : (db.prepare("SELECT period_id FROM demo_block_periods WHERE block_id=?").get(block_id)
+            ?.period_id ?? null)
+      : (db.prepare("SELECT period_id FROM demo_period_entries WHERE entry_id=?").get(time_entry_id)
+          ?.period_id ?? String(time_entry_id)),
     timestamp,
-    actor,
+    auditActor,
     action,
     before,
     after,
-  });
+  );
 }
 export function state(db: DatabaseSync): components["schemas"]["State"] {
   const result: Row = {};
-  for (const t of tables) result[t] = all(db, t);
+  for (const t of tables)
+    result[t] = all(db, t).map((row) => {
+      if (t !== "source") return row;
+      const { work_period_id: _period, ...publicRow } = row;
+      return publicRow;
+    });
   return result as components["schemas"]["State"];
 }
-export function rate(db: DatabaseSync, dossierId: number | null) {
+export function rate(db: DatabaseSync, dossierId: number | string | null) {
   const cab = one(db, "firm", 1)!;
   const matter = dossierId ? one(db, "matter", dossierId) : undefined;
-  const client = matter ? one(db, "client", Number(matter.client_id)) : undefined;
+  const client = matter ? one(db, "client", String(matter.client_id)) : undefined;
   return chooseRate({
     base_cents: Number(cab.base_rate_cents),
-    client_cents: client ? Number(client.rate_cents) : undefined,
+    client_cents: client?.rate_cents == null ? undefined : Number(client.rate_cents),
     matter_cents: matter?.own_rate_cents == null ? undefined : Number(matter.own_rate_cents),
     flat_fee: matter?.mode === "flat_fee",
   });

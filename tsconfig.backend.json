@@ -8,13 +8,8 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": ".",
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "noEmitOnError": true
   },
-  "include": [
-    "src/backend/**/*.ts",
-    "src/contracts/**/*.ts"
-  ]
+  "include": ["src/backend/**/*.ts", "src/contracts/**/*.ts"]
 }

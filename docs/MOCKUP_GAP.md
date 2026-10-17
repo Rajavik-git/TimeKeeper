@@ -1,20 +1,20 @@
 # Mockup and requirements gap
 
-The aligned demo retains the approved visual design and the billing scope agreed on 2026-10-17. [Requirements](REQUIREMENTS.md), [architecture](ARCHITECTURE.md), and [database design](DATABASE.md) remain the authorities for the MVP. The requirements author still needs to record the separately agreed billing extensions there. This page records implementation status without changing those documents.
+The aligned demo retains the approved visual design and the billing scope agreed on 2026-10-17. [Requirements](REQUIREMENTS.md), [architecture](ARCHITECTURE.md), and [database design](DATABASE.md) remain the authorities for the MVP. The requirements record the agreed billing extensions. This page records their implementation status.
 
 ## Five resolved rule decisions
 
-| Conflict | Aligned behavior | Current implementation |
-| --- | --- | --- |
-| Duration and rounding | Precise effective milliseconds; unknown stays unknown; round only a combined group up to minutes | Canonical `work_periods`, React `summary.ts` and `billing.ts`; imported demo durations are explicit, not inferred from screenshots |
-| Monetary calculations | React prepares summaries and invoice drafts; the API validates references and stores the supplied issued snapshot | React owns active amounts, VAT and totals; the API stores frozen invoice lines and totals. Legacy pre-invoice calculations were removed from `/api/state` |
-| Review states | Time validation, source validation and availability, and billing status are independent | Separate canonical fields, services, API routes, and screens |
-| Write path | All writes must enter application services and ports | Canonical and retained mockup API mutations enter application services; adapters synchronize records in a transaction |
-| Data model | Clients, cases, sessions, work periods, sources and recovery tables, with approved mockup extensions | Canonical schema migrations and demo conversion exist. The imported 18-table schema remains for catalogue, recognition and evidence-display compatibility |
+| Conflict              | Aligned behavior                                                                                                  | Current implementation                                                                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Duration and rounding | Precise effective milliseconds; unknown stays unknown; round only a combined group up to minutes                  | Canonical `work_periods`, React `summary.ts` and `billing.ts`; imported demo durations are explicit, not inferred from screenshots                             |
+| Monetary calculations | React prepares summaries and invoice drafts; the API validates references and stores the supplied issued snapshot | React owns active amounts, VAT and totals; the API stores frozen invoice lines and totals. Legacy pre-invoice calculations were removed from `/api/state`      |
+| Review states         | Time validation, source validation and availability, and billing status are independent                           | Separate canonical fields, services, API routes, and screens                                                                                                   |
+| Write path            | All writes must enter application services and ports                                                              | All API mutations enter application services; compatibility routes project canonical business records                                                          |
+| Data model            | Clients, cases, sessions, work periods, sources and recovery tables, with approved mockup extensions              | Canonical schema migrations and demo conversion exist. Legacy tables remain as migration inputs and fictional capture metadata; business records are canonical |
 
 ## Retained mockup features
 
-Numbered invoices, client rates, flat fees, budgets, expenses, disbursements, VAT, client rules, marker suggestions, task types, source packs, audit and Jev review remain in the demo. Their canonical extensions are listed in [schema implementation](implementation/schema.md). Recognition and case-reference behavior are still demo choices, not approved Screenpipe matching rules. Manual off-screen periods have an explicit duration override and no source; excluded personal periods can be restored. Source-pack export remains on the compatibility route.
+Numbered invoices, client rates, flat fees, budgets, expenses, disbursements, VAT, client rules, marker suggestions, task types, source packs, audit and Jev review remain in the demo. Their canonical extensions are listed in [schema implementation](implementation/schema.md). Recognition and case-reference behavior are still demo choices, not approved Screenpipe matching rules. Manual off-screen periods have an explicit duration override and no source; excluded personal periods can be restored. Source-pack export retains its route, selects canonical periods, sources and invoices, and applies other-client redaction throughout the exported payload.
 
 **Proposed monetary rounding:** a case's billed minutes on one invoice equal `ceil(sum of selected effective milliseconds / 60000)`; work amount equals `round(billed minutes × hourly rate cents / 60)`. The frontend implements this for the demo. The applied rate is frozen when a period is marked billed; an issued invoice cannot be ordinarily unbilled. Editing billed periods and invoice reversal remain open decisions.
 

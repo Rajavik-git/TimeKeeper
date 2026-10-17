@@ -4,6 +4,46 @@ TimeKeeper has a local SQLite database, separate from Screenpipe storage. This d
 
 The agreed logical model replaces the original task/subtask hierarchy with work periods. English entity names below identify the current design. The [original schema](reference/ORIGINAL_DATABASE.md) preserves the supplied identifiers and earlier review notes.
 
+Runtime queries use Drizzle table mappings in `src/backend/adapters/sqlite/tables.ts` over `node:sqlite`. Existing migrations remain the sole schema authority, including their constraints and triggers. The mapping-parity and upgrade tests check that the query model matches migrated databases. See [storage ownership](ARCHITECTURE.md#storage-and-implementation-gates) for the retained SQL and transaction boundaries.
+
+## Data formats in the application
+
+SQLite stores the application records. The local HTTP API sends JSON objects to React. Drizzle maps SQL columns to TypeScript values on the backend. The OpenAPI contract in `src/contracts/openapi.yaml` defines the JSON fields and generates the client types and request validators.
+
+The current interface reads `/api/catalog` for settings, clients, cases, work categories, explicit markers, and client rules. It reads canonical session, work-period, source, audit, and billing endpoints for activity. `CatalogService` and its typed SQLite port read canonical tables directly. Screens do not consume the old `matter`, `block`, or `time_entry` payloads.
+
+| Meaning              | SQLite column              | Current JSON field                                   |
+| -------------------- | -------------------------- | ---------------------------------------------------- |
+| Work-period identity | `work_periods.id`          | `WorkPeriod.id`, a string                            |
+| Assigned case        | `work_periods.case_id`     | `caseId`, a string or `null`                         |
+| Case owner           | `cases.client_id`          | `clientId`, a string                                 |
+| Detected duration    | `detected_duration_ms`     | `detectedDurationMs`, integer milliseconds or `null` |
+| Lawyer's correction  | `duration_override_ms`     | `durationOverrideMs`, integer milliseconds or `null` |
+| Start time           | `started_at`               | `startedAt`, a UTC timestamp                         |
+| Hourly rate          | `hourly_rate_cents`        | `hourlyRateCents`, integer cents or `null`           |
+| Global hourly rate   | `global_hourly_rate_cents` | `settings.globalHourlyRateCents`, integer cents      |
+| Unknown opening date | `opened_on IS NULL`        | `openedOn: null`, displayed as unknown               |
+
+IDs identify records and have no numeric meaning. A work period derives its client through its case. Source identities and period identities remain separate. Audit events link through `periodId`. SQLite represents flags with `0` and `1`; JSON responses use `false` and `true`.
+
+An effective duration of 900000 milliseconds is 15 minutes. React calculates totals from precise milliseconds, then rounds the combined total upward to whole minutes. `null` means unknown or unset; zero is a known value. Money uses integer cents and a separate currency. Issued invoices retain their own currency, calendar timezone, and frozen monetary snapshot. Unknown historical values are not invented.
+
+### Calendar dates and timestamps
+
+`src/shared/dates.ts` uses pinned `date-fns` 4.1.0 and `@date-fns/tz` 1.4.1. Date-only values such as `2026-03-31` retain their calendar meaning. Timestamps such as `2026-03-30T22:30:00Z` identify instants. Month subtraction clamps to the last valid day, including leap years. Impossible dates are rejected.
+
+The interface uses the desktop's system timezone and sends it explicitly for date-filtered reads, invoices, and source exports. The backend uses the same shared conversion helpers. A period belongs to the day containing its start in that timezone for the current views and export selection. The implementation preserves the whole period and its duration; it does not split or clip midnight crossings. Cross-midnight billing rules remain an open product decision in the [design review](DESIGN_REVIEW.md).
+
+Local midnight boundaries account for daylight saving changes. A calendar day can span 23 or 25 elapsed hours. Activity positions use elapsed time since local midnight, with actual local clock labels, so repeated or skipped hours do not change recorded durations. Previously issued invoices and saved exports keep their original snapshots.
+
+### Retained compatibility API
+
+`CompatibilityApiService` and `api/compatibility-routes.ts` retain deprecated contracts for older callers. They preserve existing numeric entry aliases and historical table names. Current screens and canonical exports do not allocate or join through these aliases. The old `tenths_of_hour` projection remains only in that compatibility API; one tenth is six minutes, and the projection does not round individual periods.
+
+The compatibility tables remain for existing records and upgrade support. Their removal requires a separate data migration. Explicit fixture metadata such as `demoApp`, `demoWindowTitle`, and `demoConfidence` remains distinguishable from verified provider evidence. Normal startup creates no sample business records.
+
+Canonical source packs use version 2 JSON with string period and source IDs, exact durations, the selected timezone, and a receipt containing the exact SHA-256 payload hash. Client-name redaction applies to descriptive text while IDs, timestamps, and links remain intact. No media is fetched or blurred by this metadata export.
+
 ## Agreed structure
 
 ```mermaid
@@ -28,35 +68,35 @@ The fields below make the agreed model concrete for implementation review. The i
 
 ### `clients`
 
-| Field | Purpose or constraint |
-| --- | --- |
-| `id` | Primary key. |
-| `name` | Required display name; not an identity key. |
-| `active` | Boolean catalogue status. |
-| `created_at`, `updated_at` | Record timestamps. |
+| Field                      | Purpose or constraint                       |
+| -------------------------- | ------------------------------------------- |
+| `id`                       | Primary key.                                |
+| `name`                     | Required display name; not an identity key. |
+| `active`                   | Boolean catalogue status.                   |
+| `created_at`, `updated_at` | Record timestamps.                          |
 
 ### `cases`
 
-| Field | Purpose or constraint |
-| --- | --- |
-| `id` | Primary key. |
-| `client_id` | Required foreign key to `clients`. |
-| `reference`, `title` | Case catalogue information; folder-matching rules remain undefined. |
-| `hourly_rate` | Optional nonnegative case rate; `NULL` uses the global rate. |
-| `status` | Case catalogue status; allowed values to define. |
-| `created_at`, `updated_at` | Record timestamps. |
+| Field                      | Purpose or constraint                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| `id`                       | Primary key.                                                                                |
+| `client_id`                | Required foreign key to `clients`.                                                          |
+| `reference`, `title`       | Case catalogue information; folder-matching rules remain undefined.                         |
+| `hourly_rate`              | Optional nonnegative case rate; `NULL` falls back to the client rate, then the global rate. |
+| `status`                   | Case catalogue status; allowed values to define.                                            |
+| `created_at`, `updated_at` | Record timestamps.                                                                          |
 
-Case reference uniqueness and folder aliases remain undecided. Do not use a client name, case title, or file path as the case primary key. Client rates and fixed fees are outside scope.
+The current database enforces unique, immutable case references. The broader requirements decision about reference scope and folder aliases remains open; the implementation does not establish a folder-matching rule. Do not use a client name, case title, or file path as the case primary key. Client rates and fixed fees are retained extensions under the [requirements](REQUIREMENTS.md#purpose-and-scope).
 
 ### `sessions`
 
-| Field | Purpose or constraint |
-| --- | --- |
-| `id` | Stable session identity carried by workflow commands. |
-| `started_at` | Explicit Screenpipe start boundary. |
-| `ended_at` | Nullable explicit Screenpipe end boundary; cannot precede `started_at`. |
-| `revision` | Monotonic version for stale-command checks. |
-| `created_at`, `updated_at` | Local persistence timestamps, distinct from boundaries. |
+| Field                      | Purpose or constraint                                                   |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `id`                       | Stable session identity carried by workflow commands.                   |
+| `started_at`               | Explicit Screenpipe start boundary.                                     |
+| `ended_at`                 | Nullable explicit Screenpipe end boundary; cannot precede `started_at`. |
+| `revision`                 | Monotonic version for stale-command checks.                             |
+| `created_at`, `updated_at` | Local persistence timestamps, distinct from boundaries.                 |
 
 Allow at most one session with no end boundary per local workspace. Enforce this in storage and application services. After known causal prerequisites are applied, a start received while a session is active returns that session; it does not reset its start or create another one. A new start that depends on a pending end waits for that end instead of being collapsed into the earlier session. Application exit does not set `ended_at`. Reopening resumes the active session.
 
@@ -64,23 +104,23 @@ The first applied end fixes the boundary. Repeated ends return the existing outc
 
 ### `work_periods`
 
-| Field | Purpose or constraint |
-| --- | --- |
-| `id`, `session_id` | Primary key and required session foreign key. |
-| `case_id` | Nullable case foreign key; `NULL` represents an unresolved assignment. |
-| `initial_case_id`, `initial_origin` | Implemented immutable opening intent used to deduplicate a replay after later assignment corrections. |
-| `started_at`, `ended_at` | Recorded boundaries, with nullable end while a period is open. |
-| `detected_duration_ms` | Nullable unrounded derived duration; derivation is not defined yet. |
-| `duration_override_ms` | Nullable lawyer correction, converted from minutes; zero differs from no correction. |
-| `assignment_origin` | Distinguish automatic assignment from lawyer assignment. |
-| `time_validation_status` | Review state, independent of source validation and billing. |
-| `effective_revision` | Version of the effective case and duration; increments only when either effective value changes. |
-| `validated_effective_revision` | Nullable version explicitly validated by the lawyer. |
-| `time_validated_at` | Optional timestamp of the current validation. |
-| `billing_status`, `billed_at` | Period-level billed/unbilled status and associated timestamp. |
-| `applied_hourly_rate`, `applied_currency` | Nullable rate snapshot; capture timing and currency policy remain open. |
-| `revision`, `assignment_revision` | Versions protecting record edits and period assignments; provider delivery also has its own target revision. |
-| `created_at`, `updated_at` | Record timestamps. |
+| Field                                     | Purpose or constraint                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `id`, `session_id`                        | Primary key and required session foreign key.                                                                |
+| `case_id`                                 | Nullable case foreign key; `NULL` represents an unresolved assignment.                                       |
+| `initial_case_id`, `initial_origin`       | Implemented immutable opening intent used to deduplicate a replay after later assignment corrections.        |
+| `started_at`, `ended_at`                  | Recorded boundaries, with nullable end while a period is open.                                               |
+| `detected_duration_ms`                    | Nullable unrounded derived duration; derivation is not defined yet.                                          |
+| `duration_override_ms`                    | Nullable lawyer correction, converted from minutes; zero differs from no correction.                         |
+| `assignment_origin`                       | Distinguish automatic assignment from lawyer assignment.                                                     |
+| `time_validation_status`                  | Review state, independent of source validation and billing.                                                  |
+| `effective_revision`                      | Version of the effective case and duration; increments only when either effective value changes.             |
+| `validated_effective_revision`            | Nullable version explicitly validated by the lawyer.                                                         |
+| `time_validated_at`                       | Optional timestamp of the current validation.                                                                |
+| `billing_status`, `billed_at`             | Period-level billed/unbilled status and associated timestamp.                                                |
+| `applied_hourly_rate`, `applied_currency` | Nullable rate snapshot; capture timing and currency policy remain open.                                      |
+| `revision`, `assignment_revision`         | Versions protecting record edits and period assignments; provider delivery also has its own target revision. |
+| `created_at`, `updated_at`                | Record timestamps.                                                                                           |
 
 Require nonnegative durations. Known boundaries must fall within the session. An end boundary cannot precede its start. Do not replace missing duration with zero. A newly opened period has no accumulated time; lack of evidence later must remain distinguishable from a confirmed zero duration.
 
@@ -94,17 +134,17 @@ Reassigning one period must not move other periods or their sources. A historica
 
 ### `sources`
 
-| Field | Purpose or constraint |
-| --- | --- |
-| `id` | Local primary key. |
-| `work_period_id` | Nullable period foreign key for evidence awaiting assignment. |
-| `screenpipe_instance_id` | Stable identity of the source recording store, not a hostname alone. |
-| `content_type`, `external_id` | Provider record type and identity, such as a frame reference. |
-| `tag_target_id` | Nullable foreign key to the canonical provider target, once its mapping is verified. |
-| `recorded_at`, `ingested_at` | Observation time and local import time. |
-| `app_name`, `window_name`, `url` | Optional observed context, stored separately. |
-| `validation_status`, `validated_at` | Lawyer source-review state and timestamp. |
-| `availability_status`, `availability_checked_at` | Retrieval availability and last check. |
+| Field                                            | Purpose or constraint                                                                |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `id`                                             | Local primary key.                                                                   |
+| `work_period_id`                                 | Nullable period foreign key for evidence awaiting assignment.                        |
+| `screenpipe_instance_id`                         | Stable identity of the source recording store, not a hostname alone.                 |
+| `content_type`, `external_id`                    | Provider record type and identity, such as a frame reference.                        |
+| `tag_target_id`                                  | Nullable foreign key to the canonical provider target, once its mapping is verified. |
+| `recorded_at`, `ingested_at`                     | Observation time and local import time.                                              |
+| `app_name`, `window_name`, `url`                 | Optional observed context, stored separately.                                        |
+| `validation_status`, `validated_at`              | Lawyer source-review state and timestamp.                                            |
+| `availability_status`, `availability_checked_at` | Retrieval availability and last check.                                               |
 
 Use a unique key on `(screenpipe_instance_id, content_type, external_id)` to prevent duplicate imports. IDs from separate Screenpipe stores must not collide. The instance identity format remains part of the adapter contract. Source references are external identifiers, not foreign keys into Screenpipe's database.
 
@@ -116,42 +156,46 @@ Fetch recordings through the Screenpipe API. An unavailable or deleted recording
 
 This small proposed table separates imported record identity from the actual provider object that receives tags.
 
-| Field | Purpose or constraint |
-| --- | --- |
-| `id` | Local primary key. |
-| `screenpipe_instance_id`, `target_type`, `target_id` | Unique canonical identity used by the provider tag API. |
-| `work_period_id` | Nullable authoritative owner; derive the desired case through this period. |
-| `target_revision` | Monotonic version of target ownership and desired TimeKeeper tags. |
+| Field                                                | Purpose or constraint                                                      |
+| ---------------------------------------------------- | -------------------------------------------------------------------------- |
+| `id`                                                 | Local primary key.                                                         |
+| `screenpipe_instance_id`, `target_type`, `target_id` | Unique canonical identity used by the provider tag API.                    |
+| `work_period_id`                                     | Nullable authoritative owner; derive the desired case through this period. |
+| `target_revision`                                    | Monotonic version of target ownership and desired TimeKeeper tags.         |
 
 All aliases of a target must agree with its owner. Changing the owner or its desired case increments `target_revision`. Do not compare revisions from two different periods as if they were one sequence. A move supersedes previous delivery intents and reconciles this single target to the new desired tags. The exact provider target mapping remains an adapter verification requirement.
 
 ### `settings`
 
-| Field | Purpose or constraint |
-| --- | --- |
-| `id` | Single local settings record; constrain to a fixed identity. |
-| `global_hourly_rate` | Nonnegative fallback rate. |
-| `currency` | Currency configuration; change policy remains open. |
-| `workspace_id` | Stable local identity used in TimeKeeper-owned Screenpipe tags. |
-| `updated_at` | Record timestamp. |
+| Field                | Purpose or constraint                                           |
+| -------------------- | --------------------------------------------------------------- |
+| `id`                 | Single local settings record; constrain to a fixed identity.    |
+| `global_hourly_rate` | Nonnegative fallback rate.                                      |
+| `currency`           | Currency configuration; change policy remains open.             |
+| `workspace_id`       | Stable local identity used in TimeKeeper-owned Screenpipe tags. |
+| `updated_at`         | Record timestamp.                                               |
 
 Implemented storage proposal: `hourly_rate_cents`, `global_hourly_rate_cents`, and `applied_hourly_rate_cents` are nonnegative SQLite `INTEGER` values in minor currency units. This avoids floating-point rate storage; currency policy and monetary rounding remain open decisions. A case rate of zero is valid and must not trigger the fallback. The corresponding implemented columns are `cases.hourly_rate_cents`, `settings.global_hourly_rate_cents`, and `work_periods.applied_hourly_rate_cents`. The retained demo freezes the applied rate when a period becomes billed; this implementation does not settle the full billed-period edit policy.
 
-### Implemented demo extensions
+### Implemented billing and compatibility extensions
 
-Migrations 2 and 3 add the mockup features separately agreed on 2026-10-17: client code and hourly rate; case category, court number, opposing party, hourly or flat-fee mode, flat fee and budget; weighted markers and client rules; task types, per-period billability and exclusion; expenses, invoices and frozen invoice lines; audit events, source exports and Jev reviews. Migration 4 adds `demo_block_periods`, the compatibility link from an imported block to its work period, so recovery does not infer identity from colliding numeric IDs. `work_periods` keeps precise duration and revisions without a calculated amount. `invoices` stores the supplied issued snapshot and totals, and `invoice_lines` stores billed minutes, the applied rate, amount and selected period IDs. The imported mockup tables remain for demo catalogue and recognition compatibility; [schema implementation](implementation/schema.md) distinguishes those records from the canonical model. This extension records implementation and does not redefine the agreed core rules or decide the open provider behavior.
+Migrations 2 and 3 add the mockup features separately agreed on 2026-10-17: client code and hourly rate; case category, court number, opposing party, hourly or flat-fee mode, flat fee and budget; weighted markers and client rules; task types, per-period billability and exclusion; expenses, invoices and frozen invoice lines; audit events, source exports and Jev reviews. Migration 4 adds `demo_block_periods`, the compatibility link from an imported block to its work period, so recovery does not infer identity from colliding numeric IDs. `work_periods` keeps precise duration and revisions without a calculated amount. `invoices` stores the supplied issued snapshot and totals, and `invoice_lines` stores billed minutes, the applied rate, amount and selected period IDs. Canonical tables own business writes. Legacy tables remain as migration inputs and fictional capture metadata; [schema implementation](implementation/schema.md) distinguishes those records from the canonical model. This extension records implementation and does not redefine the agreed core rules or decide the open provider behavior.
+
+Migrations 5–8 consolidate preferences, compatibility entry identities, source relocation history, invoice currency, and immutable case references. See [schema implementation](implementation/schema.md) for their scope. Startup uses the same migration ledger; it does not run a separate set of schema alterations.
+
+Migration 9 adds validation guards and foreign-key indexes for the retained extensions. It preserves historical rows and rejects future invalid writes to guarded fields. Period queries order timestamps chronologically, including existing values with different fractional-second precision.
 
 ## Technical persistence
 
 Keep these small records in the same local database. They support recovery and do not imply a separate service or general queue framework.
 
-| Record | Minimum proposed contents | Integrity requirement |
-| --- | --- | --- |
-| `processed_commands` | Producer identity, command ID, payload fingerprint, session ID, command kind, status, prerequisite ID, terminal result, timestamps. | Unique producer/command pair. Distinguish pending from applied or rejected. Only terminal outcomes are final replay results. A changed payload under the same ID is rejected. |
-| `pending_questions` | `question_id`, `session_id`, `work_period_id`, `expected_assignment_revision`, status, response command ID and result. | Unique question ID and session/period/assignment-revision tuple. An answer targets this period and revision only. Duplicate answers reuse the result; stale answers produce a visible conflict. |
-| `reconstruction_conflicts` | Conflict ID, protected period ID, expected revision, proposed boundaries and source references, status. | Store a proposal separately from counted periods; never include it in totals before explicit resolution. |
-| `retrieval_progress` | Session ID, Screenpipe instance, requested interval, pagination cursor/checkpoint, last completed range, retrieval status. | Advance progress with committed detail records. A partial or failed read must not claim complete coverage. |
-| `assignment_deliveries` | Canonical tag target ID, target revision, intended TimeKeeper tags, status, attempts, next retry, acknowledgement. | Unique target/revision delivery. Deduplicate and serialize by the canonical target, not a source alias or period ID. |
+| Record                     | Minimum proposed contents                                                                                                           | Integrity requirement                                                                                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `processed_commands`       | Producer identity, command ID, payload fingerprint, session ID, command kind, status, prerequisite ID, terminal result, timestamps. | Unique producer/command pair. Distinguish pending from applied or rejected. Only terminal outcomes are final replay results. A changed payload under the same ID is rejected.                   |
+| `pending_questions`        | `question_id`, `session_id`, `work_period_id`, `expected_assignment_revision`, status, response command ID and result.              | Unique question ID and session/period/assignment-revision tuple. An answer targets this period and revision only. Duplicate answers reuse the result; stale answers produce a visible conflict. |
+| `reconstruction_conflicts` | Conflict ID, protected period ID, expected revision, proposed boundaries and source references, status.                             | Store a proposal separately from counted periods; never include it in totals before explicit resolution.                                                                                        |
+| `retrieval_progress`       | Session ID, Screenpipe instance, requested interval, pagination cursor/checkpoint, last completed range, retrieval status.          | Advance progress with committed detail records. A partial or failed read must not claim complete coverage.                                                                                      |
+| `assignment_deliveries`    | Canonical tag target ID, target revision, intended TimeKeeper tags, status, attempts, next retry, acknowledgement.                  | Unique target/revision delivery. Deduplicate and serialize by the canonical target, not a source alias or period ID.                                                                            |
 
 Commands, domain changes, and delivery intent must commit atomically where they form one local operation. Pending commands wait for known prerequisites and are reconsidered when those prerequisites arrive. Pending status is not a successful transition and must not be cached as an applied result. Unknown or conflicting session references must not create or reopen a session implicitly.
 

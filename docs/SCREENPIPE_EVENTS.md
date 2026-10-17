@@ -4,11 +4,11 @@ Source review date: 2026-10-17. This refines the earlier integration proposal. F
 
 ## Three different event mechanisms
 
-| Mechanism | What was verified | Consequence for TimeKeeper |
-| --- | --- | --- |
-| Internal capture triggers | Screenpipe capture reacts to operating-system activity. | An internal capture trigger is not automatically an external event subscription. |
-| SDK session events | `@screenpipe/sdk/session` exposes events for a recorder created by that session. | These do not establish a subscription to an existing Screenpipe desktop instance. |
-| Daemon event WebSocket | The server registers `/ws/events` and forwards its internal event bus as JSON. | This is the external subscription candidate for the existing recorder, subject to producer and release verification. |
+| Mechanism                 | What was verified                                                                | Consequence for TimeKeeper                                                                                           |
+| ------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Internal capture triggers | Screenpipe capture reacts to operating-system activity.                          | An internal capture trigger is not automatically an external event subscription.                                     |
+| SDK session events        | `@screenpipe/sdk/session` exposes events for a recorder created by that session. | These do not establish a subscription to an existing Screenpipe desktop instance.                                    |
+| Daemon event WebSocket    | The server registers `/ws/events` and forwards its internal event bus as JSON.   | This is the external subscription candidate for the existing recorder, subject to producer and release verification. |
 
 Sources: [capture architecture](https://docs.screenpipe.com/architecture), [SDK session implementation](https://github.com/screenpipe/screenpipe/blob/main/packages/sdk/session/index.js), and [server routes](https://github.com/screenpipe/screenpipe/blob/main/crates/screenpipe-engine/src/server.rs).
 

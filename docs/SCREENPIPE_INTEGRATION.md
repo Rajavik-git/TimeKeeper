@@ -12,14 +12,14 @@ Here, "memory" means recorded activity accessible through Screenpipe's API. The 
 
 ## Verified capabilities
 
-| Capability | Documentation evidence | TimeKeeper use |
-| --- | --- | --- |
-| Capture changes in screen context | Screenpipe documents capture triggered by app switches, focus, interaction, and typing pauses, with accessibility text and OCR fallback. | Observe recorded context changes. This does not guarantee a public browser-tab-change event. |
-| Read recorded activity | `GET /search` supports time bounds, pagination, content types, app/window/URL filters, and focus filtering. Frame results can include timestamp, frame ID, text, URL, and window metadata. | Retrieve new observations and compare them with previous observations. |
-| Inspect a recorded frame | `GET /frames/{frame_id}/context` provides text, nodes, and extracted URLs. `GET /frames/{frame_id}` provides the recorded screenshot. | Enrich ambiguous observations and display evidence for review. |
-| Let chat call an external MCP server | The changelog documents custom HTTP MCP connections with a name, URL, optional headers, connection testing, and enablement. | Connect Screenpipe chat to TimeKeeper's read-only tools. |
-| SDK session events | Source confirms `app_switched` and `frames_progress` belong to a recorder created by the SDK session. | Not a drop-in subscription to the existing desktop recorder. See the event review. |
-| Daemon event transport | Source registers `/ws/events`, forwarding the internal event bus. | Candidate trigger transport; relevant capture producers and release availability are not established. |
+| Capability                           | Documentation evidence                                                                                                                                                                     | TimeKeeper use                                                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Capture changes in screen context    | Screenpipe documents capture triggered by app switches, focus, interaction, and typing pauses, with accessibility text and OCR fallback.                                                   | Observe recorded context changes. This does not guarantee a public browser-tab-change event.          |
+| Read recorded activity               | `GET /search` supports time bounds, pagination, content types, app/window/URL filters, and focus filtering. Frame results can include timestamp, frame ID, text, URL, and window metadata. | Retrieve new observations and compare them with previous observations.                                |
+| Inspect a recorded frame             | `GET /frames/{frame_id}/context` provides text, nodes, and extracted URLs. `GET /frames/{frame_id}` provides the recorded screenshot.                                                      | Enrich ambiguous observations and display evidence for review.                                        |
+| Let chat call an external MCP server | The changelog documents custom HTTP MCP connections with a name, URL, optional headers, connection testing, and enablement.                                                                | Connect Screenpipe chat to TimeKeeper's read-only tools.                                              |
+| SDK session events                   | Source confirms `app_switched` and `frames_progress` belong to a recorder created by the SDK session.                                                                                      | Not a drop-in subscription to the existing desktop recorder. See the event review.                    |
+| Daemon event transport               | Source registers `/ws/events`, forwarding the internal event bus.                                                                                                                          | Candidate trigger transport; relevant capture producers and release availability are not established. |
 
 Sources: [capture architecture](https://docs.screenpipe.com/architecture), [search reference](https://docs.screenpipe.com/api-reference/search/search-screen-and-audio-content), [frame context](https://docs.screenpipe.com/api-reference/frames/get-frame-context), [frame image](https://docs.screenpipe.com/api-reference/frames/get-frame-by-id), and [Screenpipe changelog](https://docs.screenpipe.com/changelog).
 
@@ -50,12 +50,12 @@ Register a TimeKeeper HTTP MCP server in Screenpipe's Connections settings. The 
 
 Proposed tools, not existing Screenpipe APIs:
 
-| Tool | Input | Result |
-| --- | --- | --- |
-| `find_cases` | Search text and optional client ID | Existing case IDs, references, titles, client IDs, and status. |
-| `get_case` | Case ID | Current case metadata. |
-| `get_period_context` | Period ID or source references | Stored assignment and evidence references. Inference stays in the Screenpipe workflow. |
-| `list_time_entries` | Time bounds and optional case/client ID | Stored entry details with validation and billing states. |
+| Tool                 | Input                                   | Result                                                                                 |
+| -------------------- | --------------------------------------- | -------------------------------------------------------------------------------------- |
+| `find_cases`         | Search text and optional client ID      | Existing case IDs, references, titles, client IDs, and status.                         |
+| `get_case`           | Case ID                                 | Current case metadata.                                                                 |
+| `get_period_context` | Period ID or source references          | Stored assignment and evidence references. Inference stays in the Screenpipe workflow. |
+| `list_time_entries`  | Time bounds and optional case/client ID | Stored entry details with validation and billing states.                               |
 
 These tools use the application API, never direct SQLite access. Chat can ask which case a recorded period belongs to and receive the actual `case_id`. Tool responses do not create or update Screenpipe memories. Instruction text alone does not register an MCP connection or implement a tool. Current source defines an importable skill as a folder containing `SKILL.md` with YAML `name` and `description`, then Markdown instructions. Plan an explicitly imported `timekeeper/SKILL.md` separately from the MCP connection; the earlier generic `skills.md` placeholder is superseded. This is verified in current source, not in the installed app. [Official skill importer](https://github.com/screenpipe/screenpipe/blob/main/apps/screenpipe-app-tauri/src-tauri/src/skills.rs).
 
@@ -77,13 +77,13 @@ Read `/frames/{frame_id}/context` only when extra context is needed, and load th
 
 ## Choosing a detection method
 
-| Method | Assessment |
-| --- | --- |
-| Daemon `/ws/events`, then REST memory reads | Preferred trigger path if a relevant producer is verified in the selected release. Source confirms the transport, not the required capture notification. |
-| Poll recorded memory through REST | Fallback and recovery path. Supports replay using the same evidence. Detection follows recording and indexing latency. |
-| SDK session events | Not selected: the reviewed SDK creates its own recorder rather than subscribing to the existing desktop instance. |
+| Method                                           | Assessment                                                                                                                                                                                                      |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Daemon `/ws/events`, then REST memory reads      | Preferred trigger path if a relevant producer is verified in the selected release. Source confirms the transport, not the required capture notification.                                                        |
+| Poll recorded memory through REST                | Fallback and recovery path. Supports replay using the same evidence. Detection follows recording and indexing latency.                                                                                          |
+| SDK session events                               | Not selected: the reviewed SDK creates its own recorder rather than subscribing to the existing desktop instance.                                                                                               |
 | Run a Screenpipe pipe using the TimeKeeper skill | Supported event-triggered tasks exist, but the reviewed scheduler does not directly subscribe to app switching. A bridge or explicit execution is required; see the event review. Choose one assignment writer. |
-| Add an independent screen or browser watcher | Outside the requested Screenpipe-memory-only evidence path. Not recommended for this design. |
+| Add an independent screen or browser watcher     | Outside the requested Screenpipe-memory-only evidence path. Not recommended for this design.                                                                                                                    |
 
 The REST documentation index omits the daemon WebSocket route. Source inspection establishes `/ws/events`, but no dedicated `tab_changed` or legal-case-change callback was verified. See [event triggers](SCREENPIPE_EVENTS.md) for producer gaps, authentication, delivery limits, and privacy restrictions.
 

@@ -1,0 +1,11 @@
+{
+  "singleQuote": false,
+  "printWidth": 100,
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "src/contracts/openapi.yaml",
+      "options": { "parser": "json" }
+    }
+  ]
+}

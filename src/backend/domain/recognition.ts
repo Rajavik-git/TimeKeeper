@@ -9,8 +9,7 @@ export const defaultWeights = {
   keyword: 0.15,
 } as const;
 export type MarkerType = keyof typeof defaultWeights;
-export type SignalPlace =
-  "app" | "window_title" | "browser_url" | "ocr" | "audio" | "speaker";
+export type SignalPlace = "app" | "window_title" | "browser_url" | "ocr" | "audio" | "speaker";
 export interface Signals {
   app: string;
   window_title: string;
@@ -62,8 +61,7 @@ const contains = (text: string, value: string) => {
   while (at !== -1) {
     const before = at ? hay[at - 1] : "";
     const after = hay[at + needle.length] ?? "";
-    if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after))
-      return true;
+    if (!/[\p{L}\p{N}]/u.test(before) && !/[\p{L}\p{N}]/u.test(after)) return true;
     at = hay.indexOf(needle, at + 1);
   }
   return false;
@@ -72,18 +70,10 @@ export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
   const fields: Array<[SignalPlace, string]> = [
     ["app", signals.app],
     ["window_title", signals.window_title],
-    ...(signals.browser_url
-      ? [["browser_url", signals.browser_url] as [SignalPlace, string]]
-      : []),
+    ...(signals.browser_url ? [["browser_url", signals.browser_url] as [SignalPlace, string]] : []),
     ...(signals.ocr_texts ?? []).map((x): [SignalPlace, string] => ["ocr", x]),
-    ...(signals.audio_transcripts ?? []).map((x): [SignalPlace, string] => [
-      "audio",
-      x,
-    ]),
-    ...(signals.speakers ?? []).map((x): [SignalPlace, string] => [
-      "speaker",
-      x,
-    ]),
+    ...(signals.audio_transcripts ?? []).map((x): [SignalPlace, string] => ["audio", x]),
+    ...(signals.speakers ?? []).map((x): [SignalPlace, string] => ["speaker", x]),
   ];
   return catalog.matters
     .map((matter) => {
@@ -125,9 +115,7 @@ export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
       for (const cue of cues) {
         if (cue.value === "N/A" || cue.value.startsWith("CASE [")) continue;
         const hit = fields.find(([place, text]) =>
-          cue.type !== "domain" || place === "browser_url"
-            ? contains(text, cue.value)
-            : false,
+          cue.type !== "domain" || place === "browser_url" ? contains(text, cue.value) : false,
         );
         const key = `${cue.type}:${normalized(cue.value)}`;
         if (hit && !seen.has(key)) {
@@ -151,9 +139,7 @@ export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
         signals.previous.window_title === signals.window_title;
       const score = Math.min(
         0.99,
-        1 -
-          found.reduce((p, cue) => p * (1 - cue.weight), 1) +
-          (continuity ? 0.1 : 0),
+        1 - found.reduce((p, cue) => p * (1 - cue.weight), 1) + (continuity ? 0.1 : 0),
       );
       return { matter_id: matter.id, score, found, continuity };
     })
@@ -178,8 +164,7 @@ export function decision(candidates: Candidate[], threshold: number) {
           !ambiguousClient && best.score >= Math.max(threshold, 0.5)
             ? ("assigned" as const)
             : ("to_check" as const),
-        matter_id:
-          !ambiguousClient && best.score >= 0.5 ? best.matter_id : null,
+        matter_id: !ambiguousClient && best.score >= 0.5 ? best.matter_id : null,
         confidence: best.score,
       };
 }

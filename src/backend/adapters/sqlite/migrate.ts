@@ -1,14 +1,14 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from "node:sqlite";
 
 export function migrate(db: DatabaseSync): void {
-  db.exec('PRAGMA foreign_keys = ON');
+  db.exec("PRAGMA foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY);
   `);
-  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version = 1').get()) {
-    db.exec('BEGIN IMMEDIATE');
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 1").get()) {
+    db.exec("BEGIN IMMEDIATE");
     try {
-    db.exec(`
+      db.exec(`
       CREATE TABLE clients (
         id TEXT PRIMARY KEY, name TEXT NOT NULL CHECK(length(trim(name)) > 0),
         active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
@@ -158,15 +158,15 @@ export function migrate(db: DatabaseSync): void {
         UNIQUE(tag_target_id,target_revision)
       );
     `);
-    db.prepare('INSERT INTO schema_migrations(version) VALUES (1)').run();
-      db.exec('COMMIT');
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (1)").run();
+      db.exec("COMMIT");
     } catch (error) {
-      db.exec('ROLLBACK');
+      db.exec("ROLLBACK");
       throw error;
     }
   }
-  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version = 2').get()) {
-    db.exec('BEGIN IMMEDIATE');
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 2").get()) {
+    db.exec("BEGIN IMMEDIATE");
     try {
       db.exec(`
         ALTER TABLE clients ADD COLUMN code TEXT;
@@ -256,15 +256,15 @@ export function migrate(db: DatabaseSync): void {
           sent_data TEXT NOT NULL
         );
       `);
-      db.prepare('INSERT INTO schema_migrations(version) VALUES (2)').run();
-      db.exec('COMMIT');
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (2)").run();
+      db.exec("COMMIT");
     } catch (error) {
-      db.exec('ROLLBACK');
+      db.exec("ROLLBACK");
       throw error;
     }
   }
-  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version = 3').get()) {
-    db.exec('BEGIN IMMEDIATE');
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 3").get()) {
+    db.exec("BEGIN IMMEDIATE");
     try {
       db.exec(`
         ALTER TABLE invoices ADD COLUMN subtotal_cents INTEGER;
@@ -274,15 +274,15 @@ export function migrate(db: DatabaseSync): void {
         ALTER TABLE invoices ADD COLUMN snapshot_json TEXT;
         ALTER TABLE invoice_lines ADD COLUMN period_ids_json TEXT;
       `);
-      db.prepare('INSERT INTO schema_migrations(version) VALUES (3)').run();
-      db.exec('COMMIT');
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (3)").run();
+      db.exec("COMMIT");
     } catch (error) {
-      db.exec('ROLLBACK');
+      db.exec("ROLLBACK");
       throw error;
     }
   }
-  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version = 4').get()) {
-    db.exec('BEGIN IMMEDIATE');
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 4").get()) {
+    db.exec("BEGIN IMMEDIATE");
     try {
       db.exec(`CREATE TABLE demo_block_periods (
         block_id INTEGER PRIMARY KEY,
@@ -299,10 +299,172 @@ export function migrate(db: DatabaseSync): void {
         db.exec(`INSERT OR IGNORE INTO demo_block_periods(block_id,period_id)
           SELECT b.id,p.id FROM block b JOIN work_periods p ON p.id='excluded-'||b.id`);
       }
-      db.prepare('INSERT INTO schema_migrations(version) VALUES (4)').run();
-      db.exec('COMMIT');
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (4)").run();
+      db.exec("COMMIT");
     } catch (error) {
-      db.exec('ROLLBACK');
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 5").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const table of ["settings", "setting"]) {
+        const columns = new Set(
+          db
+            .prepare(`PRAGMA table_info(${table})`)
+            .all()
+            .map((row) => String(row.name)),
+        );
+        if (!columns.size) continue;
+        const additions = {
+          pill_always_on_top: "INTEGER NOT NULL DEFAULT 1 CHECK(pill_always_on_top IN (0,1))",
+          pill_display:
+            "TEXT NOT NULL DEFAULT 'fees' CHECK(pill_display IN ('fees','time','case'))",
+          pill_withhold_calls: "INTEGER NOT NULL DEFAULT 1 CHECK(pill_withhold_calls IN (0,1))",
+        };
+        for (const [column, declaration] of Object.entries(additions))
+          if (!columns.has(column))
+            db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${declaration}`);
+      }
+      if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='setting'").get())
+        db.exec(`UPDATE settings SET pill_always_on_top=(SELECT pill_always_on_top FROM setting WHERE id=1),
+          pill_display=(SELECT pill_display FROM setting WHERE id=1),pill_withhold_calls=(SELECT pill_withhold_calls FROM setting WHERE id=1)
+          WHERE id=1 AND EXISTS(SELECT 1 FROM setting WHERE id=1)`);
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (5)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 6").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(`CREATE TABLE demo_period_entries (period_id TEXT PRIMARY KEY, entry_id INTEGER NOT NULL UNIQUE);
+        CREATE TABLE source_relocations (source_id TEXT NOT NULL REFERENCES sources(id), from_period_id TEXT NOT NULL REFERENCES work_periods(id), to_period_id TEXT NOT NULL REFERENCES work_periods(id), PRIMARY KEY(source_id,from_period_id));`);
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (6)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 7").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(`ALTER TABLE invoices ADD COLUMN currency TEXT;
+        UPDATE invoices SET currency=(SELECT MIN(applied_currency) FROM work_periods WHERE invoice_id=invoices.id)
+        WHERE (SELECT COUNT(DISTINCT applied_currency) FROM work_periods WHERE invoice_id=invoices.id)=1;`);
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (7)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 8").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(`CREATE TRIGGER cases_reference_immutable BEFORE UPDATE OF reference ON cases
+        WHEN NEW.reference <> OLD.reference BEGIN SELECT RAISE(ABORT, 'case reference is immutable'); END;`);
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (8)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 9").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      // Guard future writes without rebuilding tables or changing historical data.
+      // UPDATE guards validate each changed value independently. Historical invalid
+      // values can be retained by a save and repaired one field at a time.
+      const guards: Record<string, Record<string, string>> = {
+        settings: {
+          global_hourly_rate_cents:
+            "typeof(NEW.global_hourly_rate_cents)='integer' AND NEW.global_hourly_rate_cents>=0",
+          base_unit: "NEW.base_unit IN ('hour','intervention')",
+          vat_rate: "NEW.vat_rate BETWEEN 0 AND 100",
+          confidence_threshold: "NEW.confidence_threshold BETWEEN 0 AND 1",
+          notifications: "NEW.notifications IN (0,1)",
+          next_number: "typeof(NEW.next_number)='integer' AND NEW.next_number>0",
+        },
+        clients: {
+          type: "NEW.type IN ('individual','company')",
+          mode: "NEW.mode IN ('hourly','subscription')",
+        },
+        cases: {
+          success_fee_percent:
+            "NEW.success_fee_percent IS NULL OR NEW.success_fee_percent BETWEEN 0 AND 100",
+        },
+        work_periods: {
+          nonbillable_reason:
+            "NEW.nonbillable_reason IS NULL OR NEW.nonbillable_reason IN ('offered','internal','admin')",
+          demo_confidence: "NEW.demo_confidence IS NULL OR NEW.demo_confidence BETWEEN 0 AND 1",
+        },
+        markers: {
+          type: "NEW.type IN ('reference','case_number','opposing_party','client_name','file','email','domain','keyword')",
+          learned: "NEW.learned IN (0,1)",
+          hits: "typeof(NEW.hits)='integer' AND NEW.hits>=0",
+        },
+        client_rules: {
+          type: "NEW.type IN ('daily_research_cap','nonbillable_travel')",
+        },
+        invoices: {
+          type: "NEW.type IN ('deposit','final')",
+          status: "NEW.status IN ('sent','issued')",
+        },
+        invoice_lines: {
+          origin: "NEW.origin IN ('work_period','flat_fee','expense')",
+        },
+        expenses: {
+          type: "NEW.type IN ('expense','disbursement')",
+        },
+        jev_reviews: {
+          probability: "NEW.probability BETWEEN 0 AND 1",
+        },
+      };
+      for (const [table, checks] of Object.entries(guards)) {
+        const insertInvalid = Object.values(checks)
+          .map((valid) => `NOT (${valid})`)
+          .join(" OR ");
+        const updateInvalid = Object.entries(checks)
+          .map(([field, valid]) => `(NEW.${field} IS NOT OLD.${field} AND NOT (${valid}))`)
+          .join(" OR ");
+        db.exec(`CREATE TRIGGER ${table}_extension_insert BEFORE INSERT ON ${table}
+          WHEN ${insertInvalid} BEGIN SELECT RAISE(ABORT, '${table} extension constraint'); END;
+          CREATE TRIGGER ${table}_extension_update BEFORE UPDATE OF ${Object.keys(checks).join(",")} ON ${table}
+          WHEN ${updateInvalid} BEGIN SELECT RAISE(ABORT, '${table} extension constraint'); END;`);
+      }
+      // Child-key indexes support parent integrity checks and ordinary owner lookups.
+      const childKeys = [
+        ["work_periods", "initial_case_id"],
+        ["work_periods", "task_type_id"],
+        ["work_periods", "invoice_id"],
+        ["tag_targets", "work_period_id"],
+        ["pending_questions", "work_period_id"],
+        ["reconstruction_conflicts", "protected_period_id"],
+        ["retrieval_progress", "session_id"],
+        ["client_rules", "client_id"],
+        ["invoices", "case_id"],
+        ["invoice_lines", "invoice_id"],
+        ["expenses", "case_id"],
+        ["expenses", "invoice_id"],
+        ["audit_events", "work_period_id"],
+        ["jev_reviews", "work_period_id"],
+        ["source_relocations", "from_period_id"],
+        ["source_relocations", "to_period_id"],
+      ];
+      for (const [table, column] of childKeys)
+        db.exec(`CREATE INDEX ${table}_${column}_idx ON ${table}(${column})`);
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (9)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
       throw error;
     }
   }

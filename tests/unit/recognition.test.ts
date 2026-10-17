@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { memoryDb } from "../../src/backend/adapters/sqlite/repository";
-import {
-  catalogFromDb,
-  recognizeBlock,
-} from "../../src/backend/adapters/sqlite/recognition";
+import { memoryDb } from "../fixtures/database.js";
+import { catalogFromDb, recognizeBlock } from "../../src/backend/adapters/sqlite/recognition";
 import { decision, recognize } from "../../src/backend/domain/recognition";
 
 describe("recognition", () => {
@@ -19,11 +16,7 @@ describe("recognition", () => {
           window_title: string;
           matter_id: number;
         },
-      ) =>
-        recognize(
-          { app: "Word processor", window_title, ocr_texts, previous },
-          catalog,
-        );
+      ) => recognize({ app: "Word processor", window_title, ocr_texts, previous }, catalog);
       expect(match("2025-031 Conclusions v3.docx")[0]).toMatchObject({
         matter_id: 1,
         score: 0.95,
@@ -45,15 +38,11 @@ describe("recognition", () => {
         value: "échéance",
         weight: 0.15,
       });
+      expect(match("Nothing", ["ECHEANCE"])[0].found.some((x) => x.value === "échéance")).toBe(
+        true,
+      );
       expect(
-        match("Nothing", ["ECHEANCE"])[0].found.some(
-          (x) => x.value === "échéance",
-        ),
-      ).toBe(true);
-      expect(
-        match("Nothing", ["bailleur"]).some((x) =>
-          x.found.some((f) => f.value === "bail"),
-        ),
+        match("Nothing", ["bailleur"]).some((x) => x.found.some((f) => f.value === "bail")),
       ).toBe(false);
       const continuity = match("Martin Distribution", [], {
         app: "Word processor",

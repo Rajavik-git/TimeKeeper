@@ -8,5 +8,9 @@ export function Card({
   className?: string;
   style?: CSSProperties;
 }) {
-  return <section className={`glass pad ${className}`} style={style}>{children}</section>;
+  return (
+    <section className={`glass pad ${className}`} style={style}>
+      {children}
+    </section>
+  );
 }

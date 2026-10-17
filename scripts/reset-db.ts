@@ -1,18 +1,9 @@
-import { refreshDemoRecognition } from "../src/backend/adapters/sqlite/recognition.js";
-import { seedCanonicalDemo } from "../src/backend/adapters/sqlite/demo-core.js";
-import { DatabaseSync } from "node:sqlite";
-import { readFileSync, mkdirSync, rmSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { rmSync } from "node:fs";
+import { resolve } from "node:path";
+import { openDb } from "../src/backend/adapters/sqlite/repository.js";
+
 const path = resolve(process.env.TIMEKEEPER_DB ?? "data/timekeeper.db");
-mkdirSync(dirname(path), { recursive: true });
 rmSync(path, { force: true });
-const db = new DatabaseSync(path);
-try {
-  db.exec(readFileSync("src/backend/adapters/sqlite/schema.sql", "utf8"));
-  db.exec(readFileSync("src/backend/adapters/sqlite/seed.sql", "utf8"));
-  refreshDemoRecognition(db);
-  seedCanonicalDemo(db);
-  console.log(`Database created: ${path}`);
-} finally {
-  db.close();
-}
+const db = openDb(path);
+db.close();
+console.log(`Empty database created: ${path}`);

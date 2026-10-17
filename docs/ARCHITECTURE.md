@@ -2,9 +2,9 @@
 
 ## Scope and ownership
 
-This document describes the intended implementation of the [requirements](REQUIREMENTS.md). The application is not implemented. Screenpipe integration findings are source research, not runtime verification.
+This document describes the implemented local core and the intended integrations for the [requirements](REQUIREMENTS.md). React, the Hono API, application services, and SQLite persistence are implemented. Startup initializes the schema and neutral settings without importing sample records. Screenpipe integration findings are source research, not runtime verification.
 
-TimeKeeper uses a Tauri desktop host, React, a local Node.js backend, and SQLite. Tauri owns the backend process lifecycle. The packaged application must include the backend runtime or executable. Exact versions and packaging remain to be selected. See Tauri's [sidecar documentation](https://v2.tauri.app/develop/sidecar/) for the external binary mechanism.
+TimeKeeper uses a Tauri desktop host, React, a local Node.js backend, and SQLite. The Node backend currently runs separately. Tauri process management is a release requirement, not implemented behavior. The packaged application must include the backend runtime or executable. Node.js uses the LTS version pinned in [`.nvmrc`](../.nvmrc). Other component versions and packaging remain to be selected. See Tauri's [sidecar documentation](https://v2.tauri.app/develop/sidecar/) for the external binary mechanism.
 
 Screenpipe owns workflow execution after triggers. Node validates commands and writes application records. React calculates summaries. The intended source tree and dependency rules are in [AGENTS.md](../AGENTS.md).
 
@@ -33,7 +33,7 @@ flowchart LR
         API[Node API and application services]
         DB[(SQLite)]
         Adapter[Source-tag adapter]
-        Host -->|Manage process| API
+        Host -.->|Process management pending| API
         UI <--> API
         MCP --> API
         API <--> DB
@@ -53,29 +53,29 @@ flowchart LR
 
 The diagram describes required behavior. It does not claim that these integrations work. The pending-command box represents an unresolved contract, not an implemented queue or a verified Screenpipe capability.
 
-| Component | Responsibility |
-| --- | --- |
-| Screenpipe recorder and API | Capture activity and expose recorded observations and sources. |
-| Screenpipe bridge and workflow | Receive verified signals, retrieve evidence, resolve cases, ask about unknown folders, and submit commands. |
-| JEV | Help the Screenpipe workflow judge ambiguous context using known candidates. Never create case IDs or validate time. |
-| External launcher | Start or activate the installed Tauri app before its API is reachable. |
-| MCP server | Translate scoped workflow commands and read-only queries into API requests. Never access SQLite directly. |
-| Node application services | Validate commands, preserve revisions and corrections, and persist records through one write path. |
-| Source-tag adapter | Deliver committed assignments, retry failures, and verify the resulting tags. |
-| React interface | Review evidence, edit periods, validate records, manage billing status, and calculate summaries. |
-| SQLite | Store detail records and technical recovery state. No stored aggregate totals. |
+| Component                      | Responsibility                                                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Screenpipe recorder and API    | Capture activity and expose recorded observations and sources.                                                       |
+| Screenpipe bridge and workflow | Receive verified signals, retrieve evidence, resolve cases, ask about unknown folders, and submit commands.          |
+| JEV                            | Help the Screenpipe workflow judge ambiguous context using known candidates. Never create case IDs or validate time. |
+| External launcher              | Start or activate the installed Tauri app before its API is reachable.                                               |
+| MCP server                     | Translate scoped workflow commands and read-only queries into API requests. Never access SQLite directly.            |
+| Node application services      | Validate commands, preserve revisions and corrections, and persist records through one write path.                   |
+| Source-tag adapter             | Deliver committed assignments, retry failures, and verify the resulting tags.                                        |
+| React interface                | Review evidence, edit periods, validate records, manage billing status, and calculate summaries.                     |
+| SQLite                         | Store detail records and technical recovery state. Issued invoices retain their frozen monetary snapshots.           |
 
 ## Session lifecycle and application lifecycle
 
 Session state is independent of desktop process state.
 
-| Action | Required effect |
-| --- | --- |
-| Start command in Screenpipe | Launch or activate TimeKeeper and wait for readiness. Create a session only if none is active. Otherwise, return the active session ID without resetting its start boundary. |
-| Close TimeKeeper | Exit Tauri and Node. Keep the session and active work period open. |
-| Reopen TimeKeeper | Resume the existing session and reconcile recorded history without duplicate periods or lost corrections. |
-| End command in Screenpipe | End the explicitly targeted session and close its active period. Later end requests for that session return its original end boundary. Do not stop Screenpipe recording. |
-| Receive evidence after session end | Accept historical reconciliation for recorded activity inside the session boundary. Do not reopen or extend the session. |
+| Action                             | Required effect                                                                                                                                                              |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Start command in Screenpipe        | Launch or activate TimeKeeper and wait for readiness. Create a session only if none is active. Otherwise, return the active session ID without resetting its start boundary. |
+| Close TimeKeeper                   | Exit Tauri and Node. Keep the session and active work period open.                                                                                                           |
+| Reopen TimeKeeper                  | Resume the existing session and reconcile recorded history without duplicate periods or lost corrections.                                                                    |
+| End command in Screenpipe          | End the explicitly targeted session and close its active period. Later end requests for that session return its original end boundary. Do not stop Screenpipe recording.     |
+| Receive evidence after session end | Accept historical reconciliation for recorded activity inside the session boundary. Do not reopen or extend the session.                                                     |
 
 Only one session can be active per workspace. Commands need stable IDs, a session ID, effective timestamps, and revision checks. The start response supplies the authoritative session ID for subsequent commands. Receipt time must not replace the effective timestamp. Command retries must have no additional effect.
 
@@ -167,4 +167,14 @@ When TimeKeeper is stopped, chat cannot read its API and must report that applic
 
 The agreed logical model is defined in [DATABASE.md](DATABASE.md): clients, cases, sessions, work periods, sources, settings, and technical recovery records. The supplied task/subtask model remains a [historical reference](reference/ORIGINAL_DATABASE.md).
 
+The SQLite adapters use Drizzle ORM with the existing `node:sqlite` connection. Typed table mappings live in `src/backend/adapters/sqlite/tables.ts`. The adapter caches one Drizzle client per connection, so application savepoints cover both query-builder operations and retained SQL. Domain and application ports do not depend on Drizzle.
+
+Versioned SQL in `src/backend/adapters/sqlite/migrate.ts` remains authoritative for schema upgrades, constraints, indexes, and triggers. The Drizzle mappings describe runtime queries; they do not generate or apply migrations. Do not run schema push against an existing workspace. Complex provider-target reconciliation and SQLite metadata queries retain parameterized SQL. This migration does not change stored identities or the installed database location.
+
 Resolve the [remaining decisions](DESIGN_REVIEW.md) before implementation that depends on them. The first acceptance journey covers start, case A, unknown folder, case B, delayed answer, close, end through Screenpipe, reopen, review, correct, validate, and calculate the combined rounded total. Run desktop acceptance on both macOS and Windows. Static documents do not establish provider or platform behavior.
+
+## Current catalogue, activity, and calendar boundaries
+
+The current React interface uses the typed canonical catalogue and period APIs. `CatalogService` owns catalogue operations through typed ports. `SourceExportService` owns canonical source packs and invoice CSV reads. `api/compatibility-routes.ts` contains deprecated contracts for older callers; current screen state does not depend on those payloads or their numeric entry aliases.
+
+`src/shared/dates.ts` owns calendar conversion and arithmetic with `date-fns` and its timezone extension. The [data-format guide](DATABASE.md#calendar-dates-and-timestamps) defines the implementation's date-only values, instants, explicit timezone, and start-day grouping. This display policy does not resolve the open clipping or midnight-splitting rules. Exact duration milliseconds and historical invoice snapshots remain authoritative.

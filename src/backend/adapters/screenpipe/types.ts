@@ -34,6 +34,4 @@ export interface IngestionDraft {
  * TODO: turn local search results into contiguous blocks, source references and
  * a proposed time entry. Do not call screenpipe, Jev or a language model here yet.
  */
-export type ConsolidateSearchResults = (
-  items: ScreenpipeSearchResult[],
-) => IngestionDraft[];
+export type ConsolidateSearchResults = (items: ScreenpipeSearchResult[]) => IngestionDraft[];

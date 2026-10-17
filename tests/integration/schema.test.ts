@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { memoryDb } from "../../src/backend/adapters/sqlite/repository";
+import { memoryDb } from "../fixtures/database.js";
 const expected = JSON.parse(
   readFileSync("src/backend/adapters/sqlite/expected-schema.json", "utf8"),
 ) as Record<string, string[]>;
@@ -10,23 +10,33 @@ describe("demo schema migration", () => {
     try {
       const actual = (
         db
-          .prepare(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-          )
+          .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
           .all() as { name: string }[]
       ).map((x) => x.name);
       for (const table of Object.keys(expected)) expect(actual).toContain(table);
-      for (const table of ["clients", "cases", "sessions", "work_periods", "sources", "tag_targets", "settings", "processed_commands", "pending_questions", "reconstruction_conflicts", "retrieval_progress", "assignment_deliveries"])
+      for (const table of [
+        "clients",
+        "cases",
+        "sessions",
+        "work_periods",
+        "sources",
+        "tag_targets",
+        "settings",
+        "processed_commands",
+        "pending_questions",
+        "reconstruction_conflicts",
+        "retrieval_progress",
+        "assignment_deliveries",
+      ])
         expect(actual).toContain(table);
       for (const [table, columns] of Object.entries(expected)) {
-        const names = (
-          db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
-        ).map((x) => x.name);
+        const names = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
+          (x) => x.name,
+        );
         expect(names, table).toEqual(columns);
       }
       expect(
-        (db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number })
-          .foreign_keys,
+        (db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys,
       ).toBe(1);
       expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     } finally {

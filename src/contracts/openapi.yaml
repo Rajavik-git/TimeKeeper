@@ -3,7 +3,7 @@
   "info": {
     "title": "TimeKeeper local API",
     "version": "0.1.0",
-    "description": "The single contract between the local UI and API. Fictional demo data."
+    "description": "The single contract between the local UI and API."
   },
   "servers": [
     {
@@ -71,46 +71,18 @@
             "schema": {
               "type": "string"
             }
-          }
-        ]
-      }
-    },
-    "/api/demo/reset": {
-      "post": {
-        "summary": "Reset the demo database",
-        "operationId": "demo_reset_post",
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/State"
-                }
-              }
-            }
           },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
+          {
+            "name": "timeZone",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped."
           }
-        }
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/time-entries/{id}": {
@@ -154,53 +126,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "matter_id": {
-                    "description": "Requires expected_assignment_revision when assigning a case through the compatibility route.",
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "expected_assignment_revision": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "billable": {
-                    "type": "boolean"
-                  },
-                  "reason": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "offered",
-                          "internal",
-                          "admin"
-                        ]
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "review_status": {
-                    "type": "string",
-                    "enum": [
-                      "approved"
-                    ]
-                  }
-                },
-                "required": []
+                "$ref": "#/components/schemas/time_entries_id_patchRequest"
               }
             }
           }
@@ -214,7 +140,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/day/approve": {
@@ -237,10 +165,7 @@
                       "type": "integer"
                     }
                   },
-                  "required": [
-                    "approved",
-                    "unassigned"
-                  ]
+                  "required": ["approved", "unassigned"]
                 }
               }
             }
@@ -271,20 +196,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "date": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "date"
-                ]
+                "$ref": "#/components/schemas/day_approve_postRequest"
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/matters/{id}/approve": {
@@ -304,9 +222,7 @@
                       "type": "integer"
                     }
                   },
-                  "required": [
-                    "approved"
-                  ]
+                  "required": ["approved"]
                 }
               }
             }
@@ -338,10 +254,34 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer"
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "\\S"
+                }
+              ]
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostApiMattersIdApproveRequest"
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/time-entries/{id}/discard": {
@@ -389,7 +329,19 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostApiTimeEntriesIdDiscardRequest"
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/blocks/{id}/recover": {
@@ -437,24 +389,26 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostApiBlocksIdRecoverRequest"
+              }
+            }
+          }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/time-entries/manual": {
       "post": {
-        "summary": "Add off-screen time",
+        "summary": "Legacy manual entry is unavailable",
         "operationId": "time_entries_manual_post",
         "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/time_entry"
-                }
-              }
-            }
-          },
           "400": {
             "description": "Invalid request",
             "content": {
@@ -465,12 +419,23 @@
               }
             }
           },
-          "404": {
-            "description": "Not found",
+          "501": {
+            "description": "Manual entry through the legacy route is unavailable",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["error", "message"],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "enum": ["unavailable"]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -481,37 +446,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "matter_id": {
-                    "type": "integer"
-                  },
-                  "task_id": {
-                    "type": "integer"
-                  },
-                  "date": {
-                    "type": "string"
-                  },
-                  "tenths_of_hour": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "label": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "matter_id",
-                  "task_id",
-                  "date",
-                  "tenths_of_hour",
-                  "label"
-                ]
+                "$ref": "#/components/schemas/time_entries_manual_postRequest"
               }
             }
           }
-        }
+        },
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. This legacy operation cannot supply explicit session and time boundaries. It returns 501 without creating time. The interface keeps manual entry disabled while its product rules remain open.",
+        "deprecated": true
       }
     },
     "/api/matters": {
@@ -555,27 +496,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "client_id": {
-                    "type": "integer"
-                  },
-                  "title": {
-                    "type": "string"
-                  },
-                  "opposing_party": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "client_id",
-                  "title"
-                ]
+                "$ref": "#/components/schemas/matters_postRequest"
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/markers": {
@@ -619,35 +546,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "matter_id": {
-                    "type": "integer"
-                  },
-                  "type": {
-                    "enum": [
-                      "case_number",
-                      "opposing_party",
-                      "file",
-                      "email",
-                      "domain",
-                      "keyword"
-                    ]
-                  },
-                  "value": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "matter_id",
-                  "type",
-                  "value"
-                ]
+                "$ref": "#/components/schemas/markers_postRequest"
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/markers/{id}": {
@@ -667,9 +572,7 @@
                       "type": "boolean"
                     }
                   },
-                  "required": [
-                    "deleted"
-                  ]
+                  "required": ["deleted"]
                 }
               }
             }
@@ -704,7 +607,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/expenses": {
@@ -748,40 +653,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "matter_id": {
-                    "type": "integer"
-                  },
-                  "date": {
-                    "type": "string"
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "enum": [
-                      "expense",
-                      "disbursement"
-                    ]
-                  },
-                  "amount_cents": {
-                    "type": "integer",
-                    "minimum": 1
-                  }
-                },
-                "required": [
-                  "matter_id",
-                  "date",
-                  "label",
-                  "type",
-                  "amount_cents"
-                ]
+                "$ref": "#/components/schemas/expenses_postRequest"
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/expenses/{id}": {
@@ -801,9 +679,7 @@
                       "type": "boolean"
                     }
                   },
-                  "required": [
-                    "deleted"
-                  ]
+                  "required": ["deleted"]
                 }
               }
             }
@@ -838,7 +714,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/invoices": {
@@ -906,9 +784,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "csv"
-                  ]
+                  "required": ["csv"]
                 }
               }
             }
@@ -943,7 +819,8 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "description": "Returns semicolon-delimited CSV with number, date, client, case, label, minutes, hourly_rate, amount, currency, and sales_tax columns. Monetary values use the currency frozen on the invoice. Historical invoices without a known currency export a blank currency."
       }
     },
     "/api/sources/{id}": {
@@ -989,9 +866,12 @@
             "required": true,
             "schema": {
               "type": "integer"
-            }
+            },
+            "description": "Numeric compatibility time-entry ID."
           }
-        ]
+        ],
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Legacy time-entry operation. The id is the numeric compatibility entry ID, not a canonical period ID or provider source identity.",
+        "deprecated": true
       }
     },
     "/api/sources/{id}/export": {
@@ -1035,19 +915,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "options": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "required": [
-                  "options"
-                ]
+                "$ref": "#/components/schemas/sources_id_export_postRequest"
               }
             }
           }
@@ -1059,14 +927,17 @@
             "required": true,
             "schema": {
               "type": "integer"
-            }
+            },
+            "description": "Numeric compatibility time-entry ID."
           }
-        ]
+        ],
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Legacy time-entry operation. The id is the numeric compatibility entry ID, not a canonical period ID or provider source identity.",
+        "deprecated": true
       }
     },
     "/api/pauses": {
       "post": {
-        "summary": "Pause capture",
+        "summary": "Record a pause annotation",
         "operationId": "pauses_post",
         "responses": {
           "200": {
@@ -1105,32 +976,18 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "date": {
-                    "type": "string"
-                  },
-                  "start_time": {
-                    "type": "string"
-                  },
-                  "reason": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "date",
-                  "start_time"
-                ]
+                "$ref": "#/components/schemas/pauses_postRequest"
               }
             }
           }
-        }
+        },
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Stores an annotation only. This operation does not start, stop, pause, or resume Screenpipe recording.",
+        "deprecated": true
       }
     },
     "/api/pauses/{id}": {
       "patch": {
-        "summary": "Resume capture",
+        "summary": "End a pause annotation",
         "operationId": "pauses_id_patch",
         "responses": {
           "200": {
@@ -1169,16 +1026,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "end_time": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "end_time"
-                ]
+                "$ref": "#/components/schemas/pauses_id_patchRequest"
               }
             }
           }
@@ -1192,7 +1040,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. Stores an annotation only. This operation does not start, stop, pause, or resume Screenpipe recording.",
+        "deprecated": true
       }
     },
     "/api/blocks/{id}/close": {
@@ -1236,17 +1086,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "minutes": {
-                    "type": "integer",
-                    "minimum": 1
-                  }
-                },
-                "required": [
-                  "minutes"
-                ]
+                "$ref": "#/components/schemas/blocks_id_close_postRequest"
               }
             }
           }
@@ -1260,7 +1100,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/firm/{id}": {
@@ -1304,33 +1146,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "lawyer_name": {
-                    "type": "string"
-                  },
-                  "address": {
-                    "type": "string"
-                  },
-                  "vat_number": {
-                    "type": "string"
-                  },
-                  "base_rate_cents": {
-                    "type": "integer"
-                  },
-                  "base_unit": {
-                    "type": "string",
-                    "enum": [
-                      "hour",
-                      "intervention"
-                    ]
-                  },
-                  "vat_rate": {
-                    "type": "number"
-                  }
-                },
-                "required": []
+                "$ref": "#/components/schemas/firm_id_patchRequest"
               }
             }
           }
@@ -1344,7 +1160,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/setting/{id}": {
@@ -1388,32 +1206,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "confidence_threshold": {
-                    "type": "number"
-                  },
-                  "excluded_apps": {
-                    "type": "string"
-                  },
-                  "capture_retention": {
-                    "type": "string"
-                  },
-                  "notifications": {
-                    "type": "boolean"
-                  },
-                  "pill_position": {
-                    "type": "string"
-                  },
-                  "invoice_prefix": {
-                    "type": "string"
-                  },
-                  "next_number": {
-                    "type": "integer"
-                  }
-                },
-                "required": []
+                "$ref": "#/components/schemas/setting_id_patchRequest"
               }
             }
           }
@@ -1427,7 +1220,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/client/{id}": {
@@ -1471,37 +1266,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "individual",
-                      "company"
-                    ]
-                  },
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "hourly",
-                      "subscription"
-                    ]
-                  },
-                  "rate_cents": {
-                    "type": "integer"
-                  },
-                  "vat_applicable": {
-                    "type": "boolean"
-                  },
-                  "billing_address": {
-                    "type": "string"
-                  }
-                },
-                "required": []
+                "$ref": "#/components/schemas/client_id_patchRequest"
               }
             }
           }
@@ -1512,10 +1277,24 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer"
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "\\S"
+                }
+              ]
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/matter/{id}": {
@@ -1559,93 +1338,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "client_id": {
-                    "type": "integer"
-                  },
-                  "title": {
-                    "type": "string"
-                  },
-                  "category": {
-                    "type": "string"
-                  },
-                  "case_number": {
-                    "type": "string"
-                  },
-                  "opposing_party": {
-                    "type": "string"
-                  },
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "hourly",
-                      "flat_fee"
-                    ]
-                  },
-                  "own_rate_cents": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "flat_fee_cents": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "hour_cap": {
-                    "anyOf": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "success_fee_percent": {
-                    "anyOf": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "budget_cents": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "open",
-                      "closed"
-                    ]
-                  },
-                  "opened_on": {
-                    "type": "string"
-                  }
-                },
-                "required": []
+                "$ref": "#/components/schemas/matter_id_patchRequest"
               }
             }
           }
@@ -1656,10 +1349,24 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer"
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "\\S"
+                }
+              ]
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/task/{id}": {
@@ -1703,26 +1410,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "code": {
-                    "type": "string"
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "billable_by_default": {
-                    "type": "boolean"
-                  },
-                  "off_screen": {
-                    "type": "boolean"
-                  },
-                  "sort_order": {
-                    "type": "integer"
-                  }
-                },
-                "required": []
+                "$ref": "#/components/schemas/task_id_patchRequest"
               }
             }
           }
@@ -1736,7 +1424,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/clients": {
@@ -1780,30 +1470,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "rate_cents": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "code": {
-                    "type": "string",
-                    "pattern": "^[A-Z][A-Z0-9]*$"
-                  }
-                },
-                "required": [
-                  "name",
-                  "rate_cents",
-                  "code"
-                ]
+                "$ref": "#/components/schemas/clients_postRequest"
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/tasks": {
@@ -1847,24 +1520,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "code": {
-                    "type": "string"
-                  },
-                  "label": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "code",
-                  "label"
-                ]
+                "$ref": "#/components/schemas/tasks_postRequest"
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/client-rules": {
@@ -1908,27 +1570,13 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "client_id": {
-                    "type": "integer"
-                  },
-                  "type": {
-                    "enum": [
-                      "daily_research_cap",
-                      "nonbillable_travel"
-                    ]
-                  }
-                },
-                "required": [
-                  "client_id",
-                  "type"
-                ]
+                "$ref": "#/components/schemas/client_rules_postRequest"
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/client-rules/{id}": {
@@ -1948,9 +1596,7 @@
                       "type": "boolean"
                     }
                   },
-                  "required": [
-                    "deleted"
-                  ]
+                  "required": ["deleted"]
                 }
               }
             }
@@ -1985,7 +1631,9 @@
               "type": "integer"
             }
           }
-        ]
+        ],
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/blocks/{id}/recognition": {
@@ -2023,7 +1671,9 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
       }
     },
     "/api/sessions/active": {
@@ -2115,6 +1765,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped."
           }
         ],
         "responses": {
@@ -2127,6 +1785,31 @@
                   "items": {
                     "$ref": "#/components/schemas/WorkPeriod"
                   }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "openPeriod",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/openPeriodRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkPeriod"
                 }
               }
             }
@@ -2166,6 +1849,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped."
           }
         ],
         "responses": {
@@ -2191,28 +1882,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "questionId",
-                  "sessionId",
-                  "periodId",
-                  "expectedAssignmentRevision"
-                ],
-                "properties": {
-                  "questionId": {
-                    "type": "string"
-                  },
-                  "sessionId": {
-                    "type": "string"
-                  },
-                  "periodId": {
-                    "type": "string"
-                  },
-                  "expectedAssignmentRevision": {
-                    "type": "integer"
-                  }
-                }
+                "$ref": "#/components/schemas/createQuestionRequest"
               }
             }
           }
@@ -2225,10 +1895,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "status",
-                    "questionId"
-                  ],
+                  "required": ["status", "questionId"],
                   "properties": {
                     "status": {
                       "type": "string",
@@ -2254,31 +1921,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "producerId",
-                  "commandId",
-                  "sessionId",
-                  "occurredAt"
-                ],
-                "properties": {
-                  "producerId": {
-                    "type": "string"
-                  },
-                  "commandId": {
-                    "type": "string"
-                  },
-                  "sessionId": {
-                    "type": "string"
-                  },
-                  "occurredAt": {
-                    "type": "string"
-                  },
-                  "prerequisiteCommandId": {
-                    "type": "string"
-                  }
-                }
+                "$ref": "#/components/schemas/PostCommandsStartRequest"
               }
             }
           }
@@ -2336,31 +1979,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "producerId",
-                  "commandId",
-                  "sessionId",
-                  "occurredAt"
-                ],
-                "properties": {
-                  "producerId": {
-                    "type": "string"
-                  },
-                  "commandId": {
-                    "type": "string"
-                  },
-                  "sessionId": {
-                    "type": "string"
-                  },
-                  "occurredAt": {
-                    "type": "string"
-                  },
-                  "prerequisiteCommandId": {
-                    "type": "string"
-                  }
-                }
+                "$ref": "#/components/schemas/PostCommandsEndRequest"
               }
             }
           }
@@ -2427,29 +2046,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "caseId",
-                  "expectedAssignmentRevision",
-                  "origin"
-                ],
-                "properties": {
-                  "caseId": {
-                    "type": "string"
-                  },
-                  "expectedAssignmentRevision": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "origin": {
-                    "type": "string",
-                    "enum": [
-                      "lawyer",
-                      "automatic"
-                    ]
-                  }
-                }
+                "$ref": "#/components/schemas/PostWorkPeriodsIdAssignmentRequest"
               }
             }
           }
@@ -2516,19 +2113,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "durationMs"
-                ],
-                "properties": {
-                  "durationMs": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ]
-                  }
-                }
+                "$ref": "#/components/schemas/PostWorkPeriodsIdDurationOverrideRequest"
               }
             }
           }
@@ -2595,19 +2180,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "durationMs"
-                ],
-                "properties": {
-                  "durationMs": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ]
-                  }
-                }
+                "$ref": "#/components/schemas/PostWorkPeriodsIdDetectedDurationRequest"
               }
             }
           }
@@ -2674,10 +2247,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [],
-                "properties": {}
+                "$ref": "#/components/schemas/PostWorkPeriodsIdValidateTimeRequest"
               }
             }
           }
@@ -2744,20 +2314,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "status"
-                ],
-                "properties": {
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "billed",
-                      "unbilled"
-                    ]
-                  }
-                }
+                "$ref": "#/components/schemas/PostWorkPeriodsIdBillingStatusRequest"
               }
             }
           }
@@ -2815,37 +2372,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "questionId",
-                  "sessionId",
-                  "periodId",
-                  "expectedAssignmentRevision",
-                  "caseId",
-                  "responseCommandId"
-                ],
-                "properties": {
-                  "questionId": {
-                    "type": "string"
-                  },
-                  "sessionId": {
-                    "type": "string"
-                  },
-                  "periodId": {
-                    "type": "string"
-                  },
-                  "expectedAssignmentRevision": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "caseId": {
-                    "type": "string"
-                  },
-                  "responseCommandId": {
-                    "type": "string"
-                  }
-                }
+                "$ref": "#/components/schemas/PostQuestionsAnswerRequest"
               }
             }
           }
@@ -2928,10 +2455,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [],
-                "properties": {}
+                "$ref": "#/components/schemas/PostSourcesInstanceIdContentTypeExternalIdValidateRequest"
               }
             }
           }
@@ -2944,9 +2468,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string"
@@ -2963,9 +2485,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string"
@@ -3006,38 +2526,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "sessionId",
-                  "caseId",
-                  "startedAt",
-                  "durationMs",
-                  "taskTypeId",
-                  "label"
-                ],
-                "properties": {
-                  "sessionId": {
-                    "type": "string"
-                  },
-                  "caseId": {
-                    "type": "string"
-                  },
-                  "startedAt": {
-                    "type": "string"
-                  },
-                  "durationMs": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "taskTypeId": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "label": {
-                    "type": "string"
-                  }
-                }
+                "$ref": "#/components/schemas/PostWorkPeriodsManualRequest"
               }
             }
           }
@@ -3094,26 +2583,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [],
-                "properties": {
-                  "label": {
-                    "type": "string"
-                  },
-                  "billable": {
-                    "type": "boolean"
-                  },
-                  "nonbillableReason": {
-                    "type": [
-                      "string",
-                      "null"
-                    ]
-                  },
-                  "excluded": {
-                    "type": "boolean"
-                  }
-                }
+                "$ref": "#/components/schemas/PatchWorkPeriodsIdDetailsRequest"
               }
             }
           }
@@ -3186,20 +2656,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "availability"
-                ],
-                "properties": {
-                  "availability": {
-                    "type": "string",
-                    "enum": [
-                      "available",
-                      "unavailable"
-                    ]
-                  }
-                }
+                "$ref": "#/components/schemas/PostSourcesInstanceIdContentTypeExternalIdAvailabilityRequest"
               }
             }
           }
@@ -3212,9 +2669,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "status"
-                  ],
+                  "required": ["status"],
                   "properties": {
                     "status": {
                       "type": "string"
@@ -3262,36 +2717,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "caseId",
-                  "date",
-                  "label",
-                  "type",
-                  "amountCents"
-                ],
-                "properties": {
-                  "caseId": {
-                    "type": "string"
-                  },
-                  "date": {
-                    "type": "string"
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "expense",
-                      "disbursement"
-                    ]
-                  },
-                  "amountCents": {
-                    "type": "integer"
-                  }
-                }
+                "$ref": "#/components/schemas/PostBillingExpensesRequest"
               }
             }
           }
@@ -3304,9 +2730,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "properties": {
                     "id": {
                       "type": "integer"
@@ -3340,9 +2764,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "deleted"
-                  ],
+                  "required": ["deleted"],
                   "properties": {
                     "deleted": {
                       "type": "boolean"
@@ -3381,6 +2803,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped."
           }
         ]
       }
@@ -3406,21 +2836,18 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "clients",
-                    "cases"
-                  ],
+                  "required": ["clients", "cases"],
                   "properties": {
                     "clients": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/client"
+                        "$ref": "#/components/schemas/CatalogClient"
                       }
                     },
                     "cases": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/matter"
+                        "$ref": "#/components/schemas/CatalogCase"
                       }
                     }
                   }
@@ -3440,7 +2867,19 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer"
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "\\S"
+                }
+              ]
             }
           }
         ],
@@ -3449,46 +2888,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "scope",
-                  "options"
-                ],
-                "properties": {
-                  "scope": {
-                    "type": "string",
-                    "enum": [
-                      "invoice",
-                      "case",
-                      "period",
-                      "chosen"
-                    ]
-                  },
-                  "invoiceId": {
-                    "type": "integer"
-                  },
-                  "from": {
-                    "type": "string",
-                    "format": "date"
-                  },
-                  "to": {
-                    "type": "string",
-                    "format": "date"
-                  },
-                  "periodIds": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer"
-                    }
-                  },
-                  "options": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  }
-                }
+                "$ref": "#/components/schemas/PostCasesIdSourcePackRequest"
               }
             }
           }
@@ -3501,10 +2901,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "export",
-                    "payload"
-                  ],
+                  "required": ["export", "payload"],
                   "properties": {
                     "export": {
                       "$ref": "#/components/schemas/source_export"
@@ -3517,6 +2914,824 @@
                 }
               }
             }
+          }
+        },
+        "deprecated": true,
+        "description": "Retained compatibility API. Current screens use canonical catalog, work-period, source, audit, and billing contracts. "
+      }
+    },
+    "/api/sources/import": {
+      "post": {
+        "operationId": "importSource",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/importSourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppliedOutcome"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reconstruction/propose": {
+      "post": {
+        "operationId": "proposeReconstruction",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/proposeReconstructionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingOutcome"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/rate": {
+      "post": {
+        "operationId": "setGlobalRate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/setGlobalRateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppliedOutcome"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/clients": {
+      "post": {
+        "summary": "Create catalog client",
+        "operationId": "Create_catalog_client",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogClient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogClientRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/cases": {
+      "post": {
+        "summary": "Create catalog case",
+        "operationId": "Create_catalog_case",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogCase"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogCaseRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cases/{id}/rate": {
+      "get": {
+        "operationId": "caseRate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "hourlyRateCents": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["hourlyRateCents"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog": {
+      "get": {
+        "summary": "Read application catalog",
+        "operationId": "Read_application_catalog",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/audit-events": {
+      "get": {
+        "summary": "Read period audit events",
+        "operationId": "Read_period_audit_events",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/clients/{id}": {
+      "patch": {
+        "summary": "Update catalog client",
+        "operationId": "Update_catalog_client",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogClient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchCatalogClientRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/catalog/cases/{id}": {
+      "patch": {
+        "summary": "Update catalog case",
+        "operationId": "Update_catalog_case",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogCase"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchCatalogCaseRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/catalog/task-types": {
+      "post": {
+        "summary": "Create catalog task type",
+        "operationId": "Create_catalog_task_type",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogTaskType"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogTaskTypeRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/task-types/{id}": {
+      "patch": {
+        "summary": "Update catalog task type",
+        "operationId": "Update_catalog_task_type",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogTaskType"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchCatalogTaskTypeRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/catalog/settings": {
+      "patch": {
+        "summary": "Update catalog settings",
+        "operationId": "Update_catalog_settings",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchCatalogSettingsRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/markers": {
+      "post": {
+        "summary": "Create catalog marker",
+        "operationId": "Create_catalog_marker",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogMarker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogMarkerRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/markers/{id}": {
+      "delete": {
+        "summary": "Remove catalog marker",
+        "operationId": "Remove_catalog_marker",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["deleted"],
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/catalog/client-rules": {
+      "post": {
+        "summary": "Create catalog client rule",
+        "operationId": "Create_catalog_client_rule",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogClientRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCatalogClientRuleRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/catalog/client-rules/{id}": {
+      "delete": {
+        "summary": "Remove catalog client rule",
+        "operationId": "Remove_catalog_client_rule",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["deleted"],
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/api/catalog/cases/{id}/source-pack": {
+      "post": {
+        "summary": "Export canonical case sources",
+        "operationId": "ExportCanonicalCaseSources",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanonicalSourcePackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical source export and receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanonicalSourcePackResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Case not found"
           }
         }
       }
@@ -3555,13 +3770,14 @@
           },
           "base_unit": {
             "type": "string",
-            "enum": [
-              "hour",
-              "intervention"
-            ]
+            "enum": ["hour", "intervention"]
           },
           "vat_rate": {
             "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
           }
         }
       },
@@ -3612,11 +3828,7 @@
           },
           "pill_display": {
             "type": "string",
-            "enum": [
-              "fees",
-              "time",
-              "case"
-            ]
+            "enum": ["fees", "time", "case"]
           },
           "pill_withhold_calls": {
             "type": "boolean"
@@ -3627,14 +3839,7 @@
         "type": "object",
         "description": "Work category",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "code",
-          "label",
-          "billable_by_default",
-          "off_screen",
-          "sort_order"
-        ],
+        "required": ["id", "code", "label", "billable_by_default", "off_screen", "sort_order"],
         "properties": {
           "id": {
             "type": "integer"
@@ -3672,27 +3877,35 @@
         ],
         "properties": {
           "id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "name": {
             "type": "string"
           },
           "type": {
             "type": "string",
-            "enum": [
-              "individual",
-              "company"
-            ]
+            "enum": ["individual", "company"]
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "hourly",
-              "subscription"
-            ]
+            "enum": ["hourly", "subscription"]
           },
           "rate_cents": {
-            "type": "integer"
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "vat_applicable": {
             "type": "boolean"
@@ -3728,10 +3941,34 @@
         ],
         "properties": {
           "id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "client_id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "title": {
             "type": "string"
@@ -3747,10 +3984,7 @@
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "hourly",
-              "flat_fee"
-            ]
+            "enum": ["hourly", "flat_fee"]
           },
           "own_rate_cents": {
             "anyOf": [
@@ -3804,10 +4038,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "open",
-              "closed"
-            ]
+            "enum": ["open", "closed"]
           },
           "opened_on": {
             "type": "string"
@@ -3836,7 +4067,19 @@
             "type": "integer"
           },
           "matter_id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "type": {
             "type": "string",
@@ -3866,10 +4109,7 @@
             "type": "integer"
           },
           "last_seen_at": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
@@ -3877,26 +4117,29 @@
         "type": "object",
         "description": "Client billing rule",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "client_id",
-          "type",
-          "value",
-          "label"
-        ],
+        "required": ["id", "client_id", "type", "value", "label"],
         "properties": {
           "id": {
             "type": "integer"
           },
           "client_id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "type": {
             "type": "string",
-            "enum": [
-              "daily_research_cap",
-              "nonbillable_travel"
-            ]
+            "enum": ["daily_research_cap", "nonbillable_travel"]
           },
           "value": {
             "type": "integer"
@@ -3966,7 +4209,15 @@
           "matter_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
               },
               {
                 "type": "null"
@@ -3978,12 +4229,7 @@
           },
           "state": {
             "type": "string",
-            "enum": [
-              "assigned",
-              "to_check",
-              "in_progress",
-              "discarded"
-            ]
+            "enum": ["assigned", "to_check", "in_progress", "discarded"]
           },
           "overlaps_block_id": {
             "anyOf": [
@@ -4013,18 +4259,34 @@
         ],
         "properties": {
           "id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "block_id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "type": {
             "type": "string",
-            "enum": [
-              "screen",
-              "audio",
-              "manual"
-            ]
+            "enum": ["screen", "audio", "manual"]
           },
           "screenpipe_ref": {
             "type": "string"
@@ -4047,14 +4309,7 @@
         "type": "object",
         "description": "Capture pause",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "date",
-          "start_time",
-          "end_time",
-          "origin",
-          "reason"
-        ],
+        "required": ["id", "date", "start_time", "end_time", "origin", "reason"],
         "properties": {
           "id": {
             "type": "integer"
@@ -4077,10 +4332,7 @@
           },
           "origin": {
             "type": "string",
-            "enum": [
-              "button",
-              "automatic"
-            ]
+            "enum": ["button", "automatic"]
           },
           "reason": {
             "type": "string"
@@ -4091,14 +4343,7 @@
         "type": "object",
         "description": "Stored demo review",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "block_id",
-          "question",
-          "answer",
-          "probability",
-          "sent_data"
-        ],
+        "required": ["id", "block_id", "question", "answer", "probability", "sent_data"],
         "properties": {
           "id": {
             "type": "integer"
@@ -4140,7 +4385,19 @@
             "type": "integer"
           },
           "matter_id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "number": {
             "type": "string"
@@ -4150,10 +4407,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "deposit",
-              "final"
-            ]
+            "enum": ["deposit", "final"]
           },
           "subtotal_cents": {
             "type": "integer"
@@ -4166,10 +4420,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "sent",
-              "issued"
-            ]
+            "enum": ["sent", "issued"]
           }
         }
       },
@@ -4191,11 +4442,13 @@
           "reason",
           "review_status",
           "billing_status",
-          "invoice_id"
+          "invoice_id",
+          "work_period_id"
         ],
         "properties": {
           "id": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Numeric compatibility entry ID for legacy time-entry routes. It is not the canonical work-period ID."
           },
           "block_id": {
             "anyOf": [
@@ -4210,7 +4463,15 @@
           "matter_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
               },
               {
                 "type": "null"
@@ -4218,13 +4479,14 @@
             ]
           },
           "task_id": {
-            "type": "integer"
+            "type": ["integer", "null"]
           },
           "date": {
             "type": "string"
           },
           "tenths_of_hour": {
-            "type": "integer"
+            "type": ["number", "null"],
+            "description": "Legacy display projection of effective milliseconds divided by 360000, without per-period rounding. Null means duration is unknown. Use canonical millisecond values for totals."
           },
           "label": {
             "type": "string"
@@ -4234,13 +4496,7 @@
           },
           "rate_origin": {
             "type": "string",
-            "enum": [
-              "",
-              "base",
-              "client",
-              "matter",
-              "flat_fee"
-            ]
+            "enum": ["", "base", "client", "matter", "flat_fee"]
           },
           "billable": {
             "type": "boolean"
@@ -4249,11 +4505,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "enum": [
-                  "offered",
-                  "internal",
-                  "admin"
-                ]
+                "enum": ["offered", "internal", "admin"]
               },
               {
                 "type": "null"
@@ -4262,18 +4514,11 @@
           },
           "review_status": {
             "type": "string",
-            "enum": [
-              "to_review",
-              "approved"
-            ]
+            "enum": ["to_review", "approved"]
           },
           "billing_status": {
             "type": "string",
-            "enum": [
-              "not_billable",
-              "to_bill",
-              "billed"
-            ]
+            "enum": ["not_billable", "to_bill", "billed"]
           },
           "invoice_id": {
             "anyOf": [
@@ -4284,6 +4529,10 @@
                 "type": "null"
               }
             ]
+          },
+          "work_period_id": {
+            "type": "string",
+            "description": "Canonical work-period ID. Use this to join with WorkPeriod.id; id remains the numeric compatibility entry ID."
           }
         }
       },
@@ -4291,21 +4540,25 @@
         "type": "object",
         "description": "Expense or disbursement",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "matter_id",
-          "date",
-          "label",
-          "type",
-          "amount_cents",
-          "invoice_id"
-        ],
+        "required": ["id", "matter_id", "date", "label", "type", "amount_cents", "invoice_id"],
         "properties": {
           "id": {
             "type": "integer"
           },
           "matter_id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "date": {
             "type": "string"
@@ -4315,10 +4568,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "expense",
-              "disbursement"
-            ]
+            "enum": ["expense", "disbursement"]
           },
           "amount_cents": {
             "type": "integer"
@@ -4359,14 +4609,22 @@
           },
           "origin": {
             "type": "string",
-            "enum": [
-              "time_entry",
-              "flat_fee",
-              "expense"
-            ]
+            "enum": ["time_entry", "flat_fee", "expense"]
           },
           "origin_id": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "label": {
             "type": "string"
@@ -4444,13 +4702,7 @@
         "type": "object",
         "description": "Source pack hash",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "time_entry_ids",
-          "options",
-          "sha256",
-          "created_at"
-        ],
+        "required": ["id", "time_entry_ids", "options", "sha256", "created_at"],
         "properties": {
           "id": {
             "type": "integer"
@@ -4473,11 +4725,7 @@
         "type": "object",
         "description": "Schema version",
         "additionalProperties": false,
-        "required": [
-          "version",
-          "applied_on",
-          "description"
-        ],
+        "required": ["version", "applied_on", "description"],
         "properties": {
           "version": {
             "type": "integer"
@@ -4627,9 +4875,7 @@
       "Error": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {
             "type": "string"
@@ -4639,13 +4885,7 @@
       "SourceDetail": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "time_entry",
-          "block",
-          "sources",
-          "jev_reviews",
-          "audit"
-        ],
+        "required": ["time_entry", "block", "sources", "jev_reviews", "audit"],
         "properties": {
           "time_entry": {
             "$ref": "#/components/schemas/time_entry"
@@ -4676,24 +4916,13 @@
       "PriceDetail": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "rate_cents",
-          "origin",
-          "value_cents",
-          "amount_cents",
-          "flat_fee"
-        ],
+        "required": ["rate_cents", "origin", "value_cents", "amount_cents", "flat_fee"],
         "properties": {
           "rate_cents": {
             "type": "integer"
           },
           "origin": {
-            "enum": [
-              "base",
-              "client",
-              "matter",
-              "flat_fee"
-            ]
+            "enum": ["base", "client", "matter", "flat_fee"]
           },
           "value_cents": {
             "type": "integer"
@@ -4746,24 +4975,14 @@
             "type": "integer"
           },
           "rate_origin": {
-            "enum": [
-              "base",
-              "client",
-              "matter",
-              "flat_fee"
-            ]
+            "enum": ["base", "client", "matter", "flat_fee"]
           }
         }
       },
       "Recognition": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "block_id",
-          "threshold",
-          "decision",
-          "candidates"
-        ],
+        "required": ["block_id", "threshold", "decision", "candidates"],
         "properties": {
           "block_id": {
             "type": "integer"
@@ -4774,23 +4993,13 @@
           "decision": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "state",
-              "matter_id",
-              "confidence"
-            ],
+            "required": ["state", "matter_id", "confidence"],
             "properties": {
               "state": {
-                "enum": [
-                  "assigned",
-                  "to_check"
-                ]
+                "enum": ["assigned", "to_check"]
               },
               "matter_id": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
+                "type": ["integer", "null"]
               },
               "confidence": {
                 "type": "number"
@@ -4802,12 +5011,7 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "matter_id",
-                "score",
-                "found",
-                "continuity"
-              ],
+              "required": ["matter_id", "score", "found", "continuity"],
               "properties": {
                 "matter_id": {
                   "type": "integer"
@@ -4823,13 +5027,7 @@
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
-                    "required": [
-                      "type",
-                      "value",
-                      "where",
-                      "weight",
-                      "marker_id"
-                    ],
+                    "required": ["type", "value", "where", "weight", "marker_id"],
                     "properties": {
                       "type": {
                         "enum": [
@@ -4847,23 +5045,13 @@
                         "type": "string"
                       },
                       "where": {
-                        "enum": [
-                          "app",
-                          "window_title",
-                          "browser_url",
-                          "ocr",
-                          "audio",
-                          "speaker"
-                        ]
+                        "enum": ["app", "window_title", "browser_url", "ocr", "audio", "speaker"]
                       },
                       "weight": {
                         "type": "number"
                       },
                       "marker_id": {
-                        "type": [
-                          "integer",
-                          "null"
-                        ]
+                        "type": ["integer", "null"]
                       }
                     }
                   }
@@ -4876,12 +5064,7 @@
       "Session": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "startedAt",
-          "endedAt",
-          "revision"
-        ],
+        "required": ["id", "startedAt", "endedAt", "revision"],
         "properties": {
           "id": {
             "type": "string"
@@ -4890,10 +5073,7 @@
             "type": "string"
           },
           "endedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "revision": {
             "type": "integer",
@@ -4920,7 +5100,8 @@
           "billingStatus",
           "label",
           "billable",
-          "excluded"
+          "excluded",
+          "revision"
         ],
         "properties": {
           "id": {
@@ -4930,37 +5111,22 @@
             "type": "string"
           },
           "caseId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "clientId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "startedAt": {
             "type": "string"
           },
           "endedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "detectedDurationMs": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "durationOverrideMs": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "assignmentRevision": {
             "type": "integer",
@@ -4971,10 +5137,7 @@
             "minimum": 0
           },
           "validatedEffectiveRevision": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "timeValidated": {
             "type": "boolean"
@@ -4984,28 +5147,16 @@
           },
           "billingStatus": {
             "type": "string",
-            "enum": [
-              "unbilled",
-              "billed"
-            ]
+            "enum": ["unbilled", "billed"]
           },
           "appliedHourlyRateCents": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "appliedCurrency": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "taskTypeId": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "label": {
             "type": "string"
@@ -5014,37 +5165,27 @@
             "type": "boolean"
           },
           "nonbillableReason": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "excluded": {
             "type": "boolean"
           },
           "demoApp": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "demoWindowTitle": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "demoConfidence": {
-            "type": [
-              "number",
-              "null"
-            ]
+            "type": ["number", "null"]
           },
           "invoiceId": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           }
         }
       },
@@ -5067,10 +5208,7 @@
             "type": "string"
           },
           "workPeriodId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "instanceId": {
             "type": "string"
@@ -5089,43 +5227,31 @@
           },
           "validationStatus": {
             "type": "string",
-            "enum": [
-              "unvalidated",
-              "validated"
-            ]
+            "enum": ["unvalidated", "validated"]
           },
           "validatedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "availabilityStatus": {
             "type": "string",
-            "enum": [
-              "unknown",
-              "available",
-              "unavailable"
-            ]
+            "enum": ["unknown", "available", "unavailable"]
           },
           "availabilityCheckedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
+          },
+          "excerpt": {
+            "type": ["string", "null"],
+            "description": "Stored observation text, if available. Treat as untrusted source content."
+          },
+          "detectedMarker": {
+            "type": ["string", "null"]
           }
         }
       },
       "PendingQuestion": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "questionId",
-          "sessionId",
-          "periodId",
-          "expectedAssignmentRevision",
-          "status"
-        ],
+        "required": ["questionId", "sessionId", "periodId", "expectedAssignmentRevision", "status"],
         "properties": {
           "questionId": {
             "type": "string"
@@ -5142,39 +5268,24 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "answered",
-              "superseded"
-            ]
+            "enum": ["pending", "answered", "superseded"]
           },
           "responseCommandId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "responseResultJson": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "CommandOutcome": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "status"
-        ],
+        "required": ["status"],
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "applied"
-            ]
+            "enum": ["pending", "applied"]
           },
           "commandId": {
             "type": "string"
@@ -5186,20 +5297,14 @@
             "type": "string"
           },
           "endedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "IssuedInvoice": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "number"
-        ],
+        "required": ["id", "number"],
         "properties": {
           "id": {
             "type": "integer"
@@ -5230,14 +5335,23 @@
         ],
         "properties": {
           "caseId": {
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
           },
           "type": {
             "type": "string",
-            "enum": [
-              "deposit",
-              "final"
-            ]
+            "enum": ["deposit", "final"]
           },
           "periodIds": {
             "type": "array",
@@ -5248,41 +5362,54 @@
           "revisions": {
             "type": "object",
             "additionalProperties": {
-              "type": "integer"
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "billedMinutes": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "rateCents": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "rateOrigin": {
             "type": "string",
-            "enum": [
-              "matter",
-              "client",
-              "base",
-              "flat_fee"
-            ]
+            "enum": ["matter", "client", "base", "flat_fee"]
           },
           "feesCents": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "subtotalCents": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "expensesCents": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "disbursementsCents": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "vatCents": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "totalCents": {
-            "type": "integer"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
           },
           "lines": {
             "type": "array",
@@ -5301,32 +5428,39 @@
               "properties": {
                 "origin": {
                   "type": "string",
-                  "enum": [
-                    "work_period",
-                    "expense",
-                    "flat_fee"
-                  ]
+                  "enum": ["work_period", "expense", "flat_fee"]
                 },
                 "originId": {
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1
                 },
                 "label": {
                   "type": "string"
                 },
                 "billedMinutes": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "rateCents": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "amountCents": {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
                 },
                 "vat": {
                   "type": "boolean"
                 }
               }
             }
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "IANA timezone for calendar dates. Stored with the new snapshot or export."
           }
         }
       },
@@ -5375,6 +5509,10 @@
           },
           "totalCents": {
             "type": "integer"
+          },
+          "currency": {
+            "type": ["string", "null"],
+            "pattern": "^[A-Z]{3}$"
           }
         }
       },
@@ -5425,15 +5563,7 @@
       "BillingExpense": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "caseId",
-          "date",
-          "label",
-          "type",
-          "amountCents",
-          "invoiceId"
-        ],
+        "required": ["id", "caseId", "date", "label", "type", "amountCents", "invoiceId"],
         "properties": {
           "id": {
             "type": "integer"
@@ -5454,21 +5584,14 @@
             "type": "integer"
           },
           "invoiceId": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           }
         }
       },
       "BillingState": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "invoices",
-          "lines",
-          "expenses"
-        ],
+        "required": ["invoices", "lines", "expenses"],
         "properties": {
           "invoices": {
             "type": "array",
@@ -5493,13 +5616,7 @@
       "CoverageGap": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "sessionId",
-          "startedAt",
-          "endedAt",
-          "status"
-        ],
+        "required": ["id", "sessionId", "startedAt", "endedAt", "status"],
         "properties": {
           "id": {
             "type": "string"
@@ -5515,10 +5632,2018 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "pending",
-              "failed"
+            "enum": ["pending", "failed"]
+          }
+        }
+      },
+      "AppliedOutcome": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["applied"]
+          }
+        },
+        "required": ["status"]
+      },
+      "PendingOutcome": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending"]
+          }
+        },
+        "required": ["status"]
+      },
+      "openPeriodRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "caseId": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          },
+          "origin": {
+            "enum": ["lawyer", "automatic", "unresolved"]
+          },
+          "mode": {
+            "enum": ["current", "recovery"]
+          }
+        },
+        "required": ["id", "sessionId", "caseId", "startedAt", "origin", "mode"]
+      },
+      "importSourceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "periodId": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "instanceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "contentType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "externalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          }
+        },
+        "required": ["id", "periodId", "instanceId", "contentType", "externalId", "recordedAt"]
+      },
+      "proposeReconstructionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "periodId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          },
+          "endedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          },
+          "sourceReferences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "periodId",
+          "expectedRevision",
+          "startedAt",
+          "endedAt",
+          "sourceReferences"
+        ]
+      },
+      "setGlobalRateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "globalHourlyRateCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          }
+        },
+        "required": ["globalHourlyRateCents", "currency", "workspaceId"]
+      },
+      "createCanonicalClientRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["id", "name"]
+      },
+      "createCanonicalCaseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "clientId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hourlyRateCents": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["id", "clientId", "reference", "title", "hourlyRateCents"]
+      },
+      "time_entries_id_patchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "matter_id": {
+            "description": "Requires expected_assignment_revision when assigning a case through the compatibility route.",
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              },
+              {
+                "type": "null"
+              }
             ]
+          },
+          "expected_assignment_revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "billable": {
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["offered", "internal", "admin"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "review_status": {
+            "type": "string",
+            "enum": ["approved"]
+          }
+        },
+        "required": []
+      },
+      "day_approve_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": ["date"]
+      },
+      "time_entries_manual_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "matter_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "task_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "tenths_of_hour": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": ["matter_id", "task_id", "date", "tenths_of_hour", "label"]
+      },
+      "matters_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "opposing_party": {
+            "type": "string"
+          }
+        },
+        "required": ["client_id", "title"]
+      },
+      "markers_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "matter_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "type": {
+            "enum": ["case_number", "opposing_party", "file", "email", "domain", "keyword"]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": ["matter_id", "type", "value"]
+      },
+      "expenses_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "matter_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "enum": ["expense", "disbursement"]
+          },
+          "amount_cents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["matter_id", "date", "label", "type", "amount_cents"]
+      },
+      "sources_id_export_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["options"]
+      },
+      "pauses_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "start_time": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": ["date", "start_time"]
+      },
+      "pauses_id_patchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "end_time": {
+            "type": "string"
+          }
+        },
+        "required": ["end_time"]
+      },
+      "blocks_id_close_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["minutes"]
+      },
+      "firm_id_patchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "lawyer_name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "vat_number": {
+            "type": "string"
+          },
+          "base_rate_cents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "base_unit": {
+            "type": "string",
+            "enum": ["hour", "intervention"]
+          },
+          "vat_rate": {
+            "type": "number"
+          }
+        },
+        "required": []
+      },
+      "setting_id_patchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "confidence_threshold": {
+            "type": "number"
+          },
+          "excluded_apps": {
+            "type": "string"
+          },
+          "capture_retention": {
+            "type": "string"
+          },
+          "notifications": {
+            "type": "boolean"
+          },
+          "pill_position": {
+            "type": "string"
+          },
+          "invoice_prefix": {
+            "type": "string"
+          },
+          "next_number": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "pill_always_on_top": {
+            "type": "boolean"
+          },
+          "pill_display": {
+            "enum": ["fees", "time", "case"]
+          },
+          "pill_withhold_calls": {
+            "type": "boolean"
+          }
+        },
+        "required": []
+      },
+      "client_id_patchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["individual", "company"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "subscription"]
+          },
+          "rate_cents": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "vat_applicable": {
+            "type": "boolean"
+          },
+          "billing_address": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "matter_id_patchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "case_number": {
+            "type": "string"
+          },
+          "opposing_party": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "flat_fee"]
+          },
+          "own_rate_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flat_fee_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hour_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "success_fee_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "budget_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["open", "closed"]
+          },
+          "opened_on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": []
+      },
+      "task_id_patchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "billable_by_default": {
+            "type": "boolean"
+          },
+          "off_screen": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": []
+      },
+      "clients_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "rate_cents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9]*$"
+          }
+        },
+        "required": ["name", "rate_cents", "code"]
+      },
+      "tasks_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": ["code", "label"]
+      },
+      "client_rules_postRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              }
+            ]
+          },
+          "type": {
+            "enum": ["daily_research_cap", "nonbillable_travel"]
+          }
+        },
+        "required": ["client_id", "type"]
+      },
+      "createQuestionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["questionId", "sessionId", "periodId", "expectedAssignmentRevision"],
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "periodId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "expectedAssignmentRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "PostCommandsStartRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["producerId", "commandId", "sessionId", "occurredAt"],
+        "properties": {
+          "producerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "commandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          },
+          "prerequisiteCommandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "PostCommandsEndRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["producerId", "commandId", "sessionId", "occurredAt"],
+        "properties": {
+          "producerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "commandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          },
+          "prerequisiteCommandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "PostWorkPeriodsIdAssignmentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "expectedAssignmentRevision", "origin"],
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "expectedAssignmentRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "origin": {
+            "type": "string",
+            "enum": ["lawyer", "automatic"]
+          }
+        }
+      },
+      "PostWorkPeriodsIdDurationOverrideRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["durationMs"],
+        "properties": {
+          "durationMs": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "PostWorkPeriodsIdDetectedDurationRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["durationMs"],
+        "properties": {
+          "durationMs": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "PostWorkPeriodsIdValidateTimeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {}
+      },
+      "PostWorkPeriodsIdBillingStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["billed", "unbilled"]
+          }
+        }
+      },
+      "PostQuestionsAnswerRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "questionId",
+          "sessionId",
+          "periodId",
+          "expectedAssignmentRevision",
+          "caseId",
+          "responseCommandId"
+        ],
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "periodId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "expectedAssignmentRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "caseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "responseCommandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "PostSourcesInstanceIdContentTypeExternalIdValidateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {}
+      },
+      "PostWorkPeriodsManualRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sessionId", "caseId", "startedAt", "durationMs", "taskTypeId", "label"],
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "caseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "taskTypeId": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "PatchWorkPeriodsIdDetailsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "billable": {
+            "type": "boolean"
+          },
+          "nonbillableReason": {
+            "type": ["string", "null"]
+          },
+          "excluded": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PostSourcesInstanceIdContentTypeExternalIdAvailabilityRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["availability"],
+        "properties": {
+          "availability": {
+            "type": "string",
+            "enum": ["available", "unavailable"]
+          }
+        }
+      },
+      "PostBillingExpensesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "date", "label", "type", "amountCents"],
+        "properties": {
+          "caseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["expense", "disbursement"]
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "PostCasesIdSourcePackRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scope", "options"],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["invoice", "case", "period", "chosen"]
+          },
+          "invoiceId": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodIds": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              ]
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "IANA timezone for calendar dates. Stored with the new snapshot or export."
+          }
+        }
+      },
+      "PostApiDemoResetRequest": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "PostApiMattersIdApproveRequest": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "PostApiTimeEntriesIdDiscardRequest": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "PostApiBlocksIdRecoverRequest": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "CatalogClient": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "type",
+          "mode",
+          "hourlyRateCents",
+          "vatApplicable",
+          "billingAddress",
+          "code",
+          "active"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["individual", "company"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "subscription"]
+          },
+          "hourlyRateCents": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "vatApplicable": {
+            "type": "boolean"
+          },
+          "billingAddress": {
+            "type": "string"
+          },
+          "code": {
+            "type": ["string", "null"]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CatalogCase": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "clientId",
+          "title",
+          "category",
+          "caseNumber",
+          "opposingParty",
+          "mode",
+          "hourlyRateCents",
+          "flatFeeCents",
+          "hourCap",
+          "successFeePercent",
+          "budgetCents",
+          "status",
+          "openedOn",
+          "reference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "opposingParty": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "flat_fee"]
+          },
+          "hourlyRateCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flatFeeCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hourCap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "successFeePercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "budgetCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "archived"]
+          },
+          "openedOn": {
+            "type": ["string", "null"]
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "lawyerName",
+          "address",
+          "vatNumber",
+          "globalHourlyRateCents",
+          "baseUnit",
+          "vatRate",
+          "currency",
+          "confidenceThreshold",
+          "excludedApps",
+          "captureRetention",
+          "notifications",
+          "pillPosition",
+          "invoicePrefix",
+          "nextNumber",
+          "pillAlwaysOnTop",
+          "pillDisplay",
+          "pillWithholdCalls",
+          "workspaceId"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "lawyerName": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "vatNumber": {
+            "type": "string"
+          },
+          "globalHourlyRateCents": {
+            "type": "integer"
+          },
+          "baseUnit": {
+            "type": "string",
+            "enum": ["hour", "intervention"]
+          },
+          "vatRate": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "confidenceThreshold": {
+            "type": "number"
+          },
+          "excludedApps": {
+            "type": "string"
+          },
+          "captureRetention": {
+            "type": "string"
+          },
+          "notifications": {
+            "type": "boolean"
+          },
+          "pillPosition": {
+            "type": "string"
+          },
+          "invoicePrefix": {
+            "type": "string"
+          },
+          "nextNumber": {
+            "type": "integer"
+          },
+          "pillAlwaysOnTop": {
+            "type": "boolean"
+          },
+          "pillDisplay": {
+            "type": "string",
+            "enum": ["fees", "time", "case"]
+          },
+          "pillWithholdCalls": {
+            "type": "boolean"
+          },
+          "workspaceId": {
+            "type": "string"
+          }
+        }
+      },
+      "CatalogTaskType": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "code", "label", "billableByDefault", "offScreen", "sortOrder"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "billableByDefault": {
+            "type": "boolean"
+          },
+          "offScreen": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer"
+          }
+        }
+      },
+      "CatalogMarker": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "caseId", "type", "value", "learned", "weight", "hits", "lastSeenAt"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "caseId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "reference",
+              "case_number",
+              "opposing_party",
+              "client_name",
+              "file",
+              "email",
+              "domain",
+              "keyword"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "learned": {
+            "type": "boolean"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "lastSeenAt": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "CatalogClientRule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "clientId", "type", "value", "label"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["daily_research_cap", "nonbillable_travel"]
+          },
+          "value": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "Catalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["settings", "clients", "cases", "taskTypes", "markers", "clientRules"],
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/CatalogSettings"
+          },
+          "clients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogClient"
+            }
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogCase"
+            }
+          },
+          "taskTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogTaskType"
+            }
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogMarker"
+            }
+          },
+          "clientRules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogClientRule"
+            }
+          }
+        }
+      },
+      "AuditEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "periodId", "timestamp", "actor", "action", "before", "after"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "periodId": {
+            "type": ["string", "null"]
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateCatalogClientRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["individual", "company"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "subscription"]
+          },
+          "hourlyRateCents": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "vatApplicable": {
+            "type": "boolean"
+          },
+          "billingAddress": {
+            "type": "string"
+          },
+          "code": {
+            "type": ["string", "null"]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PatchCatalogClientRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["individual", "company"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "subscription"]
+          },
+          "hourlyRateCents": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "vatApplicable": {
+            "type": "boolean"
+          },
+          "billingAddress": {
+            "type": "string"
+          },
+          "code": {
+            "type": ["string", "null"]
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "minProperties": 1
+      },
+      "CreateCatalogCaseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clientId", "title"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "opposingParty": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "flat_fee"]
+          },
+          "hourlyRateCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flatFeeCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hourCap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "successFeePercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "budgetCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "archived"]
+          },
+          "openedOn": {
+            "type": ["string", "null"]
+          },
+          "reference": {
+            "type": "string"
+          }
+        }
+      },
+      "PatchCatalogCaseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "caseNumber": {
+            "type": "string"
+          },
+          "opposingParty": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hourly", "flat_fee"]
+          },
+          "hourlyRateCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flatFeeCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hourCap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "successFeePercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "budgetCents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "archived"]
+          }
+        },
+        "minProperties": 1
+      },
+      "PatchCatalogSettingsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "lawyerName": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "vatNumber": {
+            "type": "string"
+          },
+          "globalHourlyRateCents": {
+            "type": "integer"
+          },
+          "baseUnit": {
+            "type": "string",
+            "enum": ["hour", "intervention"]
+          },
+          "vatRate": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "confidenceThreshold": {
+            "type": "number"
+          },
+          "excludedApps": {
+            "type": "string"
+          },
+          "captureRetention": {
+            "type": "string"
+          },
+          "notifications": {
+            "type": "boolean"
+          },
+          "pillPosition": {
+            "type": "string"
+          },
+          "invoicePrefix": {
+            "type": "string"
+          },
+          "nextNumber": {
+            "type": "integer"
+          },
+          "pillAlwaysOnTop": {
+            "type": "boolean"
+          },
+          "pillDisplay": {
+            "type": "string",
+            "enum": ["fees", "time", "case"]
+          },
+          "pillWithholdCalls": {
+            "type": "boolean"
+          }
+        },
+        "minProperties": 1
+      },
+      "CreateCatalogTaskTypeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "label"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "billableByDefault": {
+            "type": "boolean"
+          },
+          "offScreen": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer"
+          }
+        }
+      },
+      "PatchCatalogTaskTypeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "billableByDefault": {
+            "type": "boolean"
+          },
+          "offScreen": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "type": "integer"
+          }
+        },
+        "minProperties": 1
+      },
+      "CreateCatalogMarkerRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "type", "value"],
+        "properties": {
+          "caseId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "reference",
+              "case_number",
+              "opposing_party",
+              "client_name",
+              "file",
+              "email",
+              "domain",
+              "keyword"
+            ]
+          },
+          "value": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "CreateCatalogClientRuleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clientId", "type"],
+        "properties": {
+          "clientId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["daily_research_cap", "nonbillable_travel"]
+          },
+          "value": {
+            "type": "integer"
+          }
+        }
+      },
+      "CanonicalSourcePackRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scope", "options"],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["invoice", "case", "dateRange", "selectedPeriods"]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["blur", "personal", "audio", "audit"]
+            },
+            "uniqueItems": true
+          },
+          "invoiceId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "periodIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        }
+      },
+      "SourceExportReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "periodIds", "options", "sha256", "createdAt"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "periodIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        }
+      },
+      "CanonicalSourcePackResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["export", "payload"],
+        "properties": {
+          "export": {
+            "$ref": "#/components/schemas/SourceExportReceipt"
+          },
+          "payload": {
+            "type": "string",
+            "description": "Version 2 JSON snapshot using canonical period and source identities, exact milliseconds, and the selected timezone. Receipt SHA-256 hashes this exact string."
           }
         }
       }
