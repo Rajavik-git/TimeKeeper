@@ -26,7 +26,7 @@ export function Cases({ s, core, action, navigate, source, selectedCase }: Scree
   const currentCase = s.matter.find(item => item.id === caseId);
   const openClient = (id: number) => { setClientId(id); setCaseId(null); };
   const openCase = (item: Matter) => { setClientId(item.client_id); setCaseId(item.id); setTab('time'); };
-  const breadcrumb = <nav className="case-breadcrumb" aria-label="Case breadcrumb">
+  const breadcrumb = currentClient && <nav className="case-breadcrumb" aria-label="Case breadcrumb">
     <button onClick={() => { setClientId(null); setCaseId(null); }}>Cases</button>
     {currentClient && <><span aria-hidden="true">›</span>{currentCase ? <button onClick={() => openClient(currentClient.id)}>{currentClient.name}</button> : <strong>{currentClient.name}</strong>}</>}
     {currentCase && <><span aria-hidden="true">›</span><strong>{currentCase.title}</strong></>}
@@ -60,8 +60,9 @@ export function Cases({ s, core, action, navigate, source, selectedCase }: Scree
     const maxToBill = Math.max(1, ...clients.map(row => row.metrics.toBill));
     const attention = s.matter.map(item => ({ item, metrics: caseMetrics(s, core, item) }))
       .filter(row => (row.metrics.budgetPercent ?? 0) >= 85 || row.metrics.pending > 0);
-    const attentionCount = attention.filter(row => (row.metrics.budgetPercent ?? 0) >= 85).length +
-      attention.reduce((sum, row) => sum + row.metrics.pending, 0);
+    const budgetAlerts = attention.filter(row => (row.metrics.budgetPercent ?? 0) >= 85);
+    const pendingAlerts = attention.filter(row => row.metrics.pending > 0);
+    const attentionCount = budgetAlerts.length + pendingAlerts.reduce((sum, row) => sum + row.metrics.pending, 0);
     body = <>
       {header('Cases', `${s.client.length} clients · ${s.matter.filter(item => item.status === 'open').length} open cases`)}
       {stats([['Open cases', s.matter.filter(item => item.status === 'open').length, 'Across all clients'], ['Time in October', formatRoundedMinutes(october), 'Precise time, rounded once'], ['To bill', money(toBill), 'All cases · excl. VAT'], ['Needs attention', attentionCount, 'Budgets and periods to validate']])}
@@ -76,13 +77,18 @@ export function Cases({ s, core, action, navigate, source, selectedCase }: Scree
         </section>
         <div className="cases-rail">
           <section className="card"><div className="card-h"><div className="t"><h2>To bill by client</h2><p>Open each client to review their cases</p></div></div>
-            <div className="case-scroll bar-list">{clients.filter(row => row.metrics.toBill > 0).sort((a,b) => b.metrics.toBill-a.metrics.toBill).map(({item,metrics}) => <button key={item.id} onClick={() => openClient(item.id)}>
-              <span><strong>{item.name}</strong><span>{money(metrics.toBill)} · {formatRoundedMinutes(metrics.time)}</span></span>
+            <div className="case-scroll bar-list">{[...clients].sort((a,b) => b.metrics.toBill-a.metrics.toBill).map(({item,metrics}) => <button key={item.id} onClick={() => openClient(item.id)}>
+              <strong className="bar-client-name">{item.name}</strong>
               <span className="bar"><span style={{width:`${metrics.toBill*100/maxToBill}%`}}/></span>
+              <span className="bar-amount">{money(metrics.toBill)}</span>
+              <span className="bar-time">{formatRoundedMinutes(metrics.time)}</span>
             </button>)}</div>
           </section>
           <section className="card"><div className="card-h"><div className="t"><h2>Needs attention</h2><p>Budget and validation</p></div></div>
-            <div className="case-scroll attention-list">{attention.length ? attention.map(({item,metrics}) => <div key={item.id}><span><strong>{item.title}</strong><small>{metrics.pending ? `${metrics.pending} periods to validate` : `Budget ${percent(metrics.budgetPercent ?? 0)}`}</small>{(metrics.budgetPercent ?? 0) >= 85 && <span className="bar"><span style={{width:`${Math.min(metrics.budgetPercent ?? 0, 100)}%`}}/></span>}</span><button className="btn sm" onClick={() => openCase(item)}>Open</button></div>) : <p>No cases need attention.</p>}</div>
+            <div className="case-scroll attention-list">{attention.length ? <>
+              {budgetAlerts.map(({item,metrics}) => <div key={`budget-${item.id}`}><span><strong>{item.title}</strong><small>{item.mode === 'flat_fee' ? 'Flat fee' : 'Budget'} at {percent(metrics.budgetPercent ?? 0)} · {money(metrics.spent)} of {money(metrics.budget ?? 0)}</small><span className="bar"><span style={{width:`${Math.min(metrics.budgetPercent ?? 0, 100)}%`}}/></span></span><button className="btn sm" onClick={() => openCase(item)}>Open</button></div>)}
+              {pendingAlerts.map(({item,metrics}) => <div key={`pending-${item.id}`}><span><strong>{item.title}</strong><small>{metrics.pending} periods to validate</small></span><button className="btn sm" onClick={() => openCase(item)}>Open</button></div>)}
+            </> : <p>No cases need attention.</p>}</div>
           </section>
         </div>
       </div>
