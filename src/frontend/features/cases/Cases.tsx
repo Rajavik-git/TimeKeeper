@@ -57,11 +57,14 @@ export function Cases({ s, core, action, navigate, source, selectedCase }: Scree
     const october = Math.ceil(allPeriods.reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
     const clients = s.client.map(item => ({ item, metrics: clientMetrics(s, core, item.id) }));
     const toBill = clients.reduce((sum, row) => sum + row.metrics.toBill, 0);
+    const maxToBill = Math.max(1, ...clients.map(row => row.metrics.toBill));
     const attention = s.matter.map(item => ({ item, metrics: caseMetrics(s, core, item) }))
       .filter(row => (row.metrics.budgetPercent ?? 0) >= 85 || row.metrics.pending > 0);
+    const attentionCount = attention.filter(row => (row.metrics.budgetPercent ?? 0) >= 85).length +
+      attention.reduce((sum, row) => sum + row.metrics.pending, 0);
     body = <>
       {header('Cases', `${s.client.length} clients · ${s.matter.filter(item => item.status === 'open').length} open cases`)}
-      {stats([['Open cases', s.matter.filter(item => item.status === 'open').length, 'Across all clients'], ['Time in October', formatRoundedMinutes(october), 'Precise time, rounded once'], ['To bill', money(toBill), 'All cases · excl. VAT'], ['Needs attention', attention.length, 'Budget or time review']])}
+      {stats([['Open cases', s.matter.filter(item => item.status === 'open').length, 'Across all clients'], ['Time in October', formatRoundedMinutes(october), 'Precise time, rounded once'], ['To bill', money(toBill), 'All cases · excl. VAT'], ['Needs attention', attentionCount, 'Budgets and periods to validate']])}
       <div className="cases-dashboard cases-fill">
         <section className="card cases-clients"><div className="card-h"><div className="t"><h2>Clients</h2><p>{s.client.length} clients</p></div></div>
           <div className="case-scroll client-grid">{clients.map(({ item, metrics }) => <button className="client-tile" key={item.id} onClick={() => openClient(item.id)}>
@@ -75,11 +78,11 @@ export function Cases({ s, core, action, navigate, source, selectedCase }: Scree
           <section className="card"><div className="card-h"><div className="t"><h2>To bill by client</h2><p>Open each client to review their cases</p></div></div>
             <div className="case-scroll bar-list">{clients.filter(row => row.metrics.toBill > 0).sort((a,b) => b.metrics.toBill-a.metrics.toBill).map(({item,metrics}) => <button key={item.id} onClick={() => openClient(item.id)}>
               <span><strong>{item.name}</strong><span>{money(metrics.toBill)} · {formatRoundedMinutes(metrics.time)}</span></span>
-              <span className="bar"><span style={{width:`${toBill ? metrics.toBill*100/toBill : 0}%`}}/></span>
+              <span className="bar"><span style={{width:`${metrics.toBill*100/maxToBill}%`}}/></span>
             </button>)}</div>
           </section>
           <section className="card"><div className="card-h"><div className="t"><h2>Needs attention</h2><p>Budget and validation</p></div></div>
-            <div className="case-scroll attention-list">{attention.length ? attention.map(({item,metrics}) => <div key={item.id}><span><strong>{item.title}</strong><small>{metrics.pending ? `${metrics.pending} periods to validate` : `Budget ${percent(metrics.budgetPercent ?? 0)}`}</small></span><button className="btn sm" onClick={() => openCase(item)}>Open</button></div>) : <p>No cases need attention.</p>}</div>
+            <div className="case-scroll attention-list">{attention.length ? attention.map(({item,metrics}) => <div key={item.id}><span><strong>{item.title}</strong><small>{metrics.pending ? `${metrics.pending} periods to validate` : `Budget ${percent(metrics.budgetPercent ?? 0)}`}</small>{(metrics.budgetPercent ?? 0) >= 85 && <span className="bar"><span style={{width:`${Math.min(metrics.budgetPercent ?? 0, 100)}%`}}/></span>}</span><button className="btn sm" onClick={() => openCase(item)}>Open</button></div>) : <p>No cases need attention.</p>}</div>
           </section>
         </div>
       </div>

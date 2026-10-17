@@ -65,6 +65,7 @@ function App() {
   };
   const navigate = (v: View, matterId?: number) => {
     if (matterId) setSelectedCase(matterId);
+    else if (v === 'matters') setSelectedCase(undefined);
     setView(v);
     document.querySelector(".shell-main")?.scrollTo(0, 0);
     window.scrollTo(0, 0);

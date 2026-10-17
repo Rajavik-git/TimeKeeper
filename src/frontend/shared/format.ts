@@ -12,7 +12,7 @@ export const money = (cents: number) => currency.format(cents / 100);
 export const rate = (cents: number) => `€${whole.format(Math.round(cents / 100))}/h`;
 export const percent = (value: number) => `${whole.format(Math.round(value))}%`;
 export const shortDate = (value: string) => short.format(parseDate(value));
-export const longDate = (value: string) => long.format(parseDate(value));
+export const longDate = (value: string) => long.format(parseDate(value)).replace(',', '');
 export function minutes(value: number): string {
   if (!Number.isSafeInteger(value) || value < 0) throw Error('Invalid duration');
   const hours = Math.floor(value / 60);

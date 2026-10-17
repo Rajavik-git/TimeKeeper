@@ -10,7 +10,10 @@ export function caseMetrics(state: State, core: CoreState, item: Matter) {
   const issued = core.billing.lines.filter(line => issuedIds.has(line.invoiceId) &&
     (line.origin === 'work_period' || line.origin === 'flat_fee')).reduce((sum, line) => sum + line.amountCents, 0);
   const budget = item.mode === 'flat_fee' ? item.flat_fee_cents : item.budget_cents;
-  const spent = issued + toBill;
+  const clientRate = state.client.find(client => client.id === item.client_id)?.rate_cents ?? state.firm[0]?.base_rate_cents ?? 0;
+  const spent = item.mode === 'flat_fee'
+    ? Math.round(summarizeWork(periods.filter(period => period.billable), core.sources).roundedMinutes * clientRate / 60)
+    : issued + toBill;
   const budgetPercent = budget && budget > 0 ? Math.round(spent * 100 / budget) : null;
   const pending = periods.filter(period => !period.timeValidated).length;
   const rate = configuredRate(state, item.id);
