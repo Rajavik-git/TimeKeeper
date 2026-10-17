@@ -1,6 +1,6 @@
 export type Id = string;
 export type Revision = number;
-export type ErrorCode = 'no-active-session' | 'not-found' | 'conflict' | 'pending' | 'invalid-request';
+export type ErrorCode = 'invalid-request' | 'not-found' | 'no-active-session' | 'conflict' | 'rule-not-decided' | 'forbidden-origin' | 'internal';
 export interface ApiError { error: ErrorCode; message: string }
 export interface StartCommand {
   producerId: Id; commandId: Id; sessionId: Id; occurredAt: string;

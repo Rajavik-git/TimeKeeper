@@ -29,7 +29,8 @@ it('projects canonical recovery to the compatibility block state',async()=>{
     });
     expect(response.status).toBe(200);
     expect((db.prepare('SELECT state FROM block WHERE id=20').get() as {state:string}).state).toBe('to_check');
-    expect((await app.request('/api/blocks/20/recover',{method:'POST'})).status).toBe(400);
+    // A second recovery is a state conflict, not a malformed request (docs/API.md E3).
+    expect((await app.request('/api/blocks/20/recover',{method:'POST'})).status).toBe(409);
     const question=db.prepare("SELECT question_id AS id,expected_assignment_revision AS revision FROM pending_questions WHERE work_period_id='excluded-20' AND status='pending'").get() as {id:string;revision:number};
     expect(question.revision).toBe(0);
     const answer=await app.request('/api/questions/answer',{method:'POST',...json({

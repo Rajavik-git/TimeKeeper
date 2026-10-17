@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { InvoiceCase, InvoiceExpense, InvoicePeriod, InvoicePort, InvoiceSnapshot } from '../../ports/invoice.js';
+import { AppError } from '../../ports/errors.js';
 
 type Row = Record<string, unknown>;
 export function invoicePort(db: DatabaseSync): InvoicePort {
@@ -46,7 +47,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
     hasFinalInvoice(caseId) { return Boolean(db.prepare("SELECT 1 FROM invoices WHERE case_id=? AND type='final' LIMIT 1").get(caseId)); },
     nextInvoice() {
       const row=db.prepare('SELECT invoice_prefix,next_number FROM settings WHERE id=1').get() as Row | undefined;
-      if (!row) throw Error('invoice settings missing');
+      if (!row) throw new AppError('conflict', 'invoice settings missing');
       return {number:String(row.invoice_prefix)+String(row.next_number).padStart(4,'0'),sequence:Number(row.next_number)};
     },
     createInvoice(snapshot:InvoiceSnapshot,number:string,at:string):number {

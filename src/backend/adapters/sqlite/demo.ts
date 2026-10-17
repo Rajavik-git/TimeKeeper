@@ -4,6 +4,7 @@ import { all, audit, insert, one, rate, reset, state, transaction, update } from
 import { recognizeBlock } from './recognition.js';
 import { syncDemoCatalog } from './catalog.js';
 import { SqliteRepository } from './core-repository.js';
+import { AppError } from '../../ports/errors.js';
 
 type RawRow = Record<string, string | number | null>;
 
@@ -69,8 +70,8 @@ export function demoPort(db: DatabaseSync): DemoPort {
       if (!canonicalExpense || String(canonicalExpense.case_id) !== String(expense.matter_id) ||
           canonicalExpense.date !== expense.date || canonicalExpense.label !== expense.label ||
           canonicalExpense.type !== expense.type || canonicalExpense.amount_cents !== expense.amount_cents)
-        throw Error('Canonical expense does not match');
-      if (canonicalExpense.invoice_id !== null) throw Error('Expense already billed');
+        throw new AppError('conflict', 'Canonical expense does not match');
+      if (canonicalExpense.invoice_id !== null) throw new AppError('conflict', 'Expense already billed');
       db.prepare('DELETE FROM expenses WHERE id=?').run(Number(expense.id));
     },
   };

@@ -4,6 +4,7 @@ import { SqliteRepository } from '../adapters/sqlite/core-repository.js';
 import { AppError, TimeKeeperService } from '../application/service.js';
 import { addExpense, billingState, removeExpense } from '../application/invoice.js';
 import { invoicePort } from '../adapters/sqlite/invoice.js';
+import { readJson } from './http.js';
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AppError('invalid-request','JSON object required');
@@ -18,19 +19,13 @@ function integer(value: unknown, name: string): number {
   return value;
 }
 function duration(value: unknown): number | null { return value === null ? null : integer(value,'durationMs'); }
-const input = async (c: {req:{json:()=>Promise<unknown>}}) => object(await c.req.json());
+const input = async (c: {req:{json:()=>Promise<unknown>}}) => object(await readJson(c));
 
 export function coreRoutes(db: DatabaseSync): Hono {
   const router = new Hono();
   const service = new TimeKeeperService(new SqliteRepository(db));
   const billing = invoicePort(db);
-  router.onError((error,c) => {
-    if (error instanceof AppError) return c.json({error:error.code,message:error.message},
-      error.code === 'not-found' || error.code === 'no-active-session' ? 404 : error.code === 'pending' ? 202 : error.code === 'conflict' ? 409 : 400);
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'ERR_SQLITE_ERROR')
-      return c.json({error:'conflict',message:'storage constraint conflict'},409);
-    return c.json({error:'internal',message:'internal error'},500);
-  });
+  // Errors propagate to the application's single handler (src/backend/api/http.ts).
   router.get('/sessions/active',c=>c.json(service.activeSession()));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));

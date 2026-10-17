@@ -1,15 +1,16 @@
 import { defaultWeights, type MarkerType } from "../domain/recognition.js";
 import type { AssignmentPort } from "../ports/assignment.js";
+import { AppError } from "../ports/errors.js";
 
 export function updateTimeEntry(port: AssignmentPort, id: number, body: Record<string, unknown>) {
   return port.transaction(() => {
     const before = port.timeEntry(id);
-    if (!before) throw Error("Not found");
-    if (before.billing_status === "billed") throw Error("Time entry already billed");
+    if (!before) throw new AppError('not-found', "Not found");
+    if (before.billing_status === "billed") throw new AppError('conflict', "Time entry already billed");
     const allowed = ["matter_id", "billable", "reason", "label", "review_status"];
-    if (Object.keys(body).some((key) => !allowed.includes(key))) throw Error("Field not allowed");
+    if (Object.keys(body).some((key) => !allowed.includes(key))) throw new AppError('invalid-request', "Field not allowed");
     if (body.review_status === "approved" && !(body.matter_id ?? before.matter_id))
-      throw Error("Assign a case first");
+      throw new AppError('conflict', "Assign a case first");
     const after = port.updateTimeEntry(id, {
       ...body,
       ...("billable" in body ? { billing_status: body.billable ? "to_bill" : "not_billable" } : {}),
@@ -22,7 +23,7 @@ export function updateTimeEntry(port: AssignmentPort, id: number, body: Record<s
       });
       if (after.matter_id) {
         const block = port.block(blockId);
-        if (!block) throw Error("Not found");
+        if (!block) throw new AppError('not-found', "Not found");
         const type: MarkerType = /mail|messag|outlook|thunderbird/i.test(String(block.app)) ? "email" : "file";
         const value = String(block.window_title).trim();
         if (value && !port.markers().some((marker) =>
@@ -35,7 +36,7 @@ export function updateTimeEntry(port: AssignmentPort, id: number, body: Record<s
       }
     }
     const result = port.timeEntry(id);
-    if (!result) throw Error("Not found");
+    if (!result) throw new AppError('not-found', "Not found");
     port.audit("Time entry updated", JSON.stringify(before), JSON.stringify(result), id,
       result.block_id == null ? null : Number(result.block_id));
     return result;

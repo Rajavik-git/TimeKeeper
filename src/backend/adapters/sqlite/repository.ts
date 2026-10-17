@@ -6,6 +6,7 @@ import { refreshDemoRecognition } from "./recognition.js";
 import { seedCanonicalDemo } from "./demo-core.js";
 import type { components } from "../../../contracts/generated.js";
 import { chooseRate } from "../../domain/pricing.js";
+import { AppError } from "../../ports/errors.js";
 
 export const tables = [
   "firm",
@@ -115,12 +116,12 @@ export function update(
   const keys = Object.keys(data).filter(
     (k) => allowed.has(k) && k !== "id" && k !== "version",
   );
-  if (!keys.length) throw Error("No updatable field");
+  if (!keys.length) throw new AppError('invalid-request', "No updatable field");
   db.prepare(
     `UPDATE ${table} SET ${keys.map((k) => `${k}=?`).join(",")} WHERE id=?`,
   ).run(...keys.map((k) => sqlValue(data[k]) as string | number | null), id);
   const row = one(db, table, id);
-  if (!row) throw Error("Not found");
+  if (!row) throw new AppError('not-found', "Not found");
   return row;
 }
 export function transaction<T>(db: DatabaseSync, work: () => T): T {

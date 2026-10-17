@@ -10,7 +10,7 @@ import { AppError, TimeKeeperService } from './service.js';
 
 const demoDate = '2026-10-16';
 const required = (value: unknown, label: string) => {
-  if (value === null || value === undefined || value === '') throw Error(`${label} is required`);
+  if (value === null || value === undefined || value === '') throw new AppError('invalid-request', `${label} is required`);
   return value;
 };
 
@@ -19,7 +19,7 @@ export class DemoService {
 
   private get(table: DemoTable, id: number): DemoRow {
     const result = this.port.get(table, id);
-    if (!result) throw Error('Not found');
+    if (!result) throw new AppError('not-found', 'Not found');
     return result;
   }
 
@@ -44,19 +44,19 @@ export class DemoService {
   private periodForEntry(entry: DemoRow): PeriodRecord {
     const period = entry.block_id == null ? this.port.canonicalPeriod(String(entry.id)) :
       this.port.canonicalPeriodForBlock(Number(entry.block_id));
-    if (!period) throw Error('Canonical work period not found');
+    if (!period) throw new AppError('not-found', 'Canonical work period not found');
     return period;
   }
 
   private saveEntryPeriod(entry: DemoRow, options: { validate?: boolean; unvalidate?: boolean } = {}) {
     const prior = this.periodForEntry(entry);
-    if (prior.billingStatus === 'billed' || prior.invoiceId !== null) throw Error('Billed work period cannot be edited');
+    if (prior.billingStatus === 'billed' || prior.invoiceId !== null) throw new AppError('conflict', 'Billed work period cannot be edited');
     const caseId = entry.matter_id == null ? null : String(entry.matter_id);
     if (caseId !== prior.caseId) throw new AppError('conflict','compatibility assignment is out of sync');
     let next = prior;
     if (options.unvalidate) next = { ...next, validatedEffectiveRevision: null, timeValidatedAt: null };
     if (options.validate) {
-      if (caseId === null || effectiveDuration(next) === null) throw Error('Case and duration required for approval');
+      if (caseId === null || effectiveDuration(next) === null) throw new AppError('conflict', 'Case and duration required for approval');
       next = validateTime(next, new Date().toISOString());
     }
     next = {
@@ -125,10 +125,10 @@ export class DemoService {
 
   discardEntry(id: number) {
     const entry = this.get('time_entry', id);
-    if (entry.billing_status === 'billed' || !entry.block_id) throw Error('Block cannot be discarded');
+    if (entry.billing_status === 'billed' || !entry.block_id) throw new AppError('conflict', 'Block cannot be discarded');
     return this.port.transaction(() => {
       const period = this.periodForEntry(entry);
-      if (period.billingStatus === 'billed' || period.invoiceId !== null) throw Error('Billed work period cannot be discarded');
+      if (period.billingStatus === 'billed' || period.invoiceId !== null) throw new AppError('conflict', 'Billed work period cannot be discarded');
       const block = this.port.update('block', Number(entry.block_id), { state: 'discarded' });
       this.port.saveCanonicalPeriod({ ...period, excluded: true, revision: period.revision + 1 }, new Date().toISOString());
       for (const question of this.port.pendingQuestions(period.id))
@@ -142,10 +142,10 @@ export class DemoService {
   recoverBlock(id: number) {
     const block = this.get('block', id);
     if (block.state !== 'discarded' || this.port.rows('time_entry').some(entry => entry.block_id === block.id))
-      throw Error('Block cannot be recovered');
+      throw new AppError('conflict', 'Block cannot be recovered');
     return this.port.transaction(() => {
       const task = this.port.rows('task').find(item => item.code === 'RECH');
-      if (!task) throw Error('Recovery task missing');
+      if (!task) throw new AppError('conflict', 'Recovery task missing');
       const entry = this.port.insert('time_entry', {
         block_id: block.id, matter_id: null, task_id: task.id, date: block.date,
         tenths_of_hour: Math.max(1, Math.round(Number(block.minutes) / 6)),
@@ -154,7 +154,7 @@ export class DemoService {
       });
       this.port.update('block', id, { state: 'to_check' });
       const period = this.port.canonicalPeriodForBlock(id);
-      if (!period) throw Error('Canonical work period not found');
+      if (!period) throw new AppError('not-found', 'Canonical work period not found');
       if (period.caseId !== null) this.port.update('time_entry', Number(entry.id), { matter_id: Number(period.caseId) });
       this.port.update('block', id, { state: period.caseId ? 'assigned' : 'to_check', matter_id: period.caseId===null?null:Number(period.caseId) });
       const next = {
@@ -174,7 +174,7 @@ export class DemoService {
     return this.port.transaction(() => {
       required(body.matter_id, 'Case');
       required(body.task_id, 'Task');
-      if (!Number.isInteger(body.tenths_of_hour) || Number(body.tenths_of_hour) < 1) throw Error('Invalid duration');
+      if (!Number.isInteger(body.tenths_of_hour) || Number(body.tenths_of_hour) < 1) throw new AppError('invalid-request', 'Invalid duration');
       const entry = this.port.insert('time_entry', {
         block_id: null, matter_id: body.matter_id, task_id: body.task_id,
         date: body.date ?? demoDate, tenths_of_hour: body.tenths_of_hour,
@@ -185,13 +185,13 @@ export class DemoService {
       const date = String(entry.date);
       const sessionId = `demo-${date}`;
       const session = this.port.canonicalSession(sessionId);
-      if (!session) throw Error('Demo session not found for manual entry date');
+      if (!session) throw new AppError('not-found', 'Demo session not found for manual entry date');
       const startedAt = `${date}T12:${String(Number(entry.id) % 60).padStart(2, '0')}:00Z`;
       const durationMs = Number(entry.tenths_of_hour) * 360000;
       const endedAt = new Date(Date.parse(startedAt) + durationMs).toISOString();
       if (Date.parse(startedAt) < Date.parse(session.startedAt) ||
           (session.endedAt !== null && Date.parse(endedAt) > Date.parse(session.endedAt)))
-        throw Error('Manual entry outside demo session');
+        throw new AppError('conflict', 'Manual entry outside demo session');
       const now = new Date().toISOString();
       const period: PeriodRecord = {
         id: String(entry.id), sessionId, caseId: String(entry.matter_id), initialCaseId: String(entry.matter_id),
@@ -267,7 +267,7 @@ export class DemoService {
   removeExpense(id: number) {
     return this.port.transaction(() => {
       const item = this.get('expense', id);
-      if (item.invoice_id) throw Error('Expense already billed');
+      if (item.invoice_id) throw new AppError('conflict', 'Expense already billed');
       this.port.removeCanonicalExpense(item);
       this.port.delete('expense', id);
       this.port.audit('Expense removed', JSON.stringify(item));
@@ -277,7 +277,7 @@ export class DemoService {
 
   invoiceCsv(id: number) {
     const invoice = this.port.invoiceExport(id);
-    if (!invoice) throw Error('Not found');
+    if (!invoice) throw new AppError('not-found', 'Not found');
     const esc = (value: unknown) => `"${String(value).replaceAll('"', '""')}"`;
     const rows = ['number;date;client;matter;label;minutes;rate_ex_vat;amount_ex_vat;vat'];
     for (const line of invoice.lines) rows.push([
@@ -297,7 +297,7 @@ export class DemoService {
 
   sourceDetails(id: number) {
     const entry = this.get('time_entry', id);
-    if (!entry.block_id) throw Error('Not found');
+    if (!entry.block_id) throw new AppError('not-found', 'Not found');
     const block = this.get('block', Number(entry.block_id));
     return {
       time_entry: entry, block,
@@ -348,17 +348,17 @@ export class DemoService {
 
   closeBlock(id: number, minutes: number) {
     const block = this.get('block', id);
-    if (!Number.isInteger(minutes) || minutes < 1) throw Error('Invalid duration');
+    if (!Number.isInteger(minutes) || minutes < 1) throw new AppError('invalid-request', 'Invalid duration');
     return this.port.transaction(() => {
       const entry = this.port.rows('time_entry').find(item => item.block_id === block.id);
-      if (!entry || entry.billing_status === 'billed') throw Error('Block cannot be closed');
+      if (!entry || entry.billing_status === 'billed') throw new AppError('conflict', 'Block cannot be closed');
       const before = Number(entry.tenths_of_hour);
       this.port.update('time_entry', Number(entry.id), {
         tenths_of_hour: before + Math.max(1, Math.round(minutes / 6)),
       });
       this.port.update('block', id, { minutes: Number(block.minutes) + minutes, state: 'assigned' });
       const period = this.periodForEntry(entry);
-      if (period.billingStatus === 'billed' || period.invoiceId !== null) throw Error('Billed work period cannot be closed');
+      if (period.billingStatus === 'billed' || period.invoiceId !== null) throw new AppError('conflict', 'Billed work period cannot be closed');
       const next = {
         ...changePeriod(period, { detectedDurationMs: (period.detectedDurationMs ?? 0) + minutes * 60000 }),
         revision: period.revision + 1,
@@ -375,9 +375,9 @@ export class DemoService {
   updateCatalog(table: 'firm' | 'setting' | 'client' | 'matter' | 'task', id: number, body: Record<string, unknown>) {
     return this.editCatalog(() => {
       const before = this.get(table, id);
-      if (table === 'matter' && 'reference' in body) throw Error('Case reference is immutable');
+      if (table === 'matter' && 'reference' in body) throw new AppError('invalid-request', 'Case reference is immutable');
       if (table === 'client' && 'code' in body && !/^[A-Z][A-Z0-9]*$/.test(String(body.code)))
-        throw Error('Client code must be uppercase letters or digits');
+        throw new AppError('invalid-request', 'Client code must be uppercase letters or digits');
       const after = this.port.update(table, id, body);
       this.port.audit(`${table} updated`, JSON.stringify(before), JSON.stringify(after));
       return after;
@@ -387,7 +387,7 @@ export class DemoService {
   createClient(body: Record<string, unknown>) {
     return this.editCatalog(() => {
       const code = String(required(body.code, 'Code')).trim();
-      if (!/^[A-Z][A-Z0-9]*$/.test(code)) throw Error('Client code must be uppercase letters or digits');
+      if (!/^[A-Z][A-Z0-9]*$/.test(code)) throw new AppError('invalid-request', 'Client code must be uppercase letters or digits');
       const item = this.port.insert('client', {
         name: required(body.name, 'Name'), code, type: 'individual', mode: 'hourly',
         rate_cents: required(body.rate_cents, 'Rate'), vat_applicable: true, billing_address: '[ADDRESS]',
@@ -410,7 +410,7 @@ export class DemoService {
 
   createClientRule(body: Record<string, unknown>) {
     const cap = body.type === 'daily_research_cap';
-    if (!cap && body.type !== 'nonbillable_travel') throw Error('Invalid type');
+    if (!cap && body.type !== 'nonbillable_travel') throw new AppError('invalid-request', 'Invalid type');
     return this.editCatalog(() => {
       const item = this.port.insert('client_rule', {
         client_id: body.client_id, type: body.type, value: cap ? 5 : 0,

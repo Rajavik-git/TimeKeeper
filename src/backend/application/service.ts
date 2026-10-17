@@ -3,10 +3,9 @@ import type { CommandOutcome, EndCommand, PeriodView, QuestionAnswer, StartComma
 import { canApplyQuestion, changePeriod, endSession, resolveRate, timeIsValidated, validateTime } from '../domain/rules.js';
 import type { Clock } from '../ports/index.js';
 import type { CommandRecord, PeriodRecord, Repository, SessionRecord } from '../ports/repository.js';
+import { AppError, isAppErrorCode } from '../ports/errors.js';
 
-export class AppError extends Error {
-  constructor(readonly code: 'no-active-session' | 'not-found' | 'conflict' | 'pending' | 'invalid-request', message: string) { super(message); }
-}
+export { AppError } from '../ports/errors.js';
 const fingerprint = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function assertTime(value: string): void {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) || !Number.isFinite(Date.parse(value))) throw new AppError('invalid-request', 'UTC timestamp required');
@@ -32,8 +31,8 @@ export class TimeKeeperService {
     if (found.kind !== kind || found.payloadFingerprint !== fingerprint(command)) throw new AppError('conflict','command ID reused with different payload');
     if (found.status === 'pending') return { status:'pending', commandId:command.commandId };
     if (found.status === 'rejected') {
-      const rejected = JSON.parse(found.resultJson ?? '{}') as { error?: AppError['code']; message?: string };
-      throw new AppError(rejected.error ?? 'conflict',rejected.message ?? 'command was rejected');
+      const rejected = JSON.parse(found.resultJson ?? '{}') as { error?: unknown; message?: string };
+      throw new AppError(isAppErrorCode(rejected.error) ? rejected.error : 'conflict',rejected.message ?? 'command was rejected');
     }
     return JSON.parse(found.resultJson!) as CommandOutcome;
   }
@@ -137,7 +136,7 @@ export class TimeKeeperService {
   currentRateForCase(id: string): number {
     const rates=this.repo.rateForCase(id); if (!rates) throw new AppError('not-found','case or global rate not found');
     const rate = resolveRate(rates.caseRateCents,rates.globalRateCents,rates.clientRateCents ?? null);
-    if (rate === null) throw new AppError('pending','global hourly rate is not configured');
+    if (rate === null) throw new AppError('conflict','global hourly rate is not configured');
     return rate;
   }
   getSession(id: string): SessionRecord {
@@ -198,7 +197,7 @@ export class TimeKeeperService {
   }
   private assignInside(id: string, caseId: string, expected: number, origin: 'automatic' | 'lawyer'): PeriodView {
     const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
-    if (p.billingStatus === 'billed') throw new AppError('pending','billed-period edit policy is open');
+    if (p.billingStatus === 'billed') throw new AppError('rule-not-decided','billed-period edit policy is open');
     if (p.assignmentRevision !== expected) throw new AppError('conflict','stale assignment revision');
     if (origin === 'automatic' && p.assignmentOrigin === 'lawyer') throw new AppError('conflict','manual assignment wins');
     if (!this.repo.caseExists(caseId)) throw new AppError('not-found','case not found');
@@ -254,7 +253,7 @@ export class TimeKeeperService {
   setDetectedDuration(id: string, durationMs: number | null): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
-      if (p.billingStatus === 'billed' && durationMs !== p.detectedDurationMs) throw new AppError('pending','billed-period edit policy is open');
+      if (p.billingStatus === 'billed' && durationMs !== p.detectedDurationMs) throw new AppError('rule-not-decided','billed-period edit policy is open');
       const next = { ...changePeriod(p,{ detectedDurationMs:durationMs }),revision:p.revision+1 };
       this.repo.savePeriod(next,this.clock.now()); return view(next);
     });
@@ -262,7 +261,7 @@ export class TimeKeeperService {
   setDurationOverride(id: string, durationMs: number | null): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
-      if (p.billingStatus === 'billed') throw new AppError('pending','billed-period edit policy is open');
+      if (p.billingStatus === 'billed') throw new AppError('rule-not-decided','billed-period edit policy is open');
       const next = { ...changePeriod(p,{ durationOverrideMs:durationMs }),revision:p.revision+1 };
       this.repo.savePeriod(next,this.clock.now()); return view(next);
     });
@@ -309,7 +308,7 @@ export class TimeKeeperService {
     return this.repo.transaction(() => {
       const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
       if (p.caseId === null || (p.durationOverrideMs ?? p.detectedDurationMs) === null)
-        throw new AppError('pending','case and effective duration are required before time validation');
+        throw new AppError('conflict','case and effective duration are required before time validation');
       const next = { ...validateTime(p,this.clock.now()),revision:p.revision+1 };
       this.repo.savePeriod(next,this.clock.now()); return view(next);
     });
@@ -317,7 +316,7 @@ export class TimeKeeperService {
   setBillingStatus(id: string, status: 'unbilled' | 'billed'): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
-      if (status === 'unbilled' && p.invoiceId != null) throw new AppError('pending','issued invoice reversal is not defined');
+      if (status === 'unbilled' && p.invoiceId != null) throw new AppError('rule-not-decided','issued invoice reversal is not defined');
       if (status === 'billed' && (p.caseId === null || !timeIsValidated(p)))
         throw new AppError('conflict','time validation and a case are required before billing');
       const snapshot = status === 'billed' && p.billingStatus !== 'billed' && p.caseId ? this.currentRateForCase(p.caseId) : null;
@@ -361,7 +360,7 @@ export class TimeKeeperService {
     this.repo.transaction(() => {
       const p = this.repo.period(input.periodId); if (!p) throw new AppError('not-found','period not found');
       if (p.revision !== input.expectedRevision) throw new AppError('conflict','stale period revision');
-      if (p.durationOverrideMs === null && !timeIsValidated(p)) throw new AppError('pending','automatic reconstruction rule is open');
+      if (p.durationOverrideMs === null && !timeIsValidated(p)) throw new AppError('rule-not-decided','automatic reconstruction rule is open');
       this.repo.insertConflict(input.id,p.id,p.revision,input.startedAt,input.endedAt,JSON.stringify(input.sourceReferences));
     });
   }

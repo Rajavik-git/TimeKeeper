@@ -54,19 +54,21 @@ How to read the sections:
 
 ### Errors in use
 
-Core routes return `{"error": code, "message": text}`.
+All routes return `{"error": code, "message": text}` through one handler (`src/backend/api/http.ts`). Clients branch on `error`; `message` is for people and must not be parsed.
 
-| Code | Status from core routes | Status from mockup routes |
+| Code | Status | Meaning |
 | --- | --- | --- |
-| `invalid-request` | 400 | 400 |
-| `not-found` | 404 | 404 |
-| `no-active-session` | 404 | 400 |
-| `conflict` | 409 | 409 |
-| `pending` | 202 | 400 |
-| `internal` (unexpected errors) | 500 | 400, with the raw exception message |
-| SQLite error | 409 `conflict` | 400, with the raw exception message |
+| `invalid-request` | 400 | Malformed JSON, or a missing or invalid field. |
+| `not-found` | 404 | The target record does not exist. |
+| `no-active-session` | 404 | A command needs an active or known session and there is none. |
+| `conflict` | 409 | Stale revision, reused ID with a different payload, a state that forbids the action, something that must be set first, or a storage constraint. |
+| `rule-not-decided` | 409 | The action depends on a product rule that is still open ([D4](#d4-error-codes-replacing-pending-for-refusals)). |
+| `forbidden-origin` | 403 | Browser origin outside the CORS allow-list. |
+| `internal` | 500 | Unexpected failure. Details are logged on the server only. |
 
-The differences between the two columns are reported as [E3](#e3-two-error-handlers-with-different-status-mappings).
+`202` with `{"status":"pending", ...}` is a success: the request is stored and applied later. Only `POST /api/commands/start`, `POST /api/commands/end`, and `POST /api/questions` return it.
+
+Before these fixes, core and demo routes used different status mappings; see [E3](#e3-two-error-handlers-with-different-status-mappings).
 
 ### Endpoints
 
@@ -76,39 +78,39 @@ Expected callers: `ui` (React), `workflow` (scoped MCP commands used by Screenpi
 
 | Method and path | Callers | Purpose | Responses declared |
 | --- | --- | --- | --- |
-| `GET /api/sessions` | ui, chat | List sessions. | 200 |
-| `GET /api/sessions/active` | ui, chat, workflow | Active session or `null`. | 200 |
+| `GET /api/sessions` | ui, chat | List sessions. | 200, 500 |
+| `GET /api/sessions/active` | ui, chat, workflow | Active session or `null`. | 200, 500 |
 | `GET /api/sessions/{id}` | ui, chat | One session. | Not in contract ([E6](#e6-routes-served-but-missing-from-the-contract)) |
-| `POST /api/commands/start` | workflow | Start or return the active session. | 200, 202, 400, 409 |
-| `POST /api/commands/end` | workflow | End the target session; keeps the first end boundary. | 200, 202, 400, 409 |
+| `POST /api/commands/start` | workflow | Start or return the active session. | 200, 202, 400, 404, 409, 500 |
+| `POST /api/commands/end` | workflow | End the target session; keeps the first end boundary. | 200, 202, 400, 404, 409, 500 |
 
 #### Work periods
 
 | Method and path | Callers | Purpose | Responses declared |
 | --- | --- | --- | --- |
-| `GET /api/work-periods` | ui, chat | All periods, with derived `clientId`. | 200 |
+| `GET /api/work-periods` | ui, chat | All periods, with derived `clientId`. | 200, 500 |
 | `GET /api/work-periods/{id}` | ui, chat | One period. | Not in contract |
 | `GET /api/work-periods/{id}/sources` | ui, chat | Sources of one period. | Not in contract |
 | `POST /api/work-periods` | workflow | Record a detected case transition (`mode`: `current` or `recovery`). | Not in contract |
-| `POST /api/work-periods/manual` | ui | Create a manual period. | 200, 400, 409 |
-| `PATCH /api/work-periods/{id}/details` | ui | Label, billable, non-billable reason, excluded. | 200, 400, 409 |
-| `POST /api/work-periods/{id}/assignment` | ui, workflow | Assign a case, guarded by `expectedAssignmentRevision`. | 200, 202, 400, 409 |
-| `POST /api/work-periods/{id}/detected-duration` | workflow | Set the detected duration. | 200, 202, 400, 409 |
-| `POST /api/work-periods/{id}/duration-override` | ui | Set or remove (`null`) the lawyer's duration. | 200, 202, 400, 409 |
-| `POST /api/work-periods/{id}/validate-time` | ui | Validate the current effective time. | 200, 202, 400, 409 |
-| `POST /api/work-periods/{id}/billing-status` | ui | `billed` or `unbilled`. | 200, 202, 400, 409 |
+| `POST /api/work-periods/manual` | ui | Create a manual period. | 200, 400, 404, 409, 500 |
+| `PATCH /api/work-periods/{id}/details` | ui | Label, billable, non-billable reason, excluded. | 200, 400, 404, 409, 500 |
+| `POST /api/work-periods/{id}/assignment` | ui, workflow | Assign a case, guarded by `expectedAssignmentRevision`. | 200, 400, 404, 409, 500 |
+| `POST /api/work-periods/{id}/detected-duration` | workflow | Set the detected duration. | 200, 400, 404, 409, 500 |
+| `POST /api/work-periods/{id}/duration-override` | ui | Set or remove (`null`) the lawyer's duration. | 200, 400, 404, 409, 500 |
+| `POST /api/work-periods/{id}/validate-time` | ui | Validate the current effective time. | 200, 400, 404, 409, 500 |
+| `POST /api/work-periods/{id}/billing-status` | ui | `billed` or `unbilled`. | 200, 400, 404, 409, 500 |
 
 #### Questions, sources, and coverage
 
 | Method and path | Callers | Purpose | Responses declared |
 | --- | --- | --- | --- |
-| `GET /api/questions` | ui, chat | All questions. | 200 |
-| `POST /api/questions` | workflow | Ask about an unresolved period. Returns `202` pending. | 202 |
-| `POST /api/questions/answer` | ui, workflow | Answer, guarded by question, session, period, and revision. | 200, 202, 400, 409 |
-| `GET /api/sources` | ui, chat | All canonical sources. | 200 |
-| `POST /api/sources/{instanceId}/{contentType}/{externalId}/validate` | ui | Validate one source. | 200, 202, 400, 409 |
-| `POST /api/sources/{instanceId}/{contentType}/{externalId}/availability` | workflow | `available` or `unavailable`. | 200, 400 |
-| `GET /api/coverage-gaps` | ui, chat | Missing recording coverage. | 200 |
+| `GET /api/questions` | ui, chat | All questions. | 200, 500 |
+| `POST /api/questions` | workflow | Ask about an unresolved period. Returns `202` pending. | 202, 400, 404, 409, 500 |
+| `POST /api/questions/answer` | ui, workflow | Answer, guarded by question, session, period, and revision. | 200, 400, 404, 409, 500 |
+| `GET /api/sources` | ui, chat | All canonical sources. | 200, 500 |
+| `POST /api/sources/{instanceId}/{contentType}/{externalId}/validate` | ui | Validate one source. | 200, 400, 404, 409, 500 |
+| `POST /api/sources/{instanceId}/{contentType}/{externalId}/availability` | workflow | `available` or `unavailable`. | 200, 400, 404, 409, 500 |
+| `GET /api/coverage-gaps` | ui, chat | Missing recording coverage. | 200, 500 |
 
 #### Billing
 
@@ -157,6 +159,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E1. Undecided rules are returned as successful `202 pending`
 
 - **Severity:** High.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `src/backend/application/service.ts` lines 140, 201, 257, 265, 312, 320, 364 throw `AppError('pending', ...)` for cases such as "billed-period edit policy is open", "global hourly rate is not configured", and "case and effective duration are required before time validation". `core-routes.ts:29` maps `pending` to `202`.
 - **What goes wrong:** `202` is a success status. `openapi-fetch` puts 2xx bodies in `data`, so the interface treats a refused action as accepted. Nothing was changed and nothing will be applied later.
 - **Why it matters:** [AGENTS.md](../AGENTS.md) requires the API to distinguish pending receipt from completed application and never to claim success that did not happen. `pending` should only mean "stored and will be applied", as for commands waiting for a prerequisite.
@@ -165,6 +168,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E2. The contract's error schema rejects the `message` field
 
 - **Severity:** Medium.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `components.schemas.Error` in `src/contracts/openapi.yaml` has only `error` and `additionalProperties: false`. The core routes send `{error, message}`.
 - **What goes wrong:** every core error response violates the contract, and the generated `Error` type has no `message`.
 - **Suggested fix:** add `message` (string) to `Error`, and restrict `error` to the list of codes.
@@ -172,6 +176,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E3. Two error handlers with different status mappings
 
 - **Severity:** Medium.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `app.ts:34-37` and `core-routes.ts:27-32`.
 - **What goes wrong:** the same error code gets a different status depending on the route: `no-active-session` is 404 or 400, `pending` is 202 or 400, and unexpected errors are 500 or 400 (see [Errors in use](#errors-in-use)).
 - **Suggested fix:** one error handler for the whole app, shared by both route groups.
@@ -179,6 +184,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E4. Mockup routes expose raw exception messages and report server faults as `400`
 
 - **Severity:** Medium.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `app.ts:37` returns `{error: error.message}` with `400` for any non-`AppError`.
 - **What goes wrong:** internal messages (SQLite errors, stack-derived text) reach the client, and server bugs look like client mistakes. The `error` field holds free text instead of a code.
 - **Why it matters:** [AGENTS.md](../AGENTS.md) asks to keep captured client information out of logs and examples; raw storage errors can include stored values.
@@ -187,6 +193,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E5. Invalid JSON returns `500` on core routes
 
 - **Severity:** Medium.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `core-routes.ts:21`. `c.req.json()` throws a `SyntaxError` on a malformed body, which the handler at `core-routes.ts:32` reports as `500 internal`.
 - **Suggested fix:** catch the parse failure and return `400 invalid-request`.
 
@@ -201,6 +208,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E7. Possible responses are not declared in the contract
 
 - **Severity:** Medium.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `openapi.yaml`.
 - **What goes wrong:** core read endpoints declare only `200` although they can return `404` or `500`. Core write endpoints do not declare `404`, although missing periods, cases, and sessions return it; commands can return `404 no-active-session`. `POST /api/work-periods/{id}/billing-status` and others can also return `500`.
 - **Suggested fix:** declare `404` and `500` with the `Error` schema wherever they can occur.
@@ -208,6 +216,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E8. Every SQLite error is reported as a conflict
 
 - **Severity:** Low.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `core-routes.ts:30-31` maps any `ERR_SQLITE_ERROR` to `409 storage constraint conflict`.
 - **What goes wrong:** a locked database, a disk error, or a schema problem is reported as a client-side conflict, so callers may retry or show the wrong message.
 - **Suggested fix:** map only constraint violations to `409`; report other storage errors as `500 internal`. Prefer detecting the rule in the service so the message is meaningful.
@@ -229,6 +238,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E11. Hand-written contract types duplicate generated ones
 
 - **Severity:** Low.
+- **Status:** Partly fixed: `ErrorCode` in `src/contracts/index.ts` now lists the current codes; the duplicated types remain.
 - **Where:** `src/contracts/index.ts` defines `ErrorCode`, `ApiError`, `StartCommand`, `PeriodView`, and others next to `generated.ts`.
 - **What goes wrong:** the two sets can drift. `ApiError` already includes `message`, while the generated `Error` type does not ([E2](#e2-the-contracts-error-schema-rejects-the-message-field)).
 - **Suggested fix:** derive shared types from `generated.ts`, or generate them from the same schema.
@@ -236,6 +246,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E12. The origin check uses a different error shape
 
 - **Severity:** Low.
+- **Status:** Fixed on `mprifti42tech/api`.
 - **Where:** `app.ts:31` returns `{"error":"Origin not allowed"}`.
 - **Suggested fix:** use the common shape, for example `{"error":"forbidden-origin","message":"origin not allowed"}`.
 

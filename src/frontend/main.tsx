@@ -51,8 +51,8 @@ function App() {
       const r = await promise;
       if (r.error)
         throw Error(
-          typeof r.error === "object" && r.error && "error" in r.error
-            ? String(r.error.error)
+          typeof r.error === "object" && r.error && "message" in r.error
+            ? String(r.error.message)
             : JSON.stringify(r.error),
         );
       await refresh();

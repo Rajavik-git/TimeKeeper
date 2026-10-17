@@ -100,7 +100,7 @@ export function createApi(service: TimeKeeperService, options: {allowedOrigins?:
       }
       return send(result && typeof result === 'object' && 'status' in result && result.status === 'pending' ? 202 : 200,result);
     } catch (error) {
-      if (error instanceof AppError) return send(error.code === 'not-found' || error.code === 'no-active-session' ? 404 : error.code === 'pending' ? 202 : error.code === 'invalid-request' ? 400 : 409,
+      if (error instanceof AppError) return send(error.code === 'not-found' || error.code === 'no-active-session' ? 404 : error.code === 'invalid-request' ? 400 : 409,
         {error:error.code,message:error.message});
       if (error && typeof error === 'object' && 'code' in error && error.code === 'ERR_SQLITE_ERROR' && 'message' in error && typeof error.message === 'string') {
         if (/^(UNIQUE|FOREIGN KEY|overlapping periods|period outside session|source target owner mismatch|target has aliases)/.test(error.message)) return send(409,{error:'conflict',message:'storage constraint conflict'});
