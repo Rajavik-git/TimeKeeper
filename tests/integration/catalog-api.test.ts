@@ -39,6 +39,13 @@ describe('canonical catalogue reads (docs/API.md A13)', () => {
     expect((await request('/api/cases?clientId=unknown')).body).toEqual([]);
   }));
 
+  it('names each case\'s client, for case matching by the workflow', () => withApp(async (request, db) => {
+    const clients = new Map((await request('/api/clients')).body.map((c: { id: string; name: string }) => [c.id, c.name]));
+    const { body } = await request('/api/cases?status=active');
+    expect(body.length).toBeGreaterThan(0);
+    for (const item of body) expect(item.clientName).toBe(clients.get(item.clientId));
+  }));
+
   it('filters cases by status and rejects an unknown status', () => withApp(async request => {
     for (const item of (await request('/api/cases?status=active')).body) expect(item.status).toBe('active');
     const invalid = await request('/api/cases?status=closed');

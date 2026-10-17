@@ -7253,6 +7253,7 @@
         "required": [
           "id",
           "clientId",
+          "clientName",
           "reference",
           "title",
           "category",
@@ -7270,6 +7271,9 @@
             "type": "string"
           },
           "clientId": {
+            "type": "string"
+          },
+          "clientName": {
             "type": "string"
           },
           "reference": {

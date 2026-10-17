@@ -135,9 +135,10 @@ export class SqliteRepository implements Repository {
   }
   listCases(filter: { clientId?: string; status?: 'active' | 'archived' }): CaseRecord[] {
     const clientId=filter.clientId ?? null, status=filter.status ?? null;
-    return (this.db.prepare(`SELECT * FROM cases WHERE (? IS NULL OR client_id=?) AND (? IS NULL OR status=?) ORDER BY reference, id`)
+    return (this.db.prepare(`SELECT c.*, cl.name AS client_name FROM cases c JOIN clients cl ON cl.id=c.client_id
+      WHERE (? IS NULL OR c.client_id=?) AND (? IS NULL OR c.status=?) ORDER BY c.reference, c.id`)
       .all(clientId,clientId,status,status) as Row[]).map(r=>({
-      id:str(r.id),clientId:str(r.client_id),reference:str(r.reference),title:str(r.title),category:str(r.category),
+      id:str(r.id),clientId:str(r.client_id),clientName:str(r.client_name),reference:str(r.reference),title:str(r.title),category:str(r.category),
       caseNumber:str(r.case_number),opposingParty:str(r.opposing_party),status:r.status as CaseRecord['status'],mode:r.mode as CaseRecord['mode'],
       hourlyRateCents:r.hourly_rate_cents as number | null,flatFeeCents:r.flat_fee_cents as number | null,
       budgetCents:r.budget_cents as number | null,openedOn:nullable(r.opened_on) }));

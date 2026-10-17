@@ -3336,6 +3336,7 @@ export interface components {
         CatalogCase: {
             id: string;
             clientId: string;
+            clientName: string;
             reference: string;
             title: string;
             category: string;

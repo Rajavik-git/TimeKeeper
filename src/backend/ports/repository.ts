@@ -32,7 +32,7 @@ export interface ClientRecord {
   hourlyRateCents: number | null; vatApplicable: boolean; active: boolean;
 }
 export interface CaseRecord {
-  id: string; clientId: string; reference: string; title: string; category: string; caseNumber: string;
+  id: string; clientId: string; clientName: string; reference: string; title: string; category: string; caseNumber: string;
   opposingParty: string; status: 'active' | 'archived'; mode: 'hourly' | 'flat_fee';
   hourlyRateCents: number | null; flatFeeCents: number | null; budgetCents: number | null; openedOn: string | null;
 }

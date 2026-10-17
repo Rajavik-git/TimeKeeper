@@ -136,7 +136,7 @@ Canonical reads ([A13](#why-a12-and-a13-were-added)). String IDs, camelCase fiel
 | Method and path | Callers | Purpose | Responses declared |
 | --- | --- | --- | --- |
 | `GET /api/clients` | ui, workflow, chat | All clients, ordered by name. Fields: `id`, `name`, `code`, `type`, `mode`, `hourlyRateCents` (`null` = no own rate), `vatApplicable`, `active`. | 200, 500 |
-| `GET /api/cases` | ui, workflow, chat | All cases, ordered by reference; optional filters `clientId` and `status` (`active` or `archived`; any other value is `400`). Fields: `id`, `clientId`, `reference`, `title`, `category`, `caseNumber`, `opposingParty`, `status`, `mode`, `hourlyRateCents` (`null` = client or global rate applies), `flatFeeCents`, `budgetCents`, `openedOn`. This is the candidate list for assignment and JEV. | 200, 400, 500 |
+| `GET /api/cases` | ui, workflow, chat | All cases, ordered by reference; optional filters `clientId` and `status` (`active` or `archived`; any other value is `400`). Fields: `id`, `clientId`, `clientName`, `reference`, `title`, `category`, `caseNumber`, `opposingParty`, `status`, `mode`, `hourlyRateCents` (`null` = client or global rate applies), `flatFeeCents`, `budgetCents`, `openedOn`. This is the candidate list for assignment and JEV: the workflow calls `GET /api/cases?status=active`. `clientName` was added (2026-10-17) because the JEV watcher on `feat/screenpipe-start-session` uses it for case matching, so that branch needs no route of its own. | 200, 400, 500 |
 | `GET /api/settings` | ui, workflow, chat | `globalHourlyRateCents`, `currency`, `workspaceId`, `vatRate`, `confidenceThreshold`. `404` when settings are not configured yet. | 200, 404, 500 |
 
 #### Configuration and recognition (mockup routes)
