@@ -348,7 +348,7 @@ html[data-theme="dark"] .activity-track .activity-segment:hover { filter: bright
 .page:has(.activity-timeline) button:active { transform: scale(.98); }
 .page:has(.activity-timeline) :is(button, select):focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .page:has(.activity-timeline) :is(button, select):disabled { opacity: .45; pointer-events: none; }
-.activity-sources, .activity-audit-body { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+.activity-sources, .activity-audit-body { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; mask-image: linear-gradient(#000 0%, #000 calc(100% - 12px), transparent); }
 .activity-head h1, .activity-detail h2 { text-wrap: balance; letter-spacing: -.02em; }
 .activity-axis, .activity-date, .activity-source-row .num, .activity-summary { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {

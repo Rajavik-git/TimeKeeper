@@ -329,6 +329,7 @@
 .page:has(.settings-content) :is(button, input, select):disabled { opacity: .45; pointer-events: none; }
 .settings-table td { overflow: hidden; text-overflow: ellipsis; }
 .settings-content, .settings-table { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+.settings-content { mask-image: linear-gradient(#000 0%, #000 calc(100% - 12px), transparent); }
 .settings-card h2, .settings-head h1 { text-wrap: balance; letter-spacing: -.02em; }
 .settings-table td, .settings-form .input { font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) {
