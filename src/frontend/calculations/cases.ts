@@ -5,7 +5,9 @@ export function caseMetrics(state: State, core: CoreState, item: Matter) {
   const periods = core.periods.filter(period => period.caseId === String(item.id) && !period.excluded);
   const time = summarizeWork(periods, core.sources).roundedMinutes;
   const nonBillable = summarizeWork(periods.filter(period => !period.billable), core.sources).roundedMinutes;
-  const toBill = draftInvoice(state, core, item.id, 'final').feesCents;
+  // The Cases "To bill" view tracks unbilled hourly work. A flat fee is shown
+  // as its pricing mode on the case, not as unbilled time in this overview.
+  const toBill = item.mode === 'flat_fee' ? 0 : draftInvoice(state, core, item.id, 'final').feesCents;
   const issuedIds = new Set(core.billing.invoices.filter(invoice => invoice.caseId === String(item.id)).map(invoice => invoice.id));
   const issued = core.billing.lines.filter(line => issuedIds.has(line.invoiceId) &&
     (line.origin === 'work_period' || line.origin === 'flat_fee')).reduce((sum, line) => sum + line.amountCents, 0);
@@ -24,10 +26,12 @@ export function clientMetrics(state: State, core: CoreState, clientId: number) {
   const cases = state.matter.filter(item => item.client_id === clientId);
   const periods = core.periods.filter(period => cases.some(item => String(item.id) === period.caseId) && !period.excluded);
   const time = summarizeWork(periods, core.sources).roundedMinutes;
+  const hourlyCaseIds = new Set(cases.filter(item => item.mode !== 'flat_fee').map(item => String(item.id)));
+  const hourlyTime = summarizeWork(periods.filter(period => period.caseId !== null && hourlyCaseIds.has(period.caseId)), core.sources).roundedMinutes;
   const toBill = cases.reduce((sum, item) => sum + caseMetrics(state, core, item).toBill, 0);
   const pending = periods.filter(period => !period.timeValidated).length;
   const latest = periods.reduce((date, period) => period.startedAt > date ? period.startedAt : date, '');
-  return { cases, time, toBill, pending, latest };
+  return { cases, time, hourlyTime, toBill, pending, latest };
 }
 
 /** Values visible at the same date in the previous month. No historical alert state is inferred. */
@@ -37,7 +41,8 @@ export function previousMonthMetrics(state: State, core: CoreState, today: strin
   const previousDay = prior.toISOString().slice(0, 10);
   const monthStart = `${previousDay.slice(0, 7)}-01`;
   const previousCases = state.matter.filter(item => item.opened_on <= previousDay).length;
-  const previousMinutes = Math.ceil(core.periods.filter(period => !period.excluded && period.startedAt.slice(0,10) >= monthStart && period.startedAt.slice(0,10) <= previousDay)
+  const caseIds = new Set(state.matter.map(item => String(item.id)));
+  const previousMinutes = Math.ceil(core.periods.filter(period => !period.excluded && period.caseId !== null && caseIds.has(period.caseId) && period.startedAt.slice(0,10) >= monthStart && period.startedAt.slice(0,10) <= previousDay)
     .reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
   const invoicesById = new Map(core.billing.invoices.map(invoice => [invoice.id, invoice.date]));
   const previousToBill = state.matter.reduce((total, item) => {

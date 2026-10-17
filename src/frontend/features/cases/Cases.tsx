@@ -176,7 +176,8 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   };
   let body;
   if (!currentClient) {
-    const allPeriods = core.periods.filter(period => !period.excluded && period.startedAt.slice(0,7) === today.slice(0,7) && period.startedAt.slice(0,10) <= today);
+    const caseIds = new Set(s.matter.map(item => String(item.id)));
+    const allPeriods = core.periods.filter(period => !period.excluded && period.caseId !== null && caseIds.has(period.caseId) && period.startedAt.slice(0,7) === today.slice(0,7) && period.startedAt.slice(0,10) <= today);
     const october = Math.ceil(allPeriods.reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
     const clients = s.client.map(item => ({ item, metrics: clientMetrics(s, core, item.id) }));
     const sortedClients = [...clients].sort((a, b) => {
@@ -233,12 +234,12 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
                     <strong className="bar-client-name">{item.name}</strong>
                     <span className="bar"><span style={{width:`${metrics.toBill*100/maxToBill}%`}}/></span>
                     <span className="bar-amount">{money(metrics.toBill)}</span>
-                    <span className="bar-time">{formatRoundedMinutes(metrics.time)}</span>
+                    <span className="bar-time">{formatRoundedMinutes(metrics.hourlyTime)}</span>
                   </button>
                 </div>
                 <div className="bill-case-list" id={`bill-cases-${item.id}`} role="group" aria-label={`Cases for ${item.name}`} hidden={!expanded}>
                   {cases.map(({matter,metrics:caseTotals}) => {
-                    const unbilled = core.periods.filter(period => period.caseId===String(matter.id) && period.billable && !period.excluded && period.billingStatus==='unbilled');
+                    const unbilled = matter.mode === 'flat_fee' ? [] : core.periods.filter(period => period.caseId===String(matter.id) && period.billable && !period.excluded && period.billingStatus==='unbilled');
                     const unbilledMinutes = summarizeWork(unbilled,core.sources).roundedMinutes;
                     return <button type="button" className="bill-case-row" key={matter.id} onClick={() => openCase(matter)}>
                       <span className="bill-case-name"><strong>{matter.title}</strong><MatterReference value={matter.reference}/></span>
