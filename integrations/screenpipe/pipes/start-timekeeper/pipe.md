@@ -13,7 +13,13 @@ The lawyer ran this pipe on purpose: it is the Start TimeKeeper button. Start a 
 ## Steps
 
 1. If the `timekeeper` MCP tool `start_session` is available, call it once with no arguments.
-2. Otherwise, check for `.env` beside this installed `pipe.md`, independently of the shell's working directory. If it defines `TIMEKEEPER_START_COMMAND`, run that command once, exactly as written, and read the JSON it prints. Do not edit it, build another command, or call the TimeKeeper HTTP API yourself.
+2. Otherwise, check for `.env` beside this installed `pipe.md`, independently of the shell's working directory. If it defines `TIMEKEEPER_START_COMMAND`, run this bash line once in that folder, exactly as written, and read the JSON it prints:
+
+   ```bash
+   . ./.env && eval "$TIMEKEEPER_START_COMMAND"
+   ```
+
+   Do not read `.env` another way, edit the value, build another command, or call the TimeKeeper HTTP API yourself.
 3. If neither is available, report `blocked: TimeKeeper MCP tool and TIMEKEEPER_START_COMMAND are both unavailable` and stop.
 
 Both paths return the same JSON result. Do not install dependencies, create files, or start TimeKeeper any other way.

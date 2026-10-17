@@ -13,7 +13,13 @@ The lawyer ran this pipe on purpose: it is the End TimeKeeper button. End the ac
 ## Steps
 
 1. If the `timekeeper` MCP tool `end_session` is available, call it once with no arguments.
-2. Otherwise, check for `.env` beside this installed `pipe.md`, independently of the shell's working directory. If it defines `TIMEKEEPER_END_COMMAND`, run that command once, exactly as written, and read the JSON it prints. Do not edit it, build another command, or call the TimeKeeper HTTP API yourself.
+2. Otherwise, check for `.env` beside this installed `pipe.md`, independently of the shell's working directory. If it defines `TIMEKEEPER_END_COMMAND`, run this bash line once in that folder, exactly as written, and read the JSON it prints:
+
+   ```bash
+   . ./.env && eval "$TIMEKEEPER_END_COMMAND"
+   ```
+
+   Do not read `.env` another way, edit the value, build another command, or call the TimeKeeper HTTP API yourself.
 3. If neither is available, report `blocked: TimeKeeper MCP tool and TIMEKEEPER_END_COMMAND are both unavailable` and stop.
 
 Do not install dependencies, create files, or end the session any other way. Never stop Screenpipe recording.
