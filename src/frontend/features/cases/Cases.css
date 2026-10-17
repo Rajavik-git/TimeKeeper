@@ -1,5 +1,4 @@
 /* The Cases hierarchy follows the approved mockup's compact card and row geometry. */
-.page:has(.cases-stats) > footer { display:none; }
 .page > .stats.cases-stats { min-height:124px; }
 .page > .cases-stats .stat { padding:18px 22px; gap:4px; }
 .page > .cases-stats .v { line-height:1.15; letter-spacing:-.015em; }
