@@ -27,6 +27,7 @@ const demoDocuments = [
   '2026-012 Lumen Bylaws draft v2.docx',
   '2026-015 Memo on right of first refusal.docx',
   'Meeting request - new matter.eml',
+  'Program Manager',
 ];
 type Suggestion = { caseId:string; client:string; title:string; reference:string; reason:string };
 type Recognition = { suggestion:Suggestion|null; alternatives:Suggestion[]; confidence:'high'|'low' };
@@ -47,6 +48,7 @@ function Pill() {
   const debounce=useRef<number|undefined>(undefined);
   const switching=useRef(false);
   const previous=useRef('');
+  const dismissedSwitch=useRef(new Set<string>());
   const observed=useRef<{id:string;at:number}|null>(null);
   const coreRef=useRef<CoreState|undefined>(undefined);
   coreRef.current=core;
@@ -80,10 +82,10 @@ function Pill() {
       return Number(readyB)-Number(readyA)||(readyA&&readyB?(effectiveMs(a)!-effectiveMs(b)!):a.startedAt.localeCompare(b.startedAt));
     });
   const readyPending=pending.filter(p=>p.caseId&&effectiveMs(p)!==null);
-  const question=core?.questions.find(q=>q.sessionId===active?.id&&q.status==='pending'&&q.questionId!==dismissedQuestion);
+  const question=core?.questions.find(q=>q.sessionId===active?.id&&q.status==='pending');
   const questionPeriod=core?.periods.find(p=>p.id===question?.periodId);
   const showQuestion=!!question&&!!questionPeriod&&!questionPeriod.excluded;
-  const showQuestionNotice=showQuestion&&!!setting?.notifications;
+  const showQuestionNotice=showQuestion&&!!setting?.notifications&&question?.questionId!==dismissedQuestion;
   const clockStart=current?(tauri?Date.parse(current.startedAt):(observed.current?.at??now)):null;
   const pausedMs=clockStart===null?0:(state?.pause??[]).filter(p=>p.reason===pauseReason).reduce((total,p)=>{
     const parsePause=(time:string)=>Date.parse(p.date+'T'+(time.length===5?time+':00':time)+'Z');
@@ -96,6 +98,7 @@ function Pill() {
   const periodMs=current ? effectiveMs(current)??liveElapsed : null;
   const hourlyRate=state&&caseItem?configuredRate(state,caseItem.id):null;
   const amount=periodMs!==null&&hourlyRate&&hourlyRate.origin!=='flat_fee' ? money(Math.round(periodMs*hourlyRate.rateCents/3600000)) : '—';
+  const barValue=setting?.pill_display==='time'?(current?formatPreciseDuration(periodMs):'—'):amount;
   const day=dayDate?core?.periods.filter(p=>p.startedAt.startsWith(dayDate)&&!p.excluded)??[]:[];
   const pricedDay=day.map(period=>period.id===current?.id&&periodMs!==null?{...period,durationOverrideMs:periodMs}:period);
   const todayAmount=state&&core?money(dayFees(state,core,pricedDay)):'—';
@@ -109,13 +112,29 @@ function Pill() {
     try {
       const result=await api.POST('/api/recognize',{body:{windowTitle,appName}});
       if(result.error||!result.data)throw Error('Unable to recognize this file.');
+      if(!result.data.suggestion&&!/\.[a-z0-9]{1,8}(?=\s|$|[-—])/i.test(windowTitle))return;
       const currentCore=coreRef.current;
       const latest=currentCore?.periods.filter(p=>p.sessionId===currentCore.activeSession?.id).map(p=>p.endedAt??p.startedAt).sort().at(-1);
       const at=!tauri&&latest?new Date(Date.parse(latest)+60000).toISOString():new Date().toISOString();
       setNotice({windowTitle,appName,recognition:result.data,seconds:20,at});
       setRecent(null);setSelectedCase('');setExpanded(false);setError('');
-    }catch(error){setError(String(error));}
+    }catch(error){previous.current='';setError(String(error));}
   },[]);
+  const dismiss=useCallback(()=>{
+    if(notice&&switching.current)dismissedSwitch.current.add(notice.appName+':'+notice.windowTitle+':'+notice.at);
+    setNotice(null);setRecent(null);setExpanded(false);setSelectedCase('');
+    // Keep a pending question in the panel/My day without immediately reopening its popup.
+    if(question?.questionId)setDismissedQuestion(question.questionId);
+  },[notice,question?.questionId]);
+  useEffect(()=>{
+    const onEscape=(event:KeyboardEvent)=>{
+      if(event.key==='Escape'&&(notice||recent||showQuestionNotice||expanded)){
+        event.preventDefault();dismiss();
+      }
+    };
+    window.addEventListener('keydown',onEscape);
+    return()=>window.removeEventListener('keydown',onEscape);
+  },[notice,recent,showQuestionNotice,expanded,dismiss]);
   useEffect(()=>{
     if(!tauri)return;
     let unlisten:(()=>void)|undefined,cancelled=false;
@@ -150,9 +169,11 @@ function Pill() {
       const response=await api.POST('/api/periods/switch',{body:{caseId,windowTitle:target.windowTitle,appName:target.appName,at:target.at,notClientWork:caseId===null}});
       if(response.error||response.response.status!==200||!response.data||!('id' in response.data))throw Error('Unable to record the file switch.');
       const acceptedTitle=caseId===null?'Not client work':stateRef.current?.matter.find(item=>String(item.id)===caseId)?.title??target.recognition.suggestion?.title??'Which case?';
-      setRecent({id:response.data.id,title:acceptedTitle});setNotice(null);await refresh();
+      if(!dismissedSwitch.current.has(target.appName+':'+target.windowTitle+':'+target.at))
+        setRecent({id:response.data.id,title:acceptedTitle});
+      setNotice(null);await refresh();
     }catch(error){setError(String(error));}
-    finally{switching.current=false;setBusy(false);}
+    finally{dismissedSwitch.current.delete(target.appName+':'+target.windowTitle+':'+target.at);switching.current=false;setBusy(false);}
   },[refresh]);
   useEffect(()=>{
     if(!notice||notice.recognition.confidence!=='high'||!notice.recognition.suggestion||selectedCase)return;
@@ -204,11 +225,11 @@ function Pill() {
   const openDay=()=>{if(tauri)void invoke('open_my_day').catch(()=>setError('Unable to open TimeKeeper.'));else if(emulator&&window.parent!==window)window.parent.postMessage({type:'timekeeper:open-app'},window.location.origin);else window.open('/','_blank');};
   const openCases=state?.matter.filter(m=>m.status==='open')??[];
   return <main className="pill-root">
-    <button className={'pill-bar '+(offline?'offline':'')} onClick={()=>offline?void refresh():setExpanded(!expanded)} aria-expanded={expanded} aria-label={offline?'TimeKeeper disconnected, retry':'TimeKeeper, toggle panel'}>
+    <button className={'pill-bar '+(offline?'offline':'')} onClick={()=>offline?void refresh():notice||recent||showQuestionNotice?dismiss():setExpanded(!expanded)} aria-expanded={expanded} aria-label={offline?'TimeKeeper disconnected, retry':'TimeKeeper, toggle panel'}>
       <span className="pill-mark"><Logo compact wordmark={false}/></span>
       {offline?<><span className="pill-who">TimeKeeper is not running</span><span className="pill-retry">Retry</span></>:<>
         <span className={'pill-rec '+(paused||!active?'paused':'')}/><span className="pill-who" title={owner&&caseItem?owner.name+' · '+caseItem.title:undefined}>{paused?'Paused':caseItem?.title??(active?'Which case?':'No active session')}</span>
-        {setting?.pill_display!=='case'&&<strong className="pill-amount">{setting?.pill_display==='time'?current?formatPreciseDuration(periodMs):'—':amount}</strong>}
+        {setting?.pill_display!=='case'&&barValue!=='—'&&<strong className="pill-amount">{barValue}</strong>}
         {pending.length>0&&<span className="pill-badge" aria-label={pending.length+' periods to validate'}>{pending.length}</span>}
         <span className="pill-chevron" aria-hidden="true">⌄</span></>}
     </button>
@@ -227,19 +248,19 @@ function Pill() {
       {showQuestion&&<div className="pill-question"><strong>Which case was this? · {questionPeriod?.label}</strong><select aria-label="Choose a case for this period" value={selectedCase} onChange={event=>setSelectedCase(event.target.value)}><option value="">Choose a case</option>{openCases.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="pill-button action" disabled={!selectedCase||busy} onClick={()=>void assign(questionPeriod!.id,selectedCase)}>Answer</button><button className="pill-button" disabled={busy} onClick={()=>void excludeQuestion()}>Not client work</button></div>}
       <footer><button className="pill-button" disabled={!active||busy} onClick={()=>void setPause()}>{paused?'Resume':'Pause'}</button><select aria-label="Change case" value="" disabled={!current||busy} onChange={event=>void assign(current!.id,event.target.value)}><option value="">Change case</option>{openCases.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="pill-button" onClick={openDay}>Open TimeKeeper</button></footer>
     </section>}
-    {notice&&!offline&&<section className="pill-notice" role="status" aria-label="File switch suggestion"><span className="pill-note-icon">!</span><div className="pill-note-body"><strong>Switched to {notice.windowTitle}</strong>
+    {notice&&!offline&&<section className="pill-notice" role="status" aria-label="File switch suggestion"><button className="pill-dismiss" aria-label="Dismiss" onClick={dismiss}>×</button><span className="pill-note-icon">!</span><div className="pill-note-body"><strong>Switched to {notice.windowTitle}</strong>
       <small>{notice.recognition.suggestion?notice.recognition.suggestion.title+'? · '+notice.recognition.suggestion.reason:'Which case is this?'}</small>
       <div className="pill-note-actions"><button className="pill-button action" disabled={!notice.recognition.suggestion||busy} onClick={()=>void switchTo(notice,notice.recognition.suggestion?.caseId??null)}>Confirm{notice.recognition.confidence==='high'?' · '+notice.seconds+'s':''}</button>
-        <select aria-label="Other case" value={selectedCase} onChange={event=>setSelectedCase(event.target.value)}><option value="">Other case</option>{[...notice.recognition.alternatives,...openCases.filter(item=>!notice.recognition.alternatives.some(alt=>alt.caseId===String(item.id))).map(item=>({caseId:String(item.id),title:item.title}))].map(item=><option key={item.caseId} value={item.caseId}>{item.title}</option>)}</select>
+        <select aria-label="Other case" value={selectedCase} onChange={event=>setSelectedCase(event.target.value)}><option value="">Choose a case…</option>{[...notice.recognition.alternatives,...openCases.filter(item=>!notice.recognition.alternatives.some(alt=>alt.caseId===String(item.id))).map(item=>({caseId:String(item.id),title:item.title}))].map(item=><option key={item.caseId} value={item.caseId}>{item.title}</option>)}</select>
         <button className="pill-button" disabled={!selectedCase||busy} onClick={()=>void switchTo(notice,selectedCase)}>Use case</button></div>
-      <button className="pill-button text" disabled={busy} onClick={()=>void switchTo(notice,null)}>Not client work</button></div></section>}
-    {recent&&!notice&&!expanded&&!offline&&<section className="pill-notice" role="status" aria-label="New work period"><span className="pill-note-icon"><Logo compact wordmark={false}/></span><div className="pill-note-body"><strong>New period recognized</strong>
-      <small>{recent.title} · review the new period in My day</small><div className="pill-note-actions"><button className="pill-button action" onClick={openDay}>Open TimeKeeper</button><button className="pill-button" onClick={()=>{setRecent(null);setExpanded(true);}}>Change case</button><button className="pill-button text" onClick={()=>setRecent(null)}>Later</button></div></div></section>}
-    {showQuestionNotice&&!notice&&!recent&&!expanded&&!offline&&<section className="pill-notice" role="status" aria-label="Which case"><span className="pill-note-icon">!</span><div className="pill-note-body"><strong>Which case was this?</strong>
+      <div className="pill-note-actions"><button className="pill-button text" disabled={busy} onClick={()=>void switchTo(notice,null)}>Not client work</button><button className="pill-button text" onClick={dismiss}>Later</button></div></div></section>}
+    {recent&&!notice&&!expanded&&!offline&&<section className="pill-notice" role="status" aria-label="New work period"><button className="pill-dismiss" aria-label="Dismiss" onClick={dismiss}>×</button><span className="pill-note-icon"><Logo compact wordmark={false}/></span><div className="pill-note-body"><strong>New period recognized</strong>
+      <small>{recent.title} · review the new period in My day</small><div className="pill-note-actions"><button className="pill-button action" onClick={openDay}>Open TimeKeeper</button><button className="pill-button" onClick={()=>{setRecent(null);setExpanded(true);}}>Change case</button><button className="pill-button text" onClick={dismiss}>Later</button></div></div></section>}
+    {showQuestionNotice&&!notice&&!recent&&!expanded&&!offline&&<section className="pill-notice" role="status" aria-label="Which case"><button className="pill-dismiss" aria-label="Dismiss" onClick={dismiss}>×</button><span className="pill-note-icon">!</span><div className="pill-note-body"><strong>Which case was this?</strong>
       <small>{questionPeriod?.startedAt.slice(11,16)}–{questionPeriod?.endedAt?.slice(11,16)??'…'} · {questionPeriod?.label}</small>
       <div className="pill-note-actions"><select aria-label="Choose a case for this period" value={selectedCase} onChange={event=>setSelectedCase(event.target.value)}><option value="">Choose a case</option>{openCases.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select><button className="pill-button action" disabled={!selectedCase||busy} onClick={()=>void assign(questionPeriod!.id,selectedCase)}>Answer</button></div>
-      <div className="pill-note-actions"><button className="pill-button text" disabled={busy} onClick={()=>void excludeQuestion()}>Not client work</button><button className="pill-button text" onClick={()=>setDismissedQuestion(question!.questionId)}>Later</button></div></div></section>}
-    {!tauri&&!emulator&&<label className="pill-simulate">Simulate file switch<select aria-label="Simulate file switch" value="" onChange={event=>void showSwitch(event.target.value,'Demo documents')}><option value="">Choose a demo document</option>{demoDocuments.map(file=><option key={file} value={file}>{file}</option>)}</select></label>}
+      <div className="pill-note-actions"><button className="pill-button text" disabled={busy} onClick={()=>void excludeQuestion()}>Not client work</button><button className="pill-button text" onClick={dismiss}>Later</button></div></div></section>}
+    {!tauri&&!emulator&&<label className="pill-simulate">Simulate file switch<select aria-label="Simulate file switch" value="" onChange={event=>void showSwitch(event.target.value,'Demo documents')}><option value="">Choose a demo document</option>{demoDocuments.map(file=><option key={file} value={file}>{file==='Program Manager'?'Program Manager (non-document)':file}</option>)}</select></label>}
     {error&&<p className="pill-error" role="alert">{error}</p>}
   </main>;
 }
