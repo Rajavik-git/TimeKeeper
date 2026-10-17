@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api, client, matter, money, today, type ScreenProps } from '../../api/client';
-import { configuredRate, effectiveMs, formatPreciseDuration, summarizeWork } from '../../calculations/billing';
+import { configuredRate, effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
 import { Card } from '../../shared/components/Card';
 import { MatterSelect } from '../../shared/components/MatterSelect';
 import { Kpi } from '../../shared/components/Kpi';
@@ -32,7 +32,7 @@ export function Desk({s,core,action,navigate}:ScreenProps) {
         <span className="tiny muted">{session ? `Session since ${session.startedAt.slice(11,16)}` : 'No active session'}</span></div>
         <span className="small muted">{period ? `This period since ${period.startedAt.slice(11,16)}` : 'Waiting for a period'} · {duration}</span>
         <div className="grid2"><Kpi title="This period" value={currentAmount===null?'—':money(currentAmount)}/>
-          <Kpi title="Today" value={`${dayDuration.roundedMinutes} min`} dark/></div>
+          <Kpi title="Today" value={formatRoundedMinutes(dayDuration.roundedMinutes)} dark/></div>
         {period&&<label className="col">Other case <MatterSelect s={s} value={caseId} onChange={value=>{
           if(value)void action(api.POST('/api/work-periods/{id}/assignment',{params:{path:{id:period.id}},body:{
             caseId:String(value),expectedAssignmentRevision:period.assignmentRevision,origin:'lawyer'}}));

@@ -1,3 +1,4 @@
+import { percent } from '../../shared/format';
 import { geometryClass } from "../../shared/geometry";
 import { useEffect, useState } from "react";
 import {
@@ -355,13 +356,13 @@ export function Source({
                         <span className="matter-reference">
                           {matter?.reference}
                         </span>{" "}
-                        {matter?.title} · {Math.round(candidate.score * 100)} %
+                        {matter?.title} · {percent(candidate.score * 100)}
                       </b>
                       <div className="col small">
                         {candidate.found.map((marker, index) => (
                           <span key={`${marker.type}-${marker.value}-${index}`}>
                             {marker.type} · {marker.value} · {marker.where} ·{" "}
-                            {Math.round(marker.weight * 100)} %
+                            {percent(marker.weight * 100)}
                           </span>
                         ))}
                       </div>
@@ -384,7 +385,7 @@ export function Source({
                     {x.question} → <b>{x.answer}</b>
                   </span>
                   <span className="tiny muted">
-                    p = {x.probability.toLocaleString("en-IE")} · sent:{" "}
+                    p = {x.probability.toLocaleString("en-US")} · sent:{" "}
                     {x.sent_data}
                   </span>
                 </div>

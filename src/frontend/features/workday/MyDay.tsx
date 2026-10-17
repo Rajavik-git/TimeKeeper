@@ -5,6 +5,7 @@ import { MatterSelect } from '../../shared/components/MatterSelect';
 import { Kpi } from '../../shared/components/Kpi';
 import { Icon } from '../../shared/components/Icon';
 import { MatterReference } from '../../shared/components/MatterReference';
+import { longDate, percent } from '../../shared/format';
 
 type Filter = 'all'|'review'|'validated'|'left';
 export function MyDay({s,core,action,source,refresh}:ScreenProps) {
@@ -59,7 +60,7 @@ export function MyDay({s,core,action,source,refresh}:ScreenProps) {
   };
   const tabs:[Filter,string,number][]=[['all','All',included.length],['review','To review',review.length],['validated','Validated',validated.length],['left','Left out',excluded.length]];
   return <>
-    <div className="ph"><div className="t"><h1>My day</h1><p>Friday 16 October 2026 · session started from Screenpipe at 08:40. Review each period, then validate time and sources.</p></div>
+    <div className="ph"><div className="t"><h1>My day</h1><p>{longDate(today)} · session started from Screenpipe at 08:40. Review each period, then validate time and sources.</p></div>
       <div className="actions"><button className="btn" onClick={()=>setManual(true)}><Icon name="plus" small/>Off-screen time</button>
         <button className="btn primary" onClick={async()=>{for(const period of review.filter(p=>p.caseId)) await api.POST('/api/work-periods/{id}/validate-time',{params:{path:{id:period.id}},body:{}});await refresh();}}><Icon name="check" small/>Validate time for the day</button></div></div>
     <div className="grid4">
@@ -99,7 +100,7 @@ export function MyDay({s,core,action,source,refresh}:ScreenProps) {
           <td>{item?<>{owner?.name}<span className="sub">{item.title} · <MatterReference value={item.reference}/></span></>:<>
             <span className="flag"><Icon name="alert" small/>Case answer needed</span>
             {q&&<span className="sub">Question {q.questionId} · period {period.id}</span>}
-            {suggestion&&<span className="sub suggest">Suggested: {suggestion.title} · {Math.round(candidate!.score*100)}% <button className="link" onClick={()=>assign(period.id,suggestion.id)}>Assign</button></span>}
+            {suggestion&&<span className="sub suggest">Suggested: {suggestion.title} · {percent(candidate!.score*100)} <button className="link" onClick={()=>assign(period.id,suggestion.id)}>Assign</button></span>}
             <MatterSelect s={s} value={null} allowEmpty onChange={id=>{if(id) void assign(period.id,id)}}/>
           </>}</td>
           <td className="wrap">{period.label}<span className="sub">{s.task.find(t=>t.id===period.taskTypeId)?.label ?? 'Work period'} · {period.billable?'Billable':period.nonbillableReason ?? 'Non-billable'}</span></td>

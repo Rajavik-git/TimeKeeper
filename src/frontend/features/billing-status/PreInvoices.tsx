@@ -98,7 +98,7 @@ export function PreInvoices({s,core,action,source,selectedCase,refresh}:ScreenPr
         <form className="row" onSubmit={async event=>{event.preventDefault();await action(api.POST('/api/billing/expenses',{body:{caseId:String(item.id),date:today,label:expenseLabel,type:expenseType,amountCents:Math.round(Number(expenseAmount.replace(',','.'))*100)}}));setExpenseLabel('');setExpenseAmount('');}}>
           <input className="field grow" placeholder="Label" aria-label="Expense label" required value={expenseLabel} onChange={event=>setExpenseLabel(event.target.value)}/>
           <select className="field" value={expenseType} onChange={event=>setExpenseType(event.target.value as typeof expenseType)}><option value="expense">expense</option><option value="disbursement">disbursement</option></select>
-          <input className="field num" placeholder="0,00" aria-label="Amount in euros" required value={expenseAmount} onChange={event=>setExpenseAmount(event.target.value)}/><button className="btn small">Add</button>
+          <input className="field num" placeholder="0.00" aria-label="Amount in euros" required value={expenseAmount} onChange={event=>setExpenseAmount(event.target.value)}/><button className="btn small">Add</button>
         </form>
       </Card>
       <Card className="main"><h3>Issued invoices</h3>{invoices.length?invoices.map(invoice=><div className="col line-row" key={invoice.id}>

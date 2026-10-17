@@ -1,3 +1,4 @@
+import { percent } from '../../shared/format';
 import { useState } from "react";
 import { api, money, originLabel, type ScreenProps } from "../../api/client";
 import { configuredRate, effectiveMs } from '../../calculations/billing';
@@ -517,7 +518,7 @@ export function Settings({ s, core, action }: ScreenProps) {
               onChange={(e) => setRuleType(e.target.value as typeof ruleType)}
             >
               <option value="daily_research_cap">
-                Daily research cap (0.5 h)
+                Daily research cap (30m)
               </option>
               <option value="nonbillable_travel">Non-billable travel</option>
             </select>
@@ -540,7 +541,7 @@ export function Settings({ s, core, action }: ScreenProps) {
         <Card className="settings">
           <label>
             Confidence threshold ·{" "}
-            {Math.round(s.setting[0].confidence_threshold * 100)} %{" "}
+            {percent(s.setting[0].confidence_threshold * 100)}{" "}
             <input
               type="range"
               min="50"
