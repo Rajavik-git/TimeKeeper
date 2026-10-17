@@ -24,6 +24,8 @@ Report the result by its `status`:
 
 Only `started` and `already_active` mean a session is running. Never report success for any other status.
 
+While a session runs, `start_session` also starts JEV tab-change detection, reported in `tab_detection.status` (`started`, `already_running`, `disabled`, `not_configured`, or `failed`). It stops by itself when the session ends. Mention it in one line; it never changes the session result.
+
 ## Check status
 
 Call `timekeeper_status` to answer "is TimeKeeper running?" or "is a session active?". It is read-only.

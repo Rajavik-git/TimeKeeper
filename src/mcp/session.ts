@@ -1,6 +1,7 @@
 // "Start TimeKeeper" logic shared by the MCP tool and the CLI fallback.
 // Calls only the application API (docs/API.md D6, D7). Never claims a start that the API did not confirm.
 import type { StartCommand } from '../contracts/index.js';
+import type { TabDetectionResult } from './tab-detection.js';
 
 export const PRODUCER_ID = 'screenpipe-start-button';
 
@@ -11,8 +12,8 @@ export type StatusResult =
   | { timekeeper: 'not_running'; activeSession: null };
 
 export type StartResult =
-  | { status: 'already_active'; started: false; session: SessionInfo }
-  | { status: 'started'; started: true; session: SessionInfo; commandId: string; launched: boolean }
+  | { status: 'already_active'; started: false; session: SessionInfo; tab_detection?: TabDetectionResult }
+  | { status: 'started'; started: true; session: SessionInfo; commandId: string; launched: boolean; tab_detection?: TabDetectionResult }
   | { status: 'pending'; started: false; commandId: string }
   | { status: 'timekeeper_not_running'; started: false; message: string }
   | { status: 'unconfirmed'; started: false; commandId: string; message: string }
@@ -27,6 +28,8 @@ export interface SessionDeps {
   /** Starts the desktop app; undefined when no launch command is configured. */
   launch?: () => Promise<void>;
   sleep: (ms: number) => Promise<void>;
+  /** Starts JEV tab-change detection once a session is running; undefined disables it. */
+  startTabDetection?: () => Promise<TabDetectionResult>;
   requestTimeoutMs?: number;
   readyTimeoutMs?: number;
 }
@@ -82,8 +85,23 @@ async function waitUntilReady(deps: SessionDeps): Promise<boolean> {
   return false;
 }
 
-/** Does nothing when a session is active; otherwise starts one, launching TimeKeeper first when configured. */
+/**
+ * Does nothing when a session is active; otherwise starts one, launching TimeKeeper first when configured.
+ * Whenever a session is running afterwards, tab-change detection is started too (or left running).
+ */
 export async function ensureSession(deps: SessionDeps): Promise<StartResult> {
+  const result = await ensureSessionOnly(deps);
+  if ((result.status === 'started' || result.status === 'already_active') && deps.startTabDetection) {
+    try {
+      result.tab_detection = await deps.startTabDetection();
+    } catch (error) {
+      result.tab_detection = { status: 'failed', message: error instanceof Error ? error.message : String(error) };
+    }
+  }
+  return result;
+}
+
+async function ensureSessionOnly(deps: SessionDeps): Promise<StartResult> {
   // The press time is the session start boundary, even if TimeKeeper needs launching first.
   const pressedAt = deps.now().toISOString();
   let launched = false;

@@ -29,6 +29,8 @@ Use the result's `status` field:
 - `unconfirmed`: report that the outcome is unknown. Do not run the command again.
 - `error`: report `error` and `message`.
 
-Only `started` and `already_active` mean a session is running. Never describe any other status as success. If the Screenpipe `send-notification` tool is available, also send the one-line report as a notification.
+Only `started` and `already_active` mean a session is running. Never describe any other status as success.
+
+When a session is running, the result also has `tab_detection.status`. Add one line about it: `started` or `already_running` means tab detection is on; `disabled` means it is turned off; `not_configured` means JEV is not set up (give its `message`); `failed` means it could not start (give its `message`). Tab detection never changes the session result. If the Screenpipe `send-notification` tool is available, also send the one-line report as a notification.
 
 Ending a session is not handled here. Screenpipe keeps recording whether or not a TimeKeeper session is active.

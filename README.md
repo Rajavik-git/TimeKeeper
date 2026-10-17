@@ -25,6 +25,91 @@ For Tauri development, run `npm run dev:server` separately, then `npm run deskto
 
 Read-only chat tools, installed Screenpipe workflows, capture, and native packaging remain future work. The [requirements](docs/REQUIREMENTS.md) define the acceptance journey; the [design review](docs/DESIGN_REVIEW.md) tracks provider and product gates.
 
+## Screenpipe integration
+
+### Start TimeKeeper button and tab detection
+
+Screenpipe runs on its own; a TimeKeeper session starts only when the lawyer runs the manual **Start TimeKeeper** pipe. It calls the TimeKeeper MCP tool `start_session`: an active session is left unchanged, otherwise a new one starts. While a session runs, the same tool starts the read-only JEV tab-change detection in the background; it stops when the session ends. See [API D7](docs/API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe) and the [architecture](docs/ARCHITECTURE.md#start-button-and-tab-detection).
+
+1. Start the API (`npm run dev:server`) and register the MCP server in Screenpipe, for example as a custom HTTP connection to `http://127.0.0.1:3032/mcp` after running `npx tsx src/mcp/server.ts --http` (Screenpipe's bundled `bun` also runs it).
+2. Install [integrations/screenpipe/pipes/start-timekeeper](integrations/screenpipe/pipes/start-timekeeper/pipe.md) with the CLI of your Screenpipe release, as for the JEV pipe below. If pipes cannot call MCP tools, set `TIMEKEEPER_START_COMMAND` in its `.env` (see its `.env.example`).
+3. For tab detection, fill `integrations/screenpipe/jev-check/.env` from its `.env.example`. Without it, sessions still start and the result reports `tab_detection: not_configured`. Set `TIMEKEEPER_TAB_DETECTION=off` to disable it.
+
+These steps have been checked with a stand-in API and the real Screenpipe MCP on Windows, not yet with the Node API or an installed pipe run.
+
+### Optional JEV integration for Screenpipe
+
+The integration consists of [pipe.md](integrations/screenpipe/pipes/timekeeper/pipe.md). Its instructions let the Screenpipe agent ask JEV whether the active case changed and, if so, which existing case matches. The pipe needs no helper script, SDK, package install, or separate skill import. To run the chain Screenpipe → MCP → JEV → result from a terminal, use the read-only [JEV tab-change check](integrations/screenpipe/jev-check/README.md). JEV is optional: without the installed pipe's `.env`, the workflow skips JEV. See the [pipe workflow](docs/ARCHITECTURE.md#jev-pipe-workflow).
+
+JEV has no workflow memory. Each comparison includes the active case, its previous observation, and the newer observation. `same_case` returns `no_change`; `uncertain` does not switch the assignment. For a supported switch, the workflow identifies a unique existing destination automatically and returns `identified` with `applied: false`. It sends an unresolved-switch request through MCP only when no unique destination matches. Read-only MCP case queries remain allowed.
+
+Missing previous evidence means uncertain, not unchanged. Initial assignment, operational failures, and incomplete lookups do not trigger the switch request. The scoped MCP tool does not exist yet; a qualifying unresolved switch returns `blocked` with delivery `not_sent` while the tool is unavailable.
+
+1. Start Screenpipe with its local API available.
+2. Import the pipe with Screenpipe's [local pipe installation](https://docs.screenpipe.com/scheduled-tasks), using the CLI installed with your Screenpipe release rather than an unpinned package. The desktop app keeps it under `~/.screenpipe/cli/<version>/`. Replace the absolute source path below.
+
+   In bash:
+
+   ```sh
+   SCREENPIPE_CLI="$HOME/.screenpipe/cli/<version>/screenpipe"
+   cd "$(mktemp -d)" && "$SCREENPIPE_CLI" pipe install "/ABSOLUTE/PATH/TimeKeeper/integrations/screenpipe/pipes/timekeeper"
+   ```
+
+   In PowerShell:
+
+   ```powershell
+   $cli = "$env:USERPROFILE\.screenpipe\cli\<version>\screenpipe.exe"
+   Push-Location (New-Item -ItemType Directory -Path (Join-Path $env:TEMP ([guid]::NewGuid()))); & $cli pipe install "C:\ABSOLUTE\PATH\TimeKeeper\integrations\screenpipe\pipes\timekeeper"; Pop-Location
+   ```
+
+3. If you want to use JEV, create `~/.screenpipe/pipes/timekeeper/.env` in a local editor with these settings. Preserve any existing credentials.
+
+   ```dotenv
+   JEV_ALLOWED_FIELDS=
+   TYPESAFE_API_KEY=
+   TYPESAFE_MODEL=jev-latest
+   ```
+
+4. If you created `.env`, fill `TYPESAFE_API_KEY` locally with a key from the [TypeSafe console](https://console.typesafe.ai/). Set `JEV_ALLOWED_FIELDS` to the approved comma-separated fields listed [below](#allowed-jev-fields). There is no separate enable flag. An empty key or field selection prevents a request.
+5. Select a working AI preset for the task in **Scheduled tasks → My tasks**. Keep the pipe disabled until the required TimeKeeper tools and workflow contracts exist.
+
+To skip JEV, leave `.env` absent or move it out of the installed pipe directory. The agent must explicitly load this file in the same invocation as the request; it must not fall back to a key from the process environment. Keep the key out of `pipe.md`, prompts, and logs. The frontend and application backend do not need it.
+
+The pipe uses `schedule: manual` and `enabled: false`. Results retain the original target, baseline case, source references, and assignment revision. The application remains the only assignment writer. An identified destination is not saved or made the active case; matched-case persistence and repeated switch detection remain open. Missing TimeKeeper API and MCP tools, folder detection, and event delivery still prevent an end-to-end workflow.
+
+Field filtering and response checks are agent instructions, not code-enforced guarantees. Enabled JEV requests use TypeSafe's hosted API. Live requests, Screenpipe loading, and desktop platform behavior have not been verified.
+
+#### Allowed JEV fields
+
+`JEV_ALLOWED_FIELDS` is a TimeKeeper setting. It tells the Screenpipe agent which information it may send to TypeSafe. `previous_observation.` fields describe earlier evidence associated with the active case and its assignment revision. `observation.` fields describe the newer activity. `candidates.` fields describe existing cases returned by TimeKeeper.
+
+| Field | Information permitted in the request |
+| --- | --- |
+| `previous_observation.text` | Recorded screen text from the earlier observation. |
+| `previous_observation.app_name` | Application name from the earlier observation. |
+| `previous_observation.window_title` | Window title from the earlier observation. |
+| `previous_observation.url` | Page URL from the earlier observation, when available. |
+| `observation.text` | Recorded screen text, such as accessibility text or OCR output. |
+| `observation.app_name` | Name of the application associated with the observation. |
+| `observation.window_title` | Title of the recorded window. |
+| `observation.url` | Page URL associated with the observation, when available. It can be stale; see the note below. |
+| `candidates.reference` | Reference of each candidate case. |
+| `candidates.title` | Title of each candidate case. |
+| `candidates.client_name` | Name of the client associated with each candidate case. |
+
+For example, this selection permits screen text and window titles from both observations, case references, and case titles:
+
+```dotenv
+JEV_ALLOWED_FIELDS=previous_observation.text,previous_observation.window_title,observation.text,observation.window_title,candidates.reference,candidates.title
+```
+
+This selection sends recorded screen text to TypeSafe. A narrower selection is permitted but less reliable. In a synthetic test with `jev-1.13.0`, window titles alone produced `same_case` for a switch to an unknown folder and for an ambiguous inbox, which would silently keep the previous case. See the [design review](docs/DESIGN_REVIEW.md).
+
+Select only fields approved for your deployment. Previous-observation fields require explicit selection; permission for `observation.` fields does not include them. A comparison needs at least one permitted nonblank field from each observation; any selectable field counts, so the window-title example above is sufficient.
+
+URL fields are weaker evidence than window titles. On Windows with Screenpipe 2.7.109, captures of a newly selected browser tab kept the previous tab's URL, which can wrongly suggest that work continued on the same page. Initial assignment needs only the newer observation. Every candidate also needs at least one permitted descriptive field containing text. Missing required content or an unsupported selection prevents a request.
+
+The pipe instructs the agent to exclude screenshots, actual case and client IDs, timestamps, and assignment revisions. It uses temporary aliases for case and client IDs. Selecting a field does not redact private information within its text. See the [configuration and data boundary](docs/ARCHITECTURE.md#jev-configuration-and-data-boundary) for the full contract.
 ## Documentation
 
 | Document | Responsibility |

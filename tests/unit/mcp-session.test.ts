@@ -105,6 +105,38 @@ describe('start_session', () => {
   });
 });
 
+describe('tab detection with the session', () => {
+  const withDetection = (api: ReturnType<typeof fakeApi>, outcome: () => Promise<any>) => {
+    const calls: number[] = [];
+    api.deps.startTabDetection = async () => { calls.push(1); return outcome(); };
+    return calls;
+  };
+
+  it('starts tab detection when a session starts or is already active', async () => {
+    const fresh = fakeApi();
+    const calls = withDetection(fresh, async () => ({ status: 'started', pid: 42, log: 'watch.log' }));
+    expect(await ensureSession(fresh.deps)).toMatchObject({ status: 'started', tab_detection: { status: 'started', pid: 42 } });
+    expect(await ensureSession(fresh.deps)).toMatchObject({ status: 'already_active', tab_detection: { status: 'started' } });
+    expect(calls).toHaveLength(2);
+  });
+
+  it('does not start tab detection without a running session', async () => {
+    const down = fakeApi({ up: false });
+    const calls = withDetection(down, async () => ({ status: 'started', pid: 1, log: '' }));
+    const r = await ensureSession(down.deps);
+    expect(r.status).toBe('timekeeper_not_running');
+    expect('tab_detection' in r).toBe(false);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a tab detection failure never fails the session start', async () => {
+    const api = fakeApi();
+    withDetection(api, async () => { throw new Error('spawn bun ENOENT'); });
+    expect(await ensureSession(api.deps)).toMatchObject({ status: 'started', started: true,
+      tab_detection: { status: 'failed', message: 'spawn bun ENOENT' } });
+  });
+});
+
 describe('timekeeper_status', () => {
   it('reports running with the active session, or not running', async () => {
     const active = { id: 's1', startedAt: '2026-10-17T08:00:00.000Z', endedAt: null };
