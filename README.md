@@ -44,6 +44,55 @@ Chat-calculated summaries, reusable folder learning, and advanced currency behav
 
 The requirements define product behavior. The architecture and database documents explain its intended implementation. Research evidence does not establish runtime support in an installed release.
 
+## Mockup vs requirements at a glance
+
+The code on this branch implements the validated mockup. This table compares it with the [requirements](docs/REQUIREMENTS.md). Details are in the [mockup gap](docs/MOCKUP_GAP.md); decision numbers refer to the next section.
+
+| Status | Meaning |
+| --- | --- |
+| 🟢 | Aligned: the mockup already follows the requirements. |
+| 🔵 | Kept by team decision, although the requirements exclude it. The requirements must be updated. |
+| 🟡 | Mockup only: the requirements do not cover it. A decision is needed. |
+| 🔴 | Conflict: the mockup and the requirements follow different rules. A decision is needed. |
+| ⚪ | Requirements only: not built in the mockup yet. |
+
+| Topic | Mockup (built) | Requirements | Status | Decision |
+| --- | --- | --- | :---: | :---: |
+| Stack | Tauri, React, local Node API, SQLite | Same | 🟢 | — |
+| Evidence source | Screenpipe API only, references kept | Same | 🟢 | — |
+| Clients and cases | A case belongs to one client | Same | 🟢 | — |
+| Case and global rate | Case rate, fallback base rate | Case rate, fallback global rate | 🟢 | — |
+| Manual corrections win | Lawyer changes override automatic results | Same | 🟢 | — |
+| Billed / unbilled status | Per time entry | Per work period | 🟢 | — |
+| JEV role | Closed questions on existing cases, masked data | Same, owned by the Screenpipe workflow | 🟢 | — |
+| Pre-invoices and numbered invoices | Built: VAT, expenses, disbursements, frozen lines | Excluded | 🔵 | 1 |
+| Client rates | Case > client > base rate | Excluded | 🔵 | 1 |
+| Flat fees and budgets | Built, 85% budget alert | Excluded | 🔵 | 1 |
+| Client rules | Built, checked before issuing | Not covered | 🔵 | 1 |
+| Case recognition | Weighted markers, score, threshold, learning | Undefined | 🟡 | 2, 11 |
+| Case reference format | `YYYY-NNN-CODE`, generated | Format undecided | 🟡 | 2 |
+| Task types and non-billable reasons | Built | Not covered | 🟡 | — |
+| Off-screen time added by hand | Built | Not confirmed | 🟡 | 10 |
+| Personal apps left out | Built, recoverable | Not covered | 🟡 | — |
+| Desk pill with live fees | Built (Windows installer) | UI not specified | 🟡 | 12 |
+| Source pack with SHA-256 | Built | Not covered | 🟡 | — |
+| Audit trail | Built | Undecided | 🟡 | — |
+| Duration unit and rounding | Tenths of an hour per line | Milliseconds, minute rounding on totals only | 🔴 | 5 |
+| Where amounts are calculated | Server | React | 🔴 | 5 |
+| Review states | One validation, then billing | Time, source, and billing states kept separate | 🔴 | 6 |
+| Writes through the application layer | Only case assignment so far | All writes | 🔴 | — |
+| Data model | Blocks and time entries (18 tables) | Sessions and work periods | 🔴 | 3 |
+| Sessions started and ended in Screenpipe | — | Required | ⚪ | 4 |
+| Unknown-folder question to the lawyer | "No case" row with a suggestion | Question bound to the period and its revision | ⚪ | 2 |
+| Duration correction kept apart from detection | — | Required | ⚪ | — |
+| Source validation and availability | — | Required | ⚪ | 6 |
+| Coverage gaps shown | — | Required | ⚪ | 3 |
+| Reconstruction conflicts | — | Required | ⚪ | — |
+| Case tags written back to Screenpipe | — | Required | ⚪ | — |
+| Read-only MCP for Screenpipe chat | — | Required | ⚪ | — |
+| End command while the app is closed | — | Required, mechanism open | ⚪ | 4 |
+| Live Screenpipe capture | Simulated demo data | Required | ⚪ | 2, 3 |
+
 ## Decisions to make
 
 The team builds from the validated mockup's structure, inside the code organization above. Decision 1 is agreed; the requirements document still awaits its author’s update. The remaining decisions block parts of the MVP and show proposed options for discussion. See the [mockup gap](docs/MOCKUP_GAP.md) and the [design review](docs/DESIGN_REVIEW.md) for details.
