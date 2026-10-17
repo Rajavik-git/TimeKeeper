@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, shortDate, type ScreenProps } from "../../api/client";
 import { effectiveMs, formatPreciseDuration } from "../../calculations/billing";
 
@@ -39,6 +39,45 @@ export function ActivitySourcePackDialog({
     "audit",
   ]);
   const [receipt, setReceipt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    dialogRef.current
+      ?.querySelector<HTMLInputElement>('input[type="radio"]')
+      ?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = [
+        ...(dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? []),
+      ];
+      if (!items.length) return;
+      const first = items[0],
+        last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+  }, []);
   if (!matter) return null;
   const toggleOption = (value: string) =>
     setOptions((current) =>
@@ -53,44 +92,58 @@ export function ActivitySourcePackDialog({
         : [...current, id],
     );
   const create = async () => {
-    const result = await action(
-      api.POST("/api/cases/{id}/source-pack", {
-        params: { path: { id: matterId } },
-        body: {
-          scope,
-          options,
-          ...(scope === "invoice" ? { invoiceId } : {}),
-          ...(scope === "period" ? { from, to } : {}),
-          ...(scope === "chosen" ? { periodIds: selected } : {}),
-        },
-      }),
-    );
-    if (result) {
-      setReceipt(result.export.sha256);
-      const url = URL.createObjectURL(
-        new Blob([result.payload], { type: "application/json;charset=utf-8" }),
+    setBusy(true);
+    try {
+      const result = await action(
+        api.POST("/api/cases/{id}/source-pack", {
+          params: { path: { id: matterId } },
+          body: {
+            scope,
+            options,
+            ...(scope === "invoice" ? { invoiceId } : {}),
+            ...(scope === "period" ? { from, to } : {}),
+            ...(scope === "chosen" ? { periodIds: selected } : {}),
+          },
+        }),
       );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `source-pack-${matter.reference}-${result.export.id}.json`;
-      link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      if (result) {
+        setReceipt(result.export.sha256);
+        const url = URL.createObjectURL(
+          new Blob([result.payload], {
+            type: "application/json;charset=utf-8",
+          }),
+        );
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `source-pack-${matter.reference}-${result.export.id}.json`;
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      }
+    } finally {
+      setBusy(false);
     }
   };
   const option = (value: Scope, label: string, detail?: React.ReactNode) => (
-    <label
+    <div
       className={`activity-pack-option ${scope === value ? "on" : ""}`}
       key={value}
+      onClick={(event) => {
+        if (!(event.target as HTMLElement).closest("input, select, button, label"))
+          setScope(value);
+      }}
     >
       <input
         type="radio"
+        id={`activity-pack-scope-${value}`}
         name="activity-pack-scope"
         checked={scope === value}
         onChange={() => setScope(value)}
       />
-      <span className="activity-pack-option-content">
-        <b>{label}</b>
-        {detail && <span className="muted"> · {detail}</span>}
+      <div className="activity-pack-option-content">
+        <label htmlFor={`activity-pack-scope-${value}`}>
+          <b>{label}</b>
+          {detail && <span className="muted"> · {detail}</span>}
+        </label>
         {scope === "chosen" && value === "chosen" && (
           <div className="activity-pack-lines">
             {entries.map((entry) => {
@@ -161,8 +214,8 @@ export function ActivitySourcePackDialog({
             ))}
           </select>
         )}
-      </span>
-    </label>
+      </div>
+    </div>
   );
   return (
     <div
@@ -173,12 +226,10 @@ export function ActivitySourcePackDialog({
     >
       <div
         className="modal activity-source-pack"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Export source pack"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") close();
-        }}
       >
         <div className="card-h">
           <div className="t">
@@ -253,6 +304,7 @@ export function ActivitySourcePackDialog({
               className="btn primary"
               onClick={() => void create()}
               disabled={
+                busy ||
                 (scope === "invoice" && !invoiceId) ||
                 (scope === "chosen" && !selected.length)
               }
@@ -260,7 +312,7 @@ export function ActivitySourcePackDialog({
               <svg className="i sm" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 4v12M6 10l6 6 6-6M4 20h16" />
               </svg>
-              Create source pack
+              {busy ? "Creating…" : "Create source pack"}
             </button>
           </div>
         </div>
