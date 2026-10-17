@@ -409,7 +409,7 @@ This is about the **outgoing** calls TimeKeeper makes to Screenpipe (the Screenp
 - **What exists:** both endpoints, with idempotency, one active session, preserved end boundary, and prerequisite ordering, covered by tests.
 - **What is missing:**
   1. The MCP tools `start_session` and `end_session` (`src/mcp/` is empty).
-  2. The Screenpipe pipe the lawyer runs as the button. Michel's JEV pipe (`feat/jev-implementation`) already runs manually; showing it as a one-click button must be checked on an installed Screenpipe.
+  2. The Screenpipe pipe the lawyer runs as the button. Screenpipe documents manual runs for pipes (`schedule: manual`, run from the app, `pipe run <name>`, or `POST /pipes/<name>/run`; [scheduled tasks](https://docs.screenpipe.com/scheduled-tasks.md)), and Michel's JEV pipe (`feat/jev-implementation`) already runs manually. How the manual run appears to the lawyer must still be checked on an installed Screenpipe.
   3. The launcher (`integrations/screenpipe/launcher/`): on start, open TimeKeeper if it is closed and wait for `GET /api/health` ([A1](#missing-endpoints-and-rules)) before sending the command.
   4. Pressing end while TimeKeeper is closed: handled by [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder).
 
@@ -448,6 +448,8 @@ Files contain only IDs and timestamps, never screen content or client informatio
 - The pipe always tries the API first (through MCP, [D6](#d6-screenpipe-reaches-the-api-through-the-timekeeper-mcp-server)). It writes to the inbox only when TimeKeeper does not answer.
 - It writes `<commandId>.json.tmp`, then renames it to `<commandId>.json`, so TimeKeeper never reads a half-written file.
 - It reports "saved, waiting for TimeKeeper", never "applied".
+- **No code on the Screenpipe side.** Screenpipe has no built-in mechanism that sends a JSON file to another application; its API only answers requests. Pipes are AI agents written as plain markdown instructions, and Screenpipe documents that they can write files and call HTTP APIs ([scheduled tasks](https://docs.screenpipe.com/scheduled-tasks.md)). The fallback write is therefore an instruction in the pipe's `pipe.md`, not a program. Only TimeKeeper's reading side (section 7) is code.
+- Do not read Screenpipe's own pipe logs (`~/.screenpipe/pipes/<name>/logs/`) instead of the inbox: they are Screenpipe's internal format, can change without notice, and do not carry our command IDs.
 
 **4. Synchronization at startup (TimeKeeper)**
 
