@@ -26,6 +26,7 @@ function view(p: PeriodRecord): PeriodView {
 
 export class TimeKeeperService {
   constructor(private readonly repo: Repository, private readonly clock: Clock = { now: () => new Date().toISOString() }) {}
+  private readonly pillUndos = new Map<string,{expiresAt:number;kind:'switch'|'assign'|'exclude'|'validate';before:PeriodRecord[];afterIds:string[];afterRevisions:number[]}>();
   private existing(command: StartCommand | EndCommand, kind: 'start' | 'end'): CommandOutcome | null {
     const found = this.repo.command(command.producerId,command.commandId);
     if (!found) return null;
@@ -261,6 +262,103 @@ export class TimeKeeperService {
       this.repo.saveQuestion({ ...q,status:'answered',responseCommandId:input.responseCommandId,responseResultJson:JSON.stringify(result) });
       return result;
     });
+  }
+  pillDecision(input:
+    | {kind:'switch';caseId:string|null;windowTitle:string;appName:string;at:string}
+    | {kind:'assign';periodId:string;caseId:string;expectedAssignmentRevision:number}
+    | {kind:'exclude';periodId:string;expectedAssignmentRevision:number;expectedEffectiveRevision:number}
+    | {kind:'validate';periodIds:string[];expectedEffectiveRevisions:Record<string,number>}
+  ): {period:PeriodView;undoToken:string} {
+    for(const [token,action] of this.pillUndos)if(Date.now()>action.expiresAt)this.pillUndos.delete(token);
+    const before:PeriodRecord[]=[];
+    let result:PeriodView;
+    const afterIds:string[]=[];
+    this.repo.transaction(()=>{
+      if(input.kind==='switch') {
+        const session=this.repo.activeSession();
+        if(!session)throw new AppError('no-active-session','no active session');
+        const prior=this.repo.activePeriod(session.id);
+        if(prior)before.push(prior);
+        const switched=this.switchPeriod({...input,notClientWork:input.caseId===null});
+        if('status' in switched)throw new AppError('pending','switch requires review');
+        result=switched;afterIds.push(switched.id);
+      } else if(input.kind==='assign') {
+        const prior=this.repo.period(input.periodId);
+        if(!prior)throw new AppError('not-found','period not found');
+        before.push(prior);
+        const question=this.repo.allQuestions().find(q=>q.periodId===input.periodId&&q.status==='pending');
+        if(question) {
+          if(question.expectedAssignmentRevision!==input.expectedAssignmentRevision)throw new AppError('conflict','stale assignment');
+          result=this.answerQuestion({questionId:question.questionId,sessionId:question.sessionId,periodId:input.periodId,
+            expectedAssignmentRevision:question.expectedAssignmentRevision,caseId:input.caseId,responseCommandId:randomUUID()});
+        } else result=this.assignPeriod(input.periodId,input.caseId,input.expectedAssignmentRevision,'lawyer');
+        afterIds.push(input.periodId);
+      } else if(input.kind==='exclude') {
+        const prior=this.repo.period(input.periodId);
+        if(!prior)throw new AppError('not-found','period not found');
+        if(prior.assignmentRevision!==input.expectedAssignmentRevision||prior.effectiveRevision!==input.expectedEffectiveRevision)
+          throw new AppError('conflict','stale period');
+        before.push(prior);result=this.updatePeriodDetails(input.periodId,{excluded:true});afterIds.push(input.periodId);
+      } else {
+        if(!input.periodIds.length||new Set(input.periodIds).size!==input.periodIds.length)throw new AppError('invalid-request','distinct periods required');
+        for(const id of input.periodIds) {
+          const prior=this.repo.period(id);
+          if(!prior)throw new AppError('not-found','period not found');
+          if(prior.effectiveRevision!==input.expectedEffectiveRevisions[id])throw new AppError('conflict','stale period');
+          before.push(prior);result=this.validatePeriod(id);afterIds.push(id);
+        }
+      }
+    });
+    const undoToken=randomUUID();
+    this.pillUndos.set(undoToken,{expiresAt:Date.now()+5000,kind:input.kind,before,afterIds,
+      afterRevisions:afterIds.map(id=>this.repo.period(id)!.revision)});
+    return {period:result!,undoToken};
+  }
+  undoPill(undoToken:string): {status:'undone'} {
+    const action=this.pillUndos.get(undoToken);
+    if(!action||Date.now()>action.expiresAt) {
+      this.pillUndos.delete(undoToken);
+      throw new AppError('conflict','Undo has expired');
+    }
+    try {this.repo.transaction(()=>{
+      const after=action.afterIds.map((id,index)=>{
+        const period=this.repo.period(id);
+        if(!period||period.revision!==action.afterRevisions[index]||period.billingStatus==='billed')
+          throw new AppError('conflict','Period changed since the decision');
+        return period;
+      });
+      if(action.kind==='switch') {
+        const created=after[0];
+        if(created.revision!==0||this.repo.activePeriod(created.sessionId)?.id!==created.id||this.repo.listSources(created.id).length)
+          throw new AppError('conflict','New period changed since the switch');
+        const previous=action.before[0];
+        if(previous) {
+          const current=this.repo.period(previous.id);
+          if(!current||current.revision!==previous.revision+1||current.endedAt!==created.startedAt)
+            throw new AppError('conflict','Previous period changed since the switch');
+        }
+        this.repo.deletePeriod(created.id);
+        if(previous)this.repo.savePeriod({...previous,revision:previous.revision+2},this.clock.now());
+      } else if(action.kind==='assign') {
+        const prior=action.before[0],current=after[0];
+        const restored={...changePeriod(current,{caseId:prior.caseId,assignmentOrigin:prior.assignmentOrigin}),revision:current.revision+1};
+        this.repo.savePeriod(restored,this.clock.now());
+        if(restored.caseId===null)this.askQuestion({questionId:`period:${restored.id}:${restored.assignmentRevision}`,
+          sessionId:restored.sessionId,periodId:restored.id,expectedAssignmentRevision:restored.assignmentRevision});
+      } else if(action.kind==='exclude') {
+        this.updatePeriodDetails(after[0].id,{excluded:action.before[0].excluded??false});
+      } else {
+        for(let i=0;i<after.length;i++)this.repo.savePeriod({...after[i],
+          validatedEffectiveRevision:action.before[i].validatedEffectiveRevision,
+          timeValidatedAt:action.before[i].timeValidatedAt,revision:after[i].revision+1},this.clock.now());
+      }
+    });}catch(error){
+      if(error&&typeof error==='object'&&'code' in error&&error.code==='ERR_SQLITE_ERROR')
+        throw new AppError('conflict','Period has dependent records and cannot be undone');
+      throw error;
+    }
+    this.pillUndos.delete(undoToken);
+    return {status:'undone'};
   }
   setDetectedDuration(id: string, durationMs: number | null): PeriodView {
     return this.repo.transaction(() => {

@@ -15,7 +15,7 @@ with sync_playwright() as playwright:
     page.on("pageerror", lambda error: errors.append(str(error)))
     assert page.request.post(f"{base}/api/demo/reset").ok
     page.goto(f"{base}/pill.html?theme=light")
-    page.get_by_role("button", name="TimeKeeper, toggle panel").wait_for()
+    page.get_by_role("button", name="Pause recording").wait_for()
     page.get_by_label("Simulate file switch").select_option("2025-031 Opposition Brief v3.docx")
     prompt = page.get_by_role("status", name="File switch suggestion")
     prompt.get_by_text("Dawson v Martin?", exact=False).wait_for()
@@ -33,7 +33,9 @@ with sync_playwright() as playwright:
     if capture_dir:
         page.get_by_role("status", name="New work period").get_by_role("button", name="Dismiss").click()
         page.get_by_role("button", name="TimeKeeper, toggle panel").click()
-        page.get_by_label("TimeKeeper panel").wait_for()
+        panel = page.get_by_label("TimeKeeper panel")
+        if not panel.is_visible(): page.get_by_role("button", name="TimeKeeper, toggle panel").click()
+        panel.wait_for()
         page.wait_for_timeout(220)
         page.screenshot(path=f"{capture_dir}/pill-panel-light.png")
     page.goto(base)
@@ -42,6 +44,7 @@ with sync_playwright() as playwright:
     row.wait_for()
     assert row.count() == 1
     page.goto(f"{base}/pill.html?theme=light")
+    page.get_by_role("button", name="Pause recording").wait_for()
     page.get_by_label("Simulate file switch").select_option(
         "Research - notice of appeal deadline for family court orders.docx")
     low = page.get_by_role("status", name="File switch suggestion")
@@ -52,14 +55,15 @@ with sync_playwright() as playwright:
         page.goto(f"{base}/pill.html?theme=dark")
         page.get_by_role("status", name="Which case").get_by_role("button", name="Dismiss").click()
         page.get_by_role("button", name="TimeKeeper, toggle panel").click()
-        page.get_by_label("TimeKeeper panel").wait_for()
+        panel = page.get_by_label("TimeKeeper panel")
+        if not panel.is_visible(): page.get_by_role("button", name="TimeKeeper, toggle panel").click()
+        panel.wait_for()
         page.wait_for_timeout(220)
         page.screenshot(path=f"{capture_dir}/pill-panel-dark.png")
     page.goto(f"{base}/pill.html?theme=light")
     question = page.get_by_role("status", name="Which case")
     question.wait_for()
     question.get_by_label("Choose a case for this period").select_option("5")
-    question.get_by_role("button", name="Answer").click()
     question.wait_for(state="hidden")
     answered = page.request.get(f"{base}/api/work-periods/13").json()
     assert answered["caseId"] == "5", answered

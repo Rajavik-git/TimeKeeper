@@ -45,6 +45,23 @@ export function coreRoutes(db: DatabaseSync): Hono {
       windowTitle:string(b.windowTitle,'windowTitle'),appName:string(b.appName,'appName'),at:string(b.at,'at'),
       notClientWork:b.notClientWork === true}));
   });
+  router.post('/pill/decision',async c=>{
+    const b=await input(c);
+    if(b.kind==='switch')return c.json(service.pillDecision({kind:'switch',caseId:b.caseId===null?null:string(b.caseId,'caseId'),
+      windowTitle:string(b.windowTitle,'windowTitle'),appName:string(b.appName,'appName'),at:string(b.at,'at')}));
+    if(b.kind==='assign')return c.json(service.pillDecision({kind:'assign',periodId:string(b.periodId,'periodId'),
+      caseId:string(b.caseId,'caseId'),expectedAssignmentRevision:integer(b.expectedAssignmentRevision,'expectedAssignmentRevision')}));
+    if(b.kind==='exclude')return c.json(service.pillDecision({kind:'exclude',periodId:string(b.periodId,'periodId'),
+      expectedAssignmentRevision:integer(b.expectedAssignmentRevision,'expectedAssignmentRevision'),expectedEffectiveRevision:integer(b.expectedEffectiveRevision,'expectedEffectiveRevision')}));
+    if(b.kind==='validate') {
+      const periodIds=Array.isArray(b.periodIds)?b.periodIds.map(id=>string(id,'periodId')):[];
+      const revisions=object(b.expectedEffectiveRevisions);
+      return c.json(service.pillDecision({kind:'validate',periodIds,
+        expectedEffectiveRevisions:Object.fromEntries(periodIds.map(id=>[id,integer(revisions[id],`effective revision for ${id}`)]))}));
+    }
+    throw new AppError('invalid-request','pill decision kind required');
+  });
+  router.post('/pill/undo',async c=>c.json(service.undoPill(string((await input(c)).undoToken,'undoToken'))));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));
   router.get('/work-periods',c=>{

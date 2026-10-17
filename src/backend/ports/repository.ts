@@ -43,6 +43,7 @@ export interface Repository {
   allPeriods(): PeriodRecord[];
   insertPeriod(period: PeriodRecord, now: string): void;
   savePeriod(period: PeriodRecord, now: string): void;
+  deletePeriod(id: string): void;
   caseExists(id: string): boolean;
   createClient(id: string, name: string, now: string): void;
   createCase(id: string, clientId: string, reference: string, title: string, hourlyRateCents: number | null, now: string): void;
