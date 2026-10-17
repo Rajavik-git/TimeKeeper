@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Local TimeKeepr windows",
+  "windows": ["pill", "main"],
+  "permissions": ["core:default"]
+}
