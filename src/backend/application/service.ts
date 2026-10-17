@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { CommandOutcome, EndCommand, PeriodView, QuestionAnswer, StartCommand } from '../../contracts/index.js';
 import { canApplyQuestion, changePeriod, endSession, resolveRate, timeIsValidated, validateTime } from '../domain/rules.js';
 import type { Clock } from '../ports/index.js';
-import type { CaseRecord, ClientRecord, CommandRecord, PeriodRecord, Repository, SessionRecord, SettingsRecord } from '../ports/repository.js';
+import type { CaseRecord, ClientRecord, CommandRecord, PeriodRecord, Repository, RetrievalWindow, SessionRecord, SettingsRecord } from '../ports/repository.js';
 import { AppError, isAppErrorCode } from '../ports/errors.js';
 
 export { AppError } from '../ports/errors.js';
@@ -367,6 +367,37 @@ export class TimeKeeperService {
       this.repo.savePeriod(next,this.clock.now()); return view(next);
     });
   }
+  /**
+   * Time windows still to read from Screenpipe (docs/API.md D8 step 4): for each session, from its last complete window
+   * (minus `overlapMs`, for late indexing) to its end or `now`, in windows of at most `windowMs`. The newest session comes
+   * first, so the session the lawyer is working on is caught up before older ones; each session is read in time order.
+   */
+  retrievalPlan(instanceId: string, now: string, o: { windowMs: number; overlapMs: number; maxWindows: number }): RetrievalWindow[] {
+    const plan: RetrievalWindow[] = [];
+    const newestFirst = [...this.repo.listSessions()].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
+    for (const s of newestFirst) {
+      const end = Math.min(Date.parse(s.endedAt ?? now), Date.parse(now));
+      const checkpoint = this.repo.retrievalCheckpoint(s.id,instanceId);
+      let start = checkpoint === null ? Date.parse(s.startedAt) : Math.max(Date.parse(s.startedAt), Date.parse(checkpoint) - o.overlapMs);
+      if (checkpoint !== null && Date.parse(checkpoint) >= end) continue;
+      while (start < end && plan.length < o.maxWindows) {
+        const stop = Math.min(start + o.windowMs, end);
+        plan.push({ id:randomUUID(),sessionId:s.id,instanceId,startAt:new Date(start).toISOString(),endAt:new Date(stop).toISOString() });
+        start = stop;
+      }
+    }
+    return plan;
+  }
+  beginRetrieval(w: RetrievalWindow): void { this.repo.transaction(() => this.repo.saveRetrieval(w,'pending',this.clock.now())); }
+  failRetrieval(w: RetrievalWindow): void { this.repo.transaction(() => this.repo.saveRetrieval(w,'failed',this.clock.now())); }
+  completeRetrieval(w: RetrievalWindow): void {
+    this.repo.transaction(() => {
+      this.repo.saveRetrieval(w,'complete',this.clock.now());
+      this.repo.closeRetrievalGaps(w.sessionId,w.instanceId,w.endAt,this.clock.now());
+    });
+  }
+  /** The work period of a session that contains `at`, if any. */
+  periodIdAt(sessionId: string, at: string): string | null { return this.repo.periodAt(sessionId,at)?.id ?? null; }
   /** Imports evidence references all or nothing (docs/API.md A12). Results keep the order of the input. */
   importSources(inputs: SourceImport[]): SourceImportResult[] {
     return this.repo.transaction(() => inputs.map(input => this.importSource(input)));

@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { CaseRecord, ClientRecord, CommandRecord, CoverageGap, PeriodRecord, QuestionRecord, Repository, SessionRecord, SettingsRecord, SourceRecord } from '../../ports/repository.js';
+import type { CaseRecord, ClientRecord, CommandRecord, CoverageGap, PeriodRecord, QuestionRecord, Repository, RetrievalWindow, SessionRecord, SettingsRecord, SourceRecord } from '../../ports/repository.js';
 import { migrate } from './migrate.js';
 
 type Row = Record<string, unknown>;
@@ -141,6 +141,21 @@ export class SqliteRepository implements Repository {
       caseNumber:str(r.case_number),opposingParty:str(r.opposing_party),status:r.status as CaseRecord['status'],mode:r.mode as CaseRecord['mode'],
       hourlyRateCents:r.hourly_rate_cents as number | null,flatFeeCents:r.flat_fee_cents as number | null,
       budgetCents:r.budget_cents as number | null,openedOn:nullable(r.opened_on) }));
+  }
+  retrievalCheckpoint(sessionId: string, instanceId: string): string | null {
+    const r=row(this.db.prepare(`SELECT requested_end_at AS at FROM retrieval_progress WHERE session_id=? AND screenpipe_instance_id=?
+      AND status='complete' ORDER BY julianday(requested_end_at) DESC LIMIT 1`).get(sessionId,instanceId));
+    return r ? str(r.at) : null;
+  }
+  saveRetrieval(w: RetrievalWindow, status: 'pending' | 'complete' | 'failed', now: string): void {
+    this.db.prepare(`INSERT INTO retrieval_progress(id,session_id,screenpipe_instance_id,requested_start_at,requested_end_at,last_completed_at,status)
+      VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,last_completed_at=excluded.last_completed_at`)
+      .run(w.id,w.sessionId,w.instanceId,w.startAt,w.endAt,status === 'complete' ? now : null,status);
+  }
+  closeRetrievalGaps(sessionId: string, instanceId: string, upTo: string, now: string): void {
+    this.db.prepare(`UPDATE retrieval_progress SET status='complete',last_completed_at=? WHERE session_id=? AND screenpipe_instance_id=?
+      AND status!='complete' AND julianday(requested_end_at)<=julianday(?)`)
+      .run(now,sessionId,instanceId,upTo);
   }
   settings(): SettingsRecord | null {
     const r=row(this.db.prepare('SELECT * FROM settings WHERE id=1').get());

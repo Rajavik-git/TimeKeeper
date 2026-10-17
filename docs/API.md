@@ -447,7 +447,7 @@ This is about the **outgoing** calls TimeKeeper makes to Screenpipe (the Screenp
   - `health()` calls `GET /health` without the token; `verifyAccess()` makes one small authenticated search.
   - Errors: `ScreenpipeAuthError` for `401`/`403` ("Screenpipe authentication failed", never the token, no retry); `ScreenpipeUnavailableError` for timeouts (10 seconds), network failures, and other error statuses.
   - Tests: `tests/unit/screenpipe-http.test.ts` against a stand-in shaped like Screenpipe's documented response ([search reference](https://docs.screenpipe.com/api-reference/search/search-screen-and-audio-content)).
-  - Not yet: nothing calls the adapter. Catching up missed recordings ([D8](#d8-synchronization-at-startup-through-a-local-inbox-folder) step 4) is the first planned user. Checking it against an installed Screenpipe is still required.
+  - Used by the recording catch-up ([D8](#d8-synchronization-at-startup-through-a-local-inbox-folder) step 4). Checked end to end with the real API and a stand-in Screenpipe HTTP server (right and wrong token). Checking it against an installed Screenpipe is still required.
 
 ### D6. Screenpipe reaches the API through the TimeKeeper MCP server
 
@@ -555,7 +555,16 @@ Built on `mprifti42tech/api`:
 Not built yet:
 
 - **The pipe side:** the `end_session` tool and pipe must write the file when the API does not answer (Rajavik-git, with `end_session`). The format is section 2; write `.tmp`, then rename.
-- **Step 4, catching up missed recordings:** needs the Screenpipe adapter ([D5](#d5-calling-screenpipes-api-with-its-token)), which does not exist yet.
+- **Checking against an installed Screenpipe:** step 4 below is tested only with stand-ins.
+
+Step 4, catching up missed recordings, **built on `mprifti42tech/api` (2026-10-17):**
+
+- Worker `catchUpRecordings` in `src/backend/workers/recording-catchup.ts`, using the Screenpipe adapter ([D5](#d5-calling-screenpipes-api-with-its-token)) and service methods `retrievalPlan`, `beginRetrieval`, `completeRetrieval`, `failRetrieval`, and `periodIdAt`. Progress is stored in the existing `retrieval_progress` table.
+- **Plan:** for each session, newest first, read from the end of its last complete window, starting 5 minutes earlier for late indexing, to the session end or now, in 1-hour windows, at most 24 windows per run. A long gap is therefore caught up over several runs, and the session in progress comes first.
+- **Each window:** marked `pending`, read, then each reference is attached to the work period it falls in (or left unlinked) and imported through the same service as `POST /api/sources`, with the stable ID `sp:<instance>:<contentType>:<externalId>`. A known reference is unchanged; one already attached differently (for example after a correction) is kept as it is. The window is marked `complete` only after its references are saved, which also marks earlier unfinished windows up to its end as read.
+- **Failures:** a failed read (Screenpipe down, timeout, refused token) marks the window `failed` and stops the run. Failed windows are coverage gaps (`GET /api/coverage-gaps`), so the lawyer sees missing coverage instead of a silent zero. The next run starts again from the last complete window.
+- **When:** after the API listens, then every 5 minutes, never twice at once, and only when `SCREENPIPE_URL` or `SCREENPIPE_API_KEY` is set. **Deviation from section 4:** it does not delay `GET /api/health`. A slow or stopped Screenpipe would otherwise hold back the start button for minutes; the inbox commands, which are local and fast, still run before readiness. The configuration condition keeps the demo, which has no Screenpipe, free of false coverage gaps.
+- **Tests:** `tests/integration/recording-catchup.test.ts` (attaching to periods, an active session with overlap, a failed read becoming a gap and closing on retry, an existing reference kept, newest session first, the window limit). Also checked end to end: the real API against a stand-in Screenpipe HTTP server imported a reference into the right demo period without storing screen text, and a wrong token stopped with "Screenpipe authentication failed" and a visible gap, without the token in the log.
 - **Showing failed commands to the lawyer:** the files are in `failed/`, but no endpoint or screen shows them yet.
 
 ### D9. Only past days can be validated

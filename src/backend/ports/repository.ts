@@ -25,6 +25,8 @@ export interface SourceRecord {
   validationStatus: 'unvalidated' | 'validated'; validatedAt: string | null; availabilityStatus: 'unknown' | 'available' | 'unavailable'; availabilityCheckedAt: string | null;
 }
 export interface CoverageGap { id:string; sessionId:string; startedAt:string; endedAt:string; status:'pending'|'failed' }
+/** One time window read from Screenpipe for a session (docs/API.md D8 step 4). */
+export interface RetrievalWindow { id: string; sessionId: string; instanceId: string; startAt: string; endAt: string }
 export interface ClientRecord {
   id: string; name: string; code: string | null; type: string; mode: string;
   hourlyRateCents: number | null; vatApplicable: boolean; active: boolean;
@@ -59,6 +61,11 @@ export interface Repository {
   listClients(): ClientRecord[];
   listCases(filter: { clientId?: string; status?: 'active' | 'archived' }): CaseRecord[];
   settings(): SettingsRecord | null;
+  /** End of the latest completely read window, or null when nothing was read yet. */
+  retrievalCheckpoint(sessionId: string, instanceId: string): string | null;
+  saveRetrieval(window: RetrievalWindow, status: 'pending' | 'complete' | 'failed', now: string): void;
+  /** Windows are read in order from the checkpoint, so unfinished windows ending by `upTo` are now covered: mark them read. */
+  closeRetrievalGaps(sessionId: string, instanceId: string, upTo: string, now: string): void;
   createClient(id: string, name: string, now: string): void;
   createCase(id: string, clientId: string, reference: string, title: string, hourlyRateCents: number | null, now: string): void;
   setGlobalRate(rateCents: number, currency: string, workspaceId: string, now: string): void;
