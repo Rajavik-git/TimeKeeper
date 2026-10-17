@@ -137,6 +137,7 @@ fn main() {
                     .arg(fallback_script)
                     .env("TIMEKEEPER_DB", data_dir.join("timekeeper.db"))
                     .env("TIMEKEEPER_PORT", "8787")
+                    .env("TIMEKEEPER_DESKTOP", "1")
                     .env("TIMEKEEPER_PARENT_PID", std::process::id().to_string())
                     .spawn()
                     .map_err(|error| {

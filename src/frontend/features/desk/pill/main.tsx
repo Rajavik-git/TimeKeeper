@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { api, type CoreState, type State } from '../../../api/client';
+import { api, periodDay, type CoreState, type State } from '../../../api/client';
 import { configuredRate, dayFees, effectiveMs, formatPreciseDuration, type Period } from '../../../calculations/billing';
 import { money, rate } from '../../../shared/format';
 import { Logo } from '../../../shared/brand/Logo';
@@ -36,6 +36,7 @@ function Pill() {
   const [state,setState]=useState<State>();
   const [core,setCore]=useState<CoreState>();
   const [offline,setOffline]=useState(false);
+  const [effectiveDay,setEffectiveDay]=useState('2026-10-16');
   const [expanded,setExpanded]=useState(false);
   const [notice,setNotice]=useState<Notice|null>(null);
   const [recent,setRecent]=useState<{id:string;title:string}|null>(null);
@@ -55,11 +56,12 @@ function Pill() {
   stateRef.current=state;
   const refresh=useCallback(async()=>{
     try {
-      const [legacy,session,periods,questions]=await Promise.all([
-        api.GET('/api/state'),api.GET('/api/sessions/active'),api.GET('/api/work-periods'),api.GET('/api/questions'),
+      const [legacy,session,periods,questions,meta]=await Promise.all([
+        api.GET('/api/state'),api.GET('/api/sessions/active'),api.GET('/api/work-periods'),api.GET('/api/questions'),api.GET('/api/meta'),
       ]);
-      if(legacy.error||session.error||periods.error||questions.error||!legacy.data) throw Error('State unavailable');
+      if(legacy.error||session.error||periods.error||questions.error||meta.error||!legacy.data||!meta.data) throw Error('State unavailable');
       setState(legacy.data);
+      setEffectiveDay(meta.data.today);
       setCore({activeSession:session.data??null,sessions:[],periods:periods.data??[],questions:questions.data??[],sources:[],coverageGaps:[],billing:{invoices:[],lines:[],expenses:[]}});
       setOffline(false);
     } catch {setOffline(true);}
@@ -67,7 +69,7 @@ function Pill() {
   useEffect(()=>{void refresh();const poll=window.setInterval(()=>{void refresh();setNow(Date.now());},5000);return()=>window.clearInterval(poll);},[refresh]);
   const active=core?.activeSession;
   const current=core?.periods.find(p=>p.sessionId===active?.id&&p.endedAt===null);
-  const dayDate=current?.startedAt.slice(0,10)??active?.startedAt.slice(0,10);
+  const dayDate=effectiveDay;
   if(current&&observed.current?.id!==current.id)observed.current={id:current.id,at:Date.now()};
   const caseItem=state?.matter.find(m=>String(m.id)===current?.caseId);
   const owner=state?.client.find(c=>c.id===caseItem?.client_id);
@@ -75,7 +77,7 @@ function Pill() {
   const pauseReason=active?'Desk pill:'+active.id:null;
   const openPause=state?.pause.find(p=>p.reason===pauseReason&&p.end_time===null);
   const paused=!!active&&!!openPause;
-  const pending=(core?.periods.filter(p=>p.sessionId===active?.id&&p.startedAt.slice(0,10)===dayDate&&!p.excluded&&(!p.timeValidated||!p.caseId))??[])
+  const pending=(core?.periods.filter(p=>p.sessionId===active?.id&&periodDay(p)===dayDate&&!p.excluded&&(!p.timeValidated||!p.caseId))??[])
     .sort((a,b)=>{
       const readyA=!!a.caseId&&effectiveMs(a)!==null,readyB=!!b.caseId&&effectiveMs(b)!==null;
       return Number(readyB)-Number(readyA)||(readyA&&readyB?(effectiveMs(a)!-effectiveMs(b)!):a.startedAt.localeCompare(b.startedAt));
@@ -98,7 +100,7 @@ function Pill() {
   const hourlyRate=state&&caseItem?configuredRate(state,caseItem.id):null;
   const amount=periodMs!==null&&hourlyRate&&hourlyRate.origin!=='flat_fee' ? money(Math.round(periodMs*hourlyRate.rateCents/3600000)) : '—';
   const barValue=setting?.pill_display==='time'?(current?formatPreciseDuration(periodMs):'—'):amount;
-  const day=dayDate?core?.periods.filter(p=>p.startedAt.startsWith(dayDate)&&!p.excluded)??[]:[];
+  const day=dayDate?core?.periods.filter(p=>periodDay(p)===dayDate&&!p.excluded)??[]:[];
   const pricedDay=day.map(period=>period.id===current?.id&&periodMs!==null?{...period,durationOverrideMs:periodMs}:period);
   const todayAmount=state&&core?money(dayFees(state,core,pricedDay)):'—';
   useEffect(()=>{if(tauri&&setting)void getCurrentWindow().setAlwaysOnTop(setting.pill_always_on_top).catch(()=>setError('Unable to set pill position.'));},[setting?.pill_always_on_top]);

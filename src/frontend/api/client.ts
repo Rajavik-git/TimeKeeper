@@ -1,7 +1,9 @@
 import createClient from "openapi-fetch";
 import type { paths, components } from "../../contracts/generated";
+import { periodCalendarDay } from '../../contracts/calendar';
 export { money, shortDate } from '../shared/format';
-export const api = createClient<paths>({ baseUrl: "__TAURI_INTERNALS__" in window ? "http://127.0.0.1:8787" : "" });
+const desktopWindow = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+export const api = createClient<paths>({ baseUrl: desktopWindow ? "http://127.0.0.1:8787" : "" });
 export type State = components["schemas"]["State"];
 export type CoreState = {
   activeSession: components["schemas"]["Session"] | null;
@@ -31,7 +33,12 @@ export type ScreenProps = {
   source: (id: string) => void;
 };
 export { tenthsOfHour as hours } from '../shared/format';
-export const today = "2026-10-16";
+export let today = "2026-10-16";
+export const periodDay = (period: { startedAt: string; id: string }) =>
+  periodCalendarDay(period.startedAt, period.id, desktopWindow);
+export function setEffectiveToday(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) today = value;
+}
 export function matter(s: State, id: number | null) {
   return s.matter.find((d) => d.id === id);
 }

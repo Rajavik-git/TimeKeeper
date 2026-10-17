@@ -8,7 +8,7 @@ import { updateTimeEntry } from './assignment.js';
 import { changePeriod, effectiveDuration, validateTime } from '../domain/rules.js';
 import { AppError, TimeKeeperService } from './service.js';
 
-const demoDate = '2026-10-16';
+import { effectiveToday } from '../domain/demo-date.js';
 const required = (value: unknown, label: string) => {
   if (value === null || value === undefined || value === '') throw Error(`${label} is required`);
   return value;
@@ -205,7 +205,7 @@ export class DemoService {
       if (!Number.isInteger(body.tenths_of_hour) || Number(body.tenths_of_hour) < 1) throw Error('Invalid duration');
       const entry = this.port.insert('time_entry', {
         block_id: null, matter_id: body.matter_id, task_id: body.task_id,
-        date: body.date ?? demoDate, tenths_of_hour: body.tenths_of_hour,
+        date: body.date ?? effectiveToday(), tenths_of_hour: body.tenths_of_hour,
         label: body.label || this.get('task', Number(body.task_id)).label,
         amount_cents: 0, rate_origin: this.port.rate(Number(body.matter_id)).origin,
         billable: true, reason: null, review_status: 'to_review', billing_status: 'to_bill', invoice_id: null,
@@ -241,14 +241,14 @@ export class DemoService {
       required(body.client_id, 'Client');
       required(body.title, 'Title');
       const client = this.get('client', Number(body.client_id));
-      const year = new Date().getFullYear();
+      const year = Number(effectiveToday().slice(0, 4));
       const item = this.port.insert('matter', {
         client_id: body.client_id,
         reference: nextCaseReference(year, this.port.nextCaseSequence(year), String(client.code)),
         title: String(body.title).trim(), category: 'N/A', case_number: 'N/A',
         opposing_party: body.opposing_party || 'N/A', mode: 'hourly', own_rate_cents: null,
         flat_fee_cents: null, hour_cap: null, success_fee_percent: null, budget_cents: null,
-        status: 'open', opened_on: new Date().toISOString().slice(0, 10),
+        status: 'open', opened_on: effectiveToday(),
       });
       if (body.opposing_party) this.port.insert('marker', {
         matter_id: item.id, type: 'opposing_party', value: body.opposing_party,
@@ -282,7 +282,7 @@ export class DemoService {
   addExpense(body: Record<string, unknown>) {
     return this.port.transaction(() => {
       const item = this.port.insert('expense', {
-        matter_id: body.matter_id, date: body.date ?? demoDate,
+        matter_id: body.matter_id, date: body.date ?? effectiveToday(),
         label: required(body.label, 'Label'), type: body.type,
         amount_cents: body.amount_cents, invoice_id: null,
       });
@@ -389,7 +389,7 @@ export class DemoService {
   addPause(body: Record<string, unknown>) {
     return this.port.transaction(() => {
       const item = this.port.insert('pause', {
-        date: body.date ?? demoDate, start_time: required(body.start_time, 'Start time'),
+        date: body.date ?? effectiveToday(), start_time: required(body.start_time, 'Start time'),
         end_time: null, origin: 'button', reason: body.reason ?? '',
       });
       this.port.audit('Demo pause marked', '', '', null, 14);

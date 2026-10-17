@@ -6,6 +6,7 @@ import { addExpense, billingState, removeExpense } from '../application/invoice.
 import { invoicePort } from '../adapters/sqlite/invoice.js';
 import { catalogFromDb } from '../adapters/sqlite/recognition.js';
 import { recognizeWindow, type WindowCatalog } from '../application/window-recognition.js';
+import { periodCalendarDay } from '../../contracts/calendar.js';
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AppError('invalid-request','JSON object required');
@@ -49,10 +50,12 @@ export function coreRoutes(db: DatabaseSync): Hono {
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));
   router.get('/work-periods',c=>{
     const {date,from,to,clientId,caseId}=c.req.query();
-    const values=service.allPeriods().filter(p=>
-      (!date || p.startedAt.startsWith(date)) && (!from || p.startedAt.slice(0,10)>=from) &&
-      (!to || p.startedAt.slice(0,10)<=to) && (!clientId || p.clientId===clientId) &&
-      (!caseId || p.caseId===caseId));
+    const values=service.allPeriods().filter(p=>{
+      const day=periodCalendarDay(p.startedAt,p.id,process.env.TIMEKEEPER_DESKTOP==='1');
+      return (!date || day===date) && (!from || day>=from) &&
+        (!to || day<=to) && (!clientId || p.clientId===clientId) &&
+        (!caseId || p.caseId===caseId);
+    });
     return c.json(values);
   });
   router.get('/work-periods/:id',c=>c.json(service.getPeriod(c.req.param('id'))));
@@ -62,7 +65,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
     !c.req.query('date') || g.startedAt.startsWith(c.req.query('date')!))));
   router.get('/questions',c=>{
     const date=c.req.query('date');
-    const ids=new Set(service.allPeriods().filter(p=>p.startedAt.startsWith(date??'')).map(p=>p.id));
+    const ids=new Set(service.allPeriods().filter(p=>!date || periodCalendarDay(p.startedAt,p.id,process.env.TIMEKEEPER_DESKTOP==='1')===date).map(p=>p.id));
     return c.json(service.allQuestions().filter(q=>!date || ids.has(q.periodId)));
   });
   router.get('/billing/state',c=>c.json(billingState(billing)));

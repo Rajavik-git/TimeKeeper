@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { api, client, matter, money, today, type CoreState, type ScreenProps, type State } from '../../api/client';
+import { api, client, matter, money, periodDay, today, type CoreState, type ScreenProps, type State } from '../../api/client';
 import { dayFees, effectiveMs, formatPreciseDuration, formatRoundedMinutes, hasCoverageGap, summarizeWork } from '../../calculations/billing';
 import { MatterSelect } from '../../shared/components/MatterSelect';
 import { Kpi } from '../../shared/components/Kpi';
@@ -126,8 +126,9 @@ function SortHeader<Key extends string>({ label, sort, sortKey, numeric, onSort,
 export function MyDay({ s, core, action, source, refresh, navigate, returnFocusId, onFocusReturned }: ScreenProps & { returnFocusId?: string | null; onFocusReturned?: () => void }) {
   const [selectedDate, setSelectedDate] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
+  useEffect(() => { setSelectedDate(today); setMonth(today.slice(0, 7)); }, [today]);
   const [recorded, setRecorded] = useState<Set<string>>(new Set());
-  const pendingDays = new Set(core.periods.filter(period => !period.excluded && !period.timeValidated && period.startedAt.slice(0, 10) <= today).map(period => period.startedAt.slice(0, 10)));
+  const pendingDays = new Set(core.periods.filter(period => !period.excluded && !period.timeValidated && periodDay(period) <= today).map(periodDay));
   const [dayData, setDayData] = useState<DayData | null>(null);
   const [loadError, setLoadError] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -201,7 +202,7 @@ export function MyDay({ s, core, action, source, refresh, navigate, returnFocusI
     let live = true;
     const load = async () => {
       const result = await api.GET('/api/work-periods', { params: { query: { from: `${month}-01`, to: monthEnd(month) } } });
-      if (live && !result.error) setRecorded(new Set((result.data ?? []).filter(period => !period.excluded).map(period => period.startedAt.slice(0, 10))));
+      if (live && !result.error) setRecorded(new Set((result.data ?? []).filter(period => !period.excluded).map(periodDay)));
     };
     void load();
     return () => { live = false; };

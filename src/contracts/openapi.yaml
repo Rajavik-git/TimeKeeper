@@ -75,6 +75,28 @@
         ]
       }
     },
+    "/api/meta": {
+      "get": {
+        "summary": "Read the effective application day",
+        "operationId": "meta_get",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["today"],
+                  "properties": {
+                    "today": { "type": "string", "format": "date" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/demo/reset": {
       "post": {
         "summary": "Reset the demo database",

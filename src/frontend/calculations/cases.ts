@@ -1,4 +1,4 @@
-import type { CoreState, Matter, State } from '../api/client';
+import { periodDay, type CoreState, type Matter, type State } from '../api/client';
 import { configuredRate, draftInvoice, effectiveMs, summarizeWork } from './billing';
 
 export function caseMetrics(state: State, core: CoreState, item: Matter) {
@@ -42,13 +42,13 @@ export function previousMonthMetrics(state: State, core: CoreState, today: strin
   const monthStart = `${previousDay.slice(0, 7)}-01`;
   const previousCases = state.matter.filter(item => item.opened_on <= previousDay).length;
   const caseIds = new Set(state.matter.map(item => String(item.id)));
-  const previousMinutes = Math.ceil(core.periods.filter(period => !period.excluded && period.caseId !== null && caseIds.has(period.caseId) && period.startedAt.slice(0,10) >= monthStart && period.startedAt.slice(0,10) <= previousDay)
+  const previousMinutes = Math.ceil(core.periods.filter(period => !period.excluded && period.caseId !== null && caseIds.has(period.caseId) && periodDay(period) >= monthStart && periodDay(period) <= previousDay)
     .reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
   const invoicesById = new Map(core.billing.invoices.map(invoice => [invoice.id, invoice.date]));
   const previousToBill = state.matter.reduce((total, item) => {
     if (item.mode === 'flat_fee') return total;
     const periods = core.periods.filter(period => {
-      if (period.caseId !== String(item.id) || !period.billable || period.excluded || period.startedAt.slice(0,10) > previousDay) return false;
+      if (period.caseId !== String(item.id) || !period.billable || period.excluded || periodDay(period) > previousDay) return false;
       const invoiceId = period.invoiceId ?? state.time_entry.find(entry => String(entry.id) === period.id)?.invoice_id;
       const invoiceDate = invoiceId ? invoicesById.get(invoiceId) ?? state.invoice.find(invoice => invoice.id === invoiceId)?.date : null;
       return !invoiceDate || invoiceDate > previousDay;
@@ -67,7 +67,7 @@ export function previousBillingMetrics(state: State, core: CoreState, today: str
   let readyCents = 0, waitingCases = 0, toBillCents = 0;
   for (const item of state.matter.filter(matter => matter.mode === 'hourly' && matter.status === 'open' && matter.opened_on <= previousDay)) {
     const periods = core.periods.filter(period => {
-      if (period.caseId !== String(item.id) || !period.billable || period.excluded || period.startedAt.slice(0, 10) > previousDay) return false;
+      if (period.caseId !== String(item.id) || !period.billable || period.excluded || periodDay(period) > previousDay) return false;
       const invoiceId = period.invoiceId ?? state.time_entry.find(entry => String(entry.id) === period.id)?.invoice_id;
       const invoiceDate = invoiceId ? invoiceDates.get(invoiceId) ?? state.invoice.find(invoice => invoice.id === invoiceId)?.date : null;
       return !invoiceDate || invoiceDate > previousDay;

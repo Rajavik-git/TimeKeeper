@@ -10,6 +10,7 @@ import { invoicePort } from '../adapters/sqlite/invoice.js';
 import type { InvoiceSnapshot } from '../ports/invoice.js';
 import { assignmentPort } from '../adapters/sqlite/assignment.js';
 import { SqliteRepository } from '../adapters/sqlite/core-repository.js';
+import { effectiveToday } from '../domain/demo-date.js';
 
 const id = (value: string): number => {
   const result = Number(value);
@@ -42,6 +43,7 @@ export function createApp(db: DatabaseSync) {
   });
 
   app.get('/api/state', c => c.json(demo.state(c.req.query('date'),c.req.query('clientId'),c.req.query('caseId'))));
+  app.get('/api/meta', c => c.json({ today: effectiveToday() }));
   app.get('/api/cases/search', c => c.json(demo.searchCases(c.req.query('query')??'')));
   app.post('/api/cases/:id/source-pack', async c => {
     const body=await c.req.json<{scope:'invoice'|'case'|'period'|'chosen';options:string[];invoiceId?:number;from?:string;to?:string;periodIds?:number[]}>();

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { api, shortDate, type ScreenProps, type State } from "../../api/client";
+import { api, shortDate, today, type ScreenProps, type State } from "../../api/client";
 import { ActivitySourcePackDialog } from "./ActivitySourcePackDialog";
 import { ActivityPeek } from "./ActivityPeek";
 import { effectiveMs, formatPreciseDuration } from "../../calculations/billing";
@@ -179,7 +179,6 @@ export function Source({ s, core, selected, action, navigate }: Props) {
       entry.review_status !== "approved"
     );
   }).length;
-  const today = new Date().toLocaleDateString("sv-SE");
   const time =
     selectedEntry && block
       ? formatPreciseDuration(

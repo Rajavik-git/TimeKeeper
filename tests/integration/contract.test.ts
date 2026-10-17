@@ -21,6 +21,7 @@ const spec = JSON.parse(readFileSync("src/contracts/openapi.yaml", "utf8")) as {
 };
 const cases: Record<string, { path?: string; body?: unknown }> = {
   "GET /api/state": {},
+  "GET /api/meta": {},
   "GET /api/cases/search": {path:"/api/cases/search?query=Dawson"},
   "POST /api/cases/{id}/source-pack": {path:"/api/cases/1/source-pack",body:{scope:"case",options:["blur","audit"]}},
   "POST /api/demo/reset": {},

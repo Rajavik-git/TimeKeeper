@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { api, today, type State, type CoreState, type View } from "./api/client";
+import { api, today, periodDay, setEffectiveToday, type State, type CoreState, type View } from "./api/client";
 import { Desk } from "./features/desk/Desk";
 import { MyDay } from "./features/workday/MyDay";
 import { Cases } from "./features/cases/Cases";
@@ -12,6 +12,7 @@ import { Icon } from "./shared/components/Icon";
 import { showToast, ToastHost } from "./shared/components/Toast";
 import { fitViewport } from "./shared/fitViewport";
 import { Logo } from "./shared/brand/Logo";
+import { localCalendarDay } from '../contracts/calendar';
 import "./shared/theme.css";
 
 restoreTheme();
@@ -31,6 +32,9 @@ function App() {
   const [selectedCase, setSelectedCase] = useState<number>();
   const [returnFocusId, setReturnFocusId] = useState<string | null>(null);
   const refresh = async () => {
+    const meta = await api.GET('/api/meta');
+    if (meta.error || !meta.data) throw Error('Application date unavailable');
+    setEffectiveToday(meta.data.today);
     const [legacy, active, sessions, periods, sources, questions, billing, coverageGaps] = await Promise.all([
       api.GET('/api/state'), api.GET('/api/sessions/active'), api.GET('/api/sessions'),
       api.GET('/api/work-periods'), api.GET('/api/sources'), api.GET('/api/questions'),api.GET('/api/billing/state'),api.GET('/api/coverage-gaps'),
@@ -60,10 +64,15 @@ function App() {
     void connect();
     window.addEventListener("focus", refreshVisible);
     document.addEventListener("visibilitychange", refreshVisible);
+    const dateCheck = window.setInterval(() => {
+      if ('__TAURI_INTERNALS__' in window && localCalendarDay(new Date()) !== today)
+        refresh().catch((error) => showToast(String(error)));
+    }, 30000);
     return () => {
       stopped = true;
       window.removeEventListener("focus", refreshVisible);
       document.removeEventListener("visibilitychange", refreshVisible);
+      window.clearInterval(dateCheck);
     };
   }, []);
   const action = async <T,>(
@@ -121,7 +130,7 @@ function App() {
   const props = s && core
     ? { s, core, refresh, action, navigate, source, selectedCase }
     : undefined;
-  const pending = core?.periods.filter(p=>p.startedAt.startsWith(today) && !p.excluded && !p.timeValidated).length ?? 0;
+  const pending = core?.periods.filter(p=>periodDay(p)===today && !p.excluded && !p.timeValidated).length ?? 0;
   return (
     <div className="app floating-shell">
       <div className="shell-main">

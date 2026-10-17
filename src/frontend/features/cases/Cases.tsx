@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, today, type ScreenProps, type Matter, type Client } from '../../api/client';
+import { api, periodDay, today, type ScreenProps, type Matter, type Client } from '../../api/client';
 import { effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
 import { caseMetrics, clientMetrics, previousMonthMetrics } from '../../calculations/cases';
 import { money, percent, rate as formatRate, shortDate } from '../../shared/format';
@@ -238,7 +238,7 @@ export function Cases({ s, core, action, navigate, source, selectedCase, refresh
   let body;
   if (!currentClient) {
     const caseIds = new Set(s.matter.map(item => String(item.id)));
-    const allPeriods = core.periods.filter(period => !period.excluded && period.caseId !== null && caseIds.has(period.caseId) && period.startedAt.slice(0,7) === today.slice(0,7) && period.startedAt.slice(0,10) <= today);
+    const allPeriods = core.periods.filter(period => !period.excluded && period.caseId !== null && caseIds.has(period.caseId) && periodDay(period).slice(0,7) === today.slice(0,7) && periodDay(period) <= today);
     const october = Math.ceil(allPeriods.reduce((sum, period) => sum + (effectiveMs(period) ?? 0), 0) / 60000);
     const clients = s.client.map(item => ({ item, metrics: clientMetrics(s, core, item.id) }));
     const sortedClients = [...clients].sort((a, b) => {

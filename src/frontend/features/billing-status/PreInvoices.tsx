@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, client, money, shortDate, today, type ScreenProps } from '../../api/client';
+import { api, client, money, periodDay, shortDate, today, type ScreenProps } from '../../api/client';
 import { configuredRate, draftInvoice, effectiveMs, formatPreciseDuration, formatRoundedMinutes, summarizeWork } from '../../calculations/billing';
 import { previousBillingMetrics } from '../../calculations/cases';
 import { Card } from '../../shared/components/Card';
@@ -172,7 +172,7 @@ export function PreInvoices({s,core,action,navigate,selectedCase,refresh}:Screen
         s.matter.find(matter=>String(matter.id)===period.caseId)?.client_id===owner.id&&
         s.task.find(task=>task.id===period.taskTypeId)?.code==='RECH');
       const byDate=new Map<string,typeof research>();
-      for(const period of research) {const date=period.startedAt.slice(0,10);byDate.set(date,[...(byDate.get(date)??[]),period]);}
+      for(const period of research) {const date=periodDay(period);byDate.set(date,[...(byDate.get(date)??[]),period]);}
       for(const [date,day] of byDate) {
         const ms=summarizeWork(day,core.sources).preciseDurationMs;
         if(ms>rule.value*6*60000) alerts.push(`${owner.name} asked for at most ${formatRoundedMinutes(rule.value*6)} of research per day. On ${shortDate(date)} you recorded ${formatPreciseDuration(ms)}. Check this line before you bill.`);
@@ -194,7 +194,7 @@ export function PreInvoices({s,core,action,navigate,selectedCase,refresh}:Screen
       amountCents=period.id===knownBillable.at(-1)?.id ? preview.feesCents-allocatedCents : Math.round(preview.feesCents*durationMs/totalMs);
       allocatedCents+=amountCents;
     }
-    return {id:period.id,date:period.startedAt.slice(0,10),label:period.label,durationMs,amountCents,kind:'period' as const,pending:!period.timeValidated};
+    return {id:period.id,date:periodDay(period),label:period.label,durationMs,amountCents,kind:'period' as const,pending:!period.timeValidated};
   }),...expenses.map(expense=>({
     id:String(expense.id),date:expense.date,label:expense.label,durationMs:null,amountCents:expense.amountCents,
     kind:expense.type as InvoiceRow['kind'],pending:false,

@@ -6,6 +6,7 @@ import { refreshDemoRecognition } from "./recognition.js";
 import { seedCanonicalDemo } from "./demo-core.js";
 import type { components } from "../../../contracts/generated.js";
 import { chooseRate } from "../../domain/pricing.js";
+import { effectiveToday } from "../../domain/demo-date.js";
 
 // The sidecar bundle substitutes these constants with the SQL files at build time.
 declare const __TIMEKEEPER_SCHEMA_SQL__: string | undefined;
@@ -181,7 +182,7 @@ export function audit(
   block_id: number | null = null,
   actor = "Claire Morel",
 ) {
-  const timestamp = `2026-10-16 ${new Date().toTimeString().slice(0, 5)}`;
+  const timestamp = `${effectiveToday()} ${new Date().toTimeString().slice(0, 5)}`;
   insert(db, "audit_event", {
     time_entry_id,
     block_id,
