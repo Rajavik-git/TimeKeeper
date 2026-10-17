@@ -4,7 +4,7 @@ TimeKeeper is a planned desktop application for macOS and Windows. It uses Scree
 
 ## Status and scope
 
-The repository contains documentation and the folder skeleton defined in [AGENTS.md](AGENTS.md). Empty folders contain `.gitkeep` placeholders so Git can retain them. The selected stack is Tauri, React, a local Node.js backend, and SQLite. No dependencies, executable application, SQL migration, or runtime integration exists yet.
+The repository contains documentation and the folder skeleton defined in [AGENTS.md](AGENTS.md). Empty folders contain `.gitkeep` placeholders so Git can retain them. The selected stack is Tauri, React, a local Node.js backend, and SQLite. A single Node.js/TypeScript package now provides the MVP core, SQLite migration, local API module, and automated tests. No desktop executable or Screenpipe runtime integration exists yet.
 
 The lawyer starts and ends a session through explicit commands in Screenpipe. Closing TimeKeeper exits the desktop app and backend but leaves the session active. Reopening reconciles recorded history and preserves manual corrections.
 

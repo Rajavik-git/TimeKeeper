@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "db:migrate": "node dist/src/backend/adapters/sqlite/cli.js"
+    "db:migrate": "node dist/src/backend/adapters/sqlite/cli.js",
+    "api:serve": "node dist/src/backend/api/cli.js"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
