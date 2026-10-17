@@ -55,8 +55,11 @@ export function PreInvoices({s,core,action,navigate,selectedCase,refresh}:Screen
   const tableRef=useRef<HTMLDivElement>(null);
   const [moreCases,setMoreCases]=useState(false);
   const [tableFade,setTableFade]=useState({top:false,bottom:false});
+  const [breadcrumbHost,setBreadcrumbHost]=useState<HTMLElement|null>(null);
+  const detailHeadRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{setSelected(selectedCase??null);if(selectedCase) setType(s.matter.find(m=>m.id===selectedCase)?.mode==='flat_fee'?'final':'deposit');},[selectedCase]);
-  useEffect(()=>{if(!notice)return;const timer=window.setTimeout(()=>{setNotice('');setUndoSort(undefined)},3500);return()=>window.clearTimeout(timer);},[notice]);
+  useEffect(()=>{if(!notice||pendingAction)return;const timer=window.setTimeout(()=>{setNotice('');setUndoSort(undefined)},3500);return()=>window.clearTimeout(timer);},[notice,pendingAction]);
+  useEffect(()=>{setBreadcrumbHost(detailHeadRef.current?.closest('.shell-main') as HTMLElement|null);},[selected]);
 
   const openCases=s.matter.filter(item=>item.status==='open').map(item=>{
     const owner=client(s,item.id);
@@ -115,15 +118,15 @@ export function PreInvoices({s,core,action,navigate,selectedCase,refresh}:Screen
     const prior=previousBillingMetrics(s,core,today);
     const note=`Changes in % compare with the same period last month (${new Date(`${prior.previousDay.slice(0,7)}-01T12:00:00Z`).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})}–${prior.previousDay.slice(-2)}).`;
     const ready=openCases.filter(row=>row.item.mode!=='flat_fee'&&row.preview.pendingPeriods===0&&row.preview.complete);
-    const waiting=openCases.filter(row=>row.preview.pendingPeriods>0);
+    const waiting=openCases.filter(row=>row.item.mode!=='flat_fee'&&row.preview.pendingPeriods>0);
     const readyCents=ready.reduce((sum,row)=>sum+row.preview.feesCents,0);
     const allCents=openCases.reduce((sum,row)=>sum+row.toBillCents,0);
     return <>
       <div className="page-head billing-page-head"><div><h1>Billing</h1><p>Choose a case to prepare its invoice. {note}</p></div></div>
       <div className="billing-summary stats billing-scope">
-        <Kpi title="Ready to invoice" value={<span className="billing-vrow"><span>{money(readyCents)}</span>{delta(readyCents,prior.readyCents,prior.previousDay,true)}</span>} detail={`${ready.length} case${ready.length===1?'':'s'}, all validated`}/>
-        <Kpi title="Waiting for validation" value={<span className="billing-vrow"><span>{waiting.length}</span>{delta(waiting.length,prior.waitingCases,prior.previousDay,false)}</span>} detail={`case${waiting.length===1?'':'s'} with periods to validate`}/>
-        <Kpi title="To bill in total" value={<span className="billing-vrow"><span>{money(allCents)}</span>{delta(allCents,prior.toBillCents,prior.previousDay,false)}</span>} detail="Open cases"/>
+        <Kpi title="Ready to invoice" value={<span className="billing-vrow"><span>{money(readyCents)}</span>{delta(readyCents,prior.readyCents,prior.previousDay,true)}</span>} detail={`${ready.length} hourly case${ready.length===1?'':'s'}, all validated`}/>
+        <Kpi title="Waiting for validation" value={<span className="billing-vrow"><span>{waiting.length}</span>{delta(waiting.length,prior.waitingCases,prior.previousDay,false)}</span>} detail={`Hourly cases with periods to validate`}/>
+        <Kpi title="To bill in total" value={<span className="billing-vrow"><span>{money(allCents)}</span>{delta(allCents,prior.toBillCents,prior.previousDay,false)}</span>} detail="Hourly cases"/>
       </div>
       <div className="billing-overview billing-scope" ref={overviewRef} onScroll={event=>setMoreCases(event.currentTarget.scrollHeight-event.currentTarget.scrollTop>event.currentTarget.clientHeight+2)}><div className="billing-cards">
         {openCases.map(({item:caseItem,owner,preview,lastInvoice})=><button className="billing-card" key={caseItem.id} onClick={()=>{setSelected(caseItem.id);setType(caseItem.mode==='flat_fee'?'final':'deposit')}}>
@@ -135,12 +138,11 @@ export function PreInvoices({s,core,action,navigate,selectedCase,refresh}:Screen
       </div>
       <Card className="billing-recent">
         <div className="billing-recent-head"><h2>Recent invoices</h2><span>{core.billing.invoices.length} issued</span></div>
-        {recentInvoices.length?<div className="billing-recent-list">
-          <div className="billing-recent-row billing-recent-labels" aria-hidden="true"><span>Number</span><span>Client · case</span><span>Date</span><span>Amount</span><span>Status</span></div>
-          {recentInvoices.map(invoice=>{const invoiceCase=s.matter.find(matter=>String(matter.id)===invoice.caseId);const invoiceClient=invoiceCase?client(s,invoiceCase.id):undefined;return <div className="billing-recent-row" key={invoice.id}>
-            <strong title={invoice.number}>{invoice.number}</strong><span className="billing-recent-case" title={`${invoiceClient?.name??'Client'} · ${invoiceCase?.title??'Case'}`}>{invoiceClient?.name??'Client'} · {invoiceCase?.title??'Case'}</span><span>{billingDate(invoice.date)}</span><strong className="billing-recent-amount">{money(invoice.totalCents)}</strong><Pill kind={invoice.status==='paid'?'ok':invoice.status==='overdue'?'warn':'out'}>{invoice.status.charAt(0).toUpperCase()+invoice.status.slice(1)}</Pill>
-          </div>})}
-        </div>:<div className="billing-recent-empty">Issued invoices will appear here.</div>}
+        {recentInvoices.length?<div className="billing-recent-list"><table className="billing-recent-table"><thead><tr><th scope="col">Number</th><th scope="col">Client · case</th><th scope="col">Date</th><th scope="col">Amount</th><th scope="col">Status</th></tr></thead><tbody>
+          {recentInvoices.map(invoice=>{const invoiceCase=s.matter.find(matter=>String(matter.id)===invoice.caseId);const invoiceClient=invoiceCase?client(s,invoiceCase.id):undefined;return <tr key={invoice.id}>
+            <td><strong title={invoice.number}>{invoice.number}</strong></td><td className="billing-recent-case" title={`${invoiceClient?.name??'Client'} · ${invoiceCase?.title??'Case'}`}>{invoiceClient?.name??'Client'} · {invoiceCase?.title??'Case'}</td><td>{billingDate(invoice.date)}</td><td className="billing-recent-amount"><strong>{money(invoice.totalCents)}</strong></td><td><Pill kind={invoice.status==='paid'?'ok':invoice.status==='overdue'?'warn':'out'}>{invoice.status.charAt(0).toUpperCase()+invoice.status.slice(1)}</Pill></td>
+          </tr>})}
+        </tbody></table></div>:<div className="billing-recent-empty">Issued invoices will appear here.</div>}
       </Card>
       {moreCases&&<button className="billing-scroll-cue" onClick={()=>overviewRef.current?.scrollBy({top:overviewRef.current.clientHeight,behavior:'smooth'})}>More cases <span aria-hidden="true">↓</span></button>}</div>
       {notice&&<div className="toast billing-toast" role="status" onClick={()=>setNotice('')}>{notice}{notice.startsWith('Sorted by')&&undoSort!==undefined&&<button className="billing-toast-undo" onClick={event=>{event.stopPropagation();billingSort=undoSort;setSort(undoSort);setUndoSort(undefined);setNotice('Sort restored')}}>Undo</button>}<span aria-hidden="true">×</span></div>}
@@ -204,10 +206,10 @@ export function PreInvoices({s,core,action,navigate,selectedCase,refresh}:Screen
   const sorted=[...sortedWork,...sortedExpenses];
   const sortHeader=(key:SortKey,title:string)=><th scope="col" aria-sort={sort?.key===key?sort.direction:undefined}><button type="button" className="sort-button" onClick={()=>{
     setUndoSort(sort);
-    billingSort={key,direction:sort?.key===key?(sort.direction==='ascending'?'descending':'ascending'):'ascending'};
+    billingSort={key,direction:sort?.key===key?(sort.direction==='ascending'?'descending':'ascending'):key==='label'?'ascending':'descending'};
     setSort(billingSort);
     setNotice(`Sorted by ${title.toLowerCase()}, ${billingSort.direction}`);
-  }}>{title}{sort?.key===key&&<span aria-hidden="true"> {sort.direction==='ascending'?'↑':'↓'}</span>}</button></th>;
+  }}>{title}<span className="billing-sort-indicator" aria-hidden="true"> {sort?.key===key?(sort.direction==='ascending'?'↑':'↓'):'↕'}</span></button></th>;
   const issue=async()=>{
     if(pendingAction)return;
     setPendingAction('issue');
@@ -231,10 +233,9 @@ export function PreInvoices({s,core,action,navigate,selectedCase,refresh}:Screen
     setNotice('Spreadsheet downloaded');
   };
 
-  const shell=document.querySelector('.shell-main');
   return <>
-    {shell&&createPortal(<nav className="billing-crumbs-outer" aria-label="Billing breadcrumb"><button onClick={()=>setSelected(null)}>Billing</button><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="m5 2.5 4.5 4.5L5 11.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg><strong>{owner.name} · {item.title}</strong></nav>,shell)}
-    <div className="page-head billing-page-head billing-detail-head"><div><h1>{owner.name} · {item.title}</h1><p>Check what will be billed, then create the invoice.</p></div><button className="btn" onClick={()=>setSelected(null)}><svg className="i sm billing-back-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>All billing</button></div>
+    {breadcrumbHost&&createPortal(<nav className="billing-crumbs-outer" aria-label="Billing breadcrumb"><button onClick={()=>setSelected(null)}>Billing</button><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="m5 2.5 4.5 4.5L5 11.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg><strong>{owner.name} · {item.title}</strong></nav>,breadcrumbHost)}
+    <div ref={detailHeadRef} className="page-head billing-page-head billing-detail-head"><div><h1>{owner.name} · {item.title}</h1><p>Check what will be billed, then create the invoice.</p></div><button className="btn" onClick={()=>setSelected(null)}><svg className="i sm billing-back-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>All billing</button></div>
     <Card className="billing-hero billing-scope"><div><h2>{item.mode==='flat_fee'?`This case is billed at a flat fee of ${money(item.flat_fee_cents??0)}.`:`You can bill ${owner.name} ${money(preview.feesCents)} for ${formatRoundedMinutes(preview.billedMinutes)} of work.`}</h2><p>{item.title} · {item.mode==='flat_fee'?'flat fee':rateLabel(rate.rateCents)}{alreadyBilledCents?` · ${money(alreadyBilledCents)} already billed`:''}</p></div>{pending.length?<div className="row"><Pill kind="warn">{pending.length} period{pending.length===1?'':'s'} to validate first</Pill><button className="btn attn" disabled={pendingAction!==null} onClick={()=>validate(pending.map(period=>period.id))}>{pendingAction==='validate'?<><SavingSpinner/>Validating…</>:'Validate them'}</button></div>:<Pill kind="ok">Everything is validated</Pill>}</Card>
     {alerts.map(alert=>{const boundary=alert.indexOf('. On ');return <div className="card-l warn billing-alert billing-scope" key={alert}><Icon name="alert"/><span>{boundary<0?alert:<><b>{alert.slice(0,boundary+1)}</b>{alert.slice(boundary+1)}</>}</span></div>})}
     <div className="billing-detail billing-scope">
