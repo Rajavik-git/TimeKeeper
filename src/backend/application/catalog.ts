@@ -327,7 +327,9 @@ export class CatalogService {
         value: values.value ?? (cap ? 5 : 0),
         label:
           values.label ??
-          (cap ? "No more than 0.5 h of billable research per day" : "Travel is not billable"),
+          (cap
+            ? `No more than ${(values.value ?? 5) / 10} h of billable research per day`
+            : "Travel is not billable"),
       });
     });
   }

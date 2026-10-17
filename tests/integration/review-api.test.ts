@@ -80,7 +80,13 @@ it("exposes the current record revision for reconstruction after an ordinary det
   const { app, write, db } = setup();
   const before = await (await app.request("/api/work-periods/14")).json();
   expect(
-    (await write("/work-periods/14/details", { label: "Fictional revised label" }, "PATCH")).status,
+    (
+      await write(
+        "/work-periods/14/details",
+        { label: "Fictional revised label", expectedRevision: before.revision },
+        "PATCH",
+      )
+    ).status,
   ).toBe(200);
   const after = await (await app.request("/api/work-periods/14")).json();
   expect(after.revision).toBeGreaterThan(before.revision);

@@ -53,8 +53,11 @@ const cases: Record<string, { path?: string; body?: unknown; status?: number }> 
     path: "/api/time-entries/13",
     body: { matter_id: 5, expected_assignment_revision: 0 },
   },
-  "POST /api/day/approve": { body: { date: "2026-10-16" } },
-  "POST /api/matters/{id}/approve": { path: "/api/matters/1/approve" },
+  "POST /api/day/approve": { body: { date: "2026-10-16", expected_effective_revisions: {} } },
+  "POST /api/matters/{id}/approve": {
+    path: "/api/matters/1/approve",
+    body: { expected_effective_revisions: {} },
+  },
   "POST /api/time-entries/{id}/discard": {
     path: "/api/time-entries/13/discard",
   },
@@ -99,8 +102,8 @@ const cases: Record<string, { path?: string; body?: unknown; status?: number }> 
       subtotalCents: 33000,
       expensesCents: 0,
       disbursementsCents: 0,
-      vatCents: 6600,
-      totalCents: 39600,
+      vatCents: 0,
+      totalCents: 33000,
       lines: [
         {
           origin: "work_period",
@@ -149,7 +152,7 @@ const cases: Record<string, { path?: string; body?: unknown; status?: number }> 
   },
   "POST /api/work-periods/{id}/duration-override": {
     path: "/api/work-periods/14/duration-override",
-    body: { durationMs: 600000 },
+    body: { durationMs: 600000, expectedRevision: 0 },
   },
   "POST /api/work-periods/{id}/detected-duration": {
     path: "/api/work-periods/14/detected-duration",
@@ -157,11 +160,11 @@ const cases: Record<string, { path?: string; body?: unknown; status?: number }> 
   },
   "POST /api/work-periods/{id}/validate-time": {
     path: "/api/work-periods/14/validate-time",
-    body: {},
+    body: { expectedEffectiveRevision: 0 },
   },
   "POST /api/work-periods/{id}/billing-status": {
     path: "/api/work-periods/14/billing-status",
-    body: { status: "unbilled" },
+    body: { status: "unbilled", expectedRevision: 0 },
   },
   "POST /api/questions/answer": {
     body: {
@@ -189,7 +192,7 @@ const cases: Record<string, { path?: string; body?: unknown; status?: number }> 
   },
   "PATCH /api/work-periods/{id}/details": {
     path: "/api/work-periods/14/details",
-    body: { label: "Updated demo work" },
+    body: { label: "Updated demo work", expectedRevision: 0 },
   },
   "POST /api/sources/{instanceId}/{contentType}/{externalId}/availability": {
     path: "/api/sources/demo/screen/frame_id%2042001/availability",
@@ -197,6 +200,7 @@ const cases: Record<string, { path?: string; body?: unknown; status?: number }> 
   },
   "GET /api/billing/state": {},
   "GET /api/coverage-gaps": {},
+  "GET /api/reconstruction-conflicts": {},
   "POST /api/billing/expenses": {
     body: { caseId: "2", date: "2026-10-16", label: "Filing", type: "expense", amountCents: 1000 },
   },
@@ -301,6 +305,17 @@ describe("OpenAPI response contract", () => {
         try {
           const app = createApp(db),
             fixture = cases[key];
+          if (key === "POST /api/day/approve" || key === "POST /api/matters/{id}/approve") {
+            (fixture.body as Record<string, unknown>).expected_effective_revisions =
+              Object.fromEntries(
+                (
+                  db.prepare("SELECT id,effective_revision FROM work_periods").all() as Array<{
+                    id: string;
+                    effective_revision: number;
+                  }>
+                ).map((row) => [row.id, row.effective_revision]),
+              );
+          }
           const response = await app.request(fixture.path ?? path, {
             method: method.toUpperCase(),
             headers: { "content-type": "application/json" },

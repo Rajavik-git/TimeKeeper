@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ScreenProps } from "../../src/frontend/api/client";
 import { Cases } from "../../src/frontend/features/cases/Cases";
 import { BillingOverview } from "../../src/frontend/features/billing-status/BillingOverview";
+import { PreInvoices } from "../../src/frontend/features/billing-status/PreInvoices";
 import { frontendFixture } from "./frontend-fixture";
 
 beforeEach(() => {
@@ -83,7 +84,7 @@ it.each([
     coverage: false,
     validated: true,
     flatFee: false,
-    label: "Resolve coverage gaps",
+    label: "Review incomplete coverage",
     kind: "warn",
   },
   { coverage: true, validated: false, flatFee: false, label: "1 to validate", kind: "warn" },
@@ -92,7 +93,7 @@ it.each([
     coverage: false,
     validated: false,
     flatFee: false,
-    label: "Resolve coverage gaps",
+    label: "Review incomplete coverage",
     kind: "warn",
   },
 ])("shows $label for coverage=$coverage, validated=$validated, flatFee=$flatFee", (testCase) => {
@@ -103,7 +104,8 @@ it.each([
     input.catalogState.cases[0].mode = "flat_fee";
     input.catalogState.cases[0].flatFeeCents = 50000;
   }
-  const { container } = render(<BillingOverview {...input} onSelect={vi.fn()} />);
+  const onSelect = vi.fn();
+  const { container } = render(<BillingOverview {...input} onSelect={onSelect} />);
   const card = container.querySelector<HTMLButtonElement>(".billing-card")!;
   const status = within(card).getByText(testCase.label);
   expect(status.classList.contains(`p-${testCase.kind}`)).toBe(true);
@@ -112,5 +114,22 @@ it.each([
   if (!testCase.coverage) {
     const summary = container.querySelector<HTMLElement>(".billing-summary")!;
     expect(within(summary).getByText("0 hourly cases, all validated")).toBeTruthy();
+    fireEvent.click(card);
+    expect(onSelect).toHaveBeenCalledWith(input.catalogState.cases[0]);
   }
+});
+
+it("keeps invoice creation blocked while incomplete coverage links to the affected period", () => {
+  const input = props();
+  input.selectedCase = "case";
+  input.openPeriodReview = vi.fn();
+  input.workspaceState.periods[0].durationOverrideMs = null;
+  render(<PreInvoices {...input} />);
+  expect(screen.getByRole("button", { name: "Coverage review required" })).toHaveProperty(
+    "disabled",
+    true,
+  );
+  expect(screen.getByText(/No evidence is linked and no duration correction/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Review period", exact: true }));
+  expect(input.openPeriodReview).toHaveBeenCalledWith("period");
 });

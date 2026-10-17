@@ -39,7 +39,7 @@ export const apiError: ErrorHandler = (error, c) => {
       return c.json({ error: "conflict", message: "storage constraint conflict" }, 409);
     if (
       /^(CHECK|NOT NULL) constraint failed/.test(storageError.message) ||
-      /^[a-z_]+ extension constraint$/.test(storageError.message)
+      /^[a-z_]+ (?:extension|value) constraint$/.test(storageError.message)
     )
       return c.json(
         { error: "invalid-request", message: "storage constraint rejected input" },

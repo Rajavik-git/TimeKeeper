@@ -97,3 +97,46 @@ it("remembers each table sort when its section is reopened", async () => {
   await user.click(screen.getByRole("button", { name: "Clients", exact: true }));
   expect(screen.getByRole("columnheader", { name: /^Name/ }).getAttribute("aria-sort")).toBe(sort);
 });
+
+it("keeps unsupported capture controls inactive and uses distinct keys for equal field values", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  input.catalogState.settings.globalHourlyRateCents = 0;
+  input.catalogState.settings.vatRate = 0;
+  const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const patch = vi.spyOn(api, "PATCH");
+  render(<Settings {...input} />);
+  await user.click(screen.getByRole("button", { name: "Capture and invoices" }));
+  expect(screen.getByText(/TimeKeeper cannot enforce/)).toBeTruthy();
+  expect(screen.getByRole("textbox", { name: "Never capture" })).toHaveProperty("disabled", true);
+  expect(screen.getByRole("textbox", { name: "Keep captures for" })).toHaveProperty(
+    "disabled",
+    true,
+  );
+  await user.click(screen.getByRole("button", { name: "Rates", exact: true }));
+  expect(screen.getByRole("textbox", { name: "Hourly rate" })).toHaveProperty("value", "0.00");
+  expect(screen.getByRole("textbox", { name: "Sales tax on fees" })).toHaveProperty(
+    "value",
+    "None",
+  );
+  expect(errors.mock.calls.flat().join(" ")).not.toContain("same key");
+  expect(patch).not.toHaveBeenCalled();
+});
+
+it("creates a research cap using the entered limit instead of the fixed default", async () => {
+  const user = userEvent.setup();
+  const post = vi.spyOn(api, "POST").mockResolvedValue({ data: {} } as never);
+  render(<Settings {...props()} />);
+  await user.click(screen.getByRole("button", { name: "Client rules", exact: true }));
+  await user.click(screen.getByRole("button", { name: "Add rule", exact: true }));
+  const limit = screen.getByRole("spinbutton", { name: "Research minutes per day" });
+  await user.clear(limit);
+  await user.type(limit, "60");
+  await user.click(screen.getAllByRole("button", { name: "Add rule", exact: true }).at(-1)!);
+  expect(post).toHaveBeenCalledWith(
+    "/api/catalog/client-rules",
+    expect.objectContaining({
+      body: { clientId: "client", type: "daily_research_cap", value: 10 },
+    }),
+  );
+});

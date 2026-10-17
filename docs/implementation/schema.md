@@ -21,7 +21,11 @@ Catalog IDs can be strings or existing numeric demo IDs in compatibility payload
 
 Migration 9 adds guards for extension-field invariants and indexes for foreign-key lookups. It preserves existing rows, including historical values that predate the guards. Inserts validate all guarded values. Updates validate changed values, so an old invalid setting can be repaired without changing unrelated settings. Unchanged historical values remain intact. The storage tests exercise these guards, foreign keys, upgrade preservation, and chronological recovery with mixed timestamp precision.
 
+Migration 10 extends this preservation strategy to nonempty text identities, safe integer money, durations and revisions, currency codes, and versioned source-export receipts. Historical receipts retain storage format 1. New receipts use format 2 with JSON arrays of canonical period IDs and options; the exported payload has its own independent version. No historical values or identities are inferred or rewritten. Fixed states use constrained text in SQLite and typed enums in Drizzle. See [the schema guide](../DATABASE.md#how-to-read-the-schema) for relationships, identity choices, units, and file ownership.
+
 Compatibility projections now list their JSON fields explicitly and check field names against generated contract types. They no longer use `PRAGMA table_info` on historical tables to shape responses. Each deprecated time-entry projection includes its canonical `work_period_id`, separate from its numeric compatibility `id`. Current screens use canonical period identities directly. See [data formats and units](../DATABASE.md#data-formats-in-the-application).
+
+Deprecated catalogue writes translate explicit legacy fields into canonical `CatalogService` commands. Their responses retain the older projection. Approval requires the reviewed effective revision in both canonical and deprecated HTTP contracts. The invoice service verifies submitted fees, expenses, disbursements, tax, and totals against authoritative records with the same pure arithmetic helper used by React; it does not accept an arbitrary supplied total.
 
 ## Demo reference figures
 

@@ -1,8 +1,12 @@
 import createClient from "openapi-fetch";
 import type { paths, components } from "../../contracts/generated";
+import { applicationApiBaseUrl } from "./baseUrl";
 export { money, shortDate } from "../shared/format";
 export const api = createClient<paths>({
-  baseUrl: "__TAURI_INTERNALS__" in window ? "http://127.0.0.1:8787" : "",
+  baseUrl: applicationApiBaseUrl(
+    "__TAURI_INTERNALS__" in window,
+    import.meta.env.VITE_TIMEKEEPER_API_URL,
+  ),
 });
 export type State = components["schemas"]["Catalog"];
 export type CoreState = {
@@ -14,6 +18,7 @@ export type CoreState = {
   coverageGaps: components["schemas"]["CoverageGap"][];
   billing: components["schemas"]["BillingState"];
   auditEvents: components["schemas"]["AuditEvent"][];
+  reconstructionConflicts?: components["schemas"]["ReconstructionConflict"][];
 };
 export type EntityId = string | number;
 export const sameId = (left: EntityId | null | undefined, right: EntityId | null | undefined) =>
@@ -30,6 +35,7 @@ export type ScreenProps = {
   navigate: (view: View, caseId?: EntityId) => void;
   selectedCase?: EntityId;
   openPeriodActivity: (periodId: string) => void;
+  openPeriodReview?: (periodId: string) => void;
 };
 export { tenthsOfHour as formatTenthsOfHour } from "../shared/format";
 export function caseById(catalogState: State, caseId: EntityId | null) {

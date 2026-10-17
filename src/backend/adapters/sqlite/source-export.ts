@@ -30,6 +30,7 @@ export function sourceExportPort(db: DatabaseSync): SourceExportPort {
       const row = query
         .insert(t.source_exports)
         .values({
+          format_version: 2,
           period_ids_json: JSON.stringify(value.periodIds),
           options_json: JSON.stringify(value.options),
           sha256: value.sha256,

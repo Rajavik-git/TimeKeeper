@@ -68,6 +68,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
   });
   router.get("/work-periods/:id", (c) => c.json(service.getPeriod(c.req.param("id"))));
   router.get("/work-periods/:id/sources", (c) => c.json(service.listSources(c.req.param("id"))));
+  router.get("/reconstruction-conflicts", (c) => c.json(service.reconstructionConflicts()));
   router.get("/sources", (c) => c.json(service.allSources()));
   router.get("/coverage-gaps", (c) => {
     const matchesDay = calendarFilters(c.req.query());
@@ -168,14 +169,18 @@ export function coreRoutes(db: DatabaseSync): Hono {
   router.patch("/work-periods/:id/details", async (c) => {
     const b = await input(c);
     return c.json(
-      service.updatePeriodDetails(c.req.param("id"), {
-        ...(b.label === undefined ? {} : { label: string(b.label, "label") }),
-        ...(b.billable === undefined ? {} : { billable: b.billable as boolean }),
-        ...(b.nonbillableReason === undefined
-          ? {}
-          : { nonbillableReason: b.nonbillableReason as string | null }),
-        ...(b.excluded === undefined ? {} : { excluded: b.excluded as boolean }),
-      }),
+      service.updatePeriodDetails(
+        c.req.param("id"),
+        {
+          ...(b.label === undefined ? {} : { label: string(b.label, "label") }),
+          ...(b.billable === undefined ? {} : { billable: b.billable as boolean }),
+          ...(b.nonbillableReason === undefined
+            ? {}
+            : { nonbillableReason: b.nonbillableReason as string | null }),
+          ...(b.excluded === undefined ? {} : { excluded: b.excluded as boolean }),
+        },
+        integer(b.expectedRevision, "expectedRevision"),
+      ),
     );
   });
   router.post("/work-periods/:id/assignment", async (c) => {
@@ -198,17 +203,36 @@ export function coreRoutes(db: DatabaseSync): Hono {
   router.post("/work-periods/:id/detected-duration", async (c) =>
     c.json(service.setDetectedDuration(c.req.param("id"), duration((await input(c)).durationMs))),
   );
-  router.post("/work-periods/:id/duration-override", async (c) =>
-    c.json(service.setDurationOverride(c.req.param("id"), duration((await input(c)).durationMs))),
-  );
-  router.post("/work-periods/:id/validate-time", (c) =>
-    c.json(service.validatePeriod(c.req.param("id"))),
-  );
+  router.post("/work-periods/:id/duration-override", async (c) => {
+    const b = await input(c);
+    return c.json(
+      service.setDurationOverride(
+        c.req.param("id"),
+        duration(b.durationMs),
+        integer(b.expectedRevision, "expectedRevision"),
+      ),
+    );
+  });
+  router.post("/work-periods/:id/validate-time", async (c) => {
+    const b = await input(c);
+    return c.json(
+      service.validatePeriod(
+        c.req.param("id"),
+        integer(b.expectedEffectiveRevision, "expectedEffectiveRevision"),
+      ),
+    );
+  });
   router.post("/work-periods/:id/billing-status", async (c) => {
     const b = await input(c);
     if (b.status !== "billed" && b.status !== "unbilled")
       throw new AppError("invalid-request", "status required");
-    return c.json(service.setBillingStatus(c.req.param("id"), b.status));
+    return c.json(
+      service.setBillingStatus(
+        c.req.param("id"),
+        b.status,
+        integer(b.expectedRevision, "expectedRevision"),
+      ),
+    );
   });
   router.post("/questions", async (c) => {
     const b = await input(c);

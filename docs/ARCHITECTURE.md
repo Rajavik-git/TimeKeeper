@@ -177,4 +177,10 @@ Resolve the [remaining decisions](DESIGN_REVIEW.md) before implementation that d
 
 The current React interface uses the typed canonical catalogue and period APIs. `CatalogService` owns catalogue operations through typed ports. `SourceExportService` owns canonical source packs and invoice CSV reads. `api/compatibility-routes.ts` contains deprecated contracts for older callers; current screen state does not depend on those payloads or their numeric entry aliases.
 
+Deprecated catalogue routes translate their permitted fields and call the same catalogue use cases. They cannot write arbitrary mapped columns. Canonical and compatibility approval routes require the effective revision reviewed by the caller. Period edits and billing transitions also require their relevant revision guards. Conflicts are visible failures; the interface does not silently retry with a newer revision.
+
+React owns displayed summaries and invoice drafts. `src/shared/invoice-math.ts` supplies pure amount arithmetic to React and invoice validation. The invoice application service checks a proposed snapshot against stored periods, expenses, configured rates, and tax before freezing it. It does not persist calculated running totals on work periods.
+
+The period-review dialog separates historical assignment correction, duration correction, time validation, evidence review, and independent billed status. Open-period case assignment remains managed by Screenpipe. Issued invoice membership locks the available edits. A read-only reconstruction-conflict endpoint exposes protected proposals; no apply or reject workflow is inferred from that visibility.
+
 `src/shared/dates.ts` owns calendar conversion and arithmetic with `date-fns` and its timezone extension. The [data-format guide](DATABASE.md#calendar-dates-and-timestamps) defines the implementation's date-only values, instants, explicit timezone, and start-day grouping. This display policy does not resolve the open clipping or midnight-splitting rules. Exact duration milliseconds and historical invoice snapshots remain authoritative.

@@ -1,4 +1,4 @@
-import { calendarTime } from "../shared/dates";
+import { calendarDay, calendarTime } from "../shared/dates";
 import { useToday } from "./shared/hooks/useToday";
 import { performAction } from "./api/actions";
 import React, { useCallback, useEffect, useState } from "react";
@@ -6,10 +6,11 @@ import { createRoot } from "react-dom/client";
 import { type View, type EntityId } from "./api/client";
 import { loadApplication, useResource, refreshApplication } from "./api/queries";
 import { Desk } from "./features/desk/Desk";
-import { MyDay } from "./features/workday/MyDay";
+import { MyDay, initialMyDayView } from "./features/workday/MyDay";
 import { Cases } from "./features/cases/Cases";
 import { PreInvoices } from "./features/billing-status/PreInvoices";
 import { PeriodActivity } from "./features/workday/PeriodActivity";
+import { PeriodReviewDialog } from "./features/workday/PeriodReviewDialog";
 import { Settings } from "./features/settings/Settings";
 import { ThemeSwitch, restoreTheme } from "./shared/components/ThemeSwitch";
 import { Icon } from "./shared/components/Icon";
@@ -29,6 +30,8 @@ const primaryViews = [
 
 function App() {
   const today = useToday();
+  const [myDayView, setMyDayView] = useState(() => initialMyDayView(today));
+  const [reviewPeriodId, setReviewPeriodId] = useState<string | null>(null);
   const application = useResource("application", loadApplication, 5000);
   const catalogState = application.data?.catalogState;
   const workspaceState = application.data?.workspaceState;
@@ -91,12 +94,14 @@ function App() {
           navigate,
           openPeriodActivity,
           selectedCase,
+          openPeriodReview: setReviewPeriodId,
         }
       : undefined;
   const pending =
     workspaceState?.periods.filter(
-      (p) => p.startedAt.startsWith(today) && !p.excluded && !p.timeValidated,
+      (p) => calendarDay(p.startedAt) === today && !p.excluded && !p.timeValidated,
     ).length ?? 0;
+  const reviewPeriod = workspaceState?.periods.find((item) => item.id === reviewPeriodId);
   return (
     <div className="app floating-shell">
       <div className="shell-main">
@@ -137,7 +142,7 @@ function App() {
           </div>
         </header>
         <ToastHost />
-        <main id="main" className="page">
+        <main id="main" className={`page${view === "settings" ? " settings-page" : ""}`}>
           {props && application.isError && (
             <p role="alert">
               Could not refresh local data. Displayed data may be out of date.{" "}
@@ -160,6 +165,8 @@ function App() {
           ) : view === "myDay" ? (
             <MyDay
               {...props}
+              viewState={myDayView}
+              setViewState={setMyDayView}
               returnFocusId={returnFocusId}
               onFocusReturned={() => setReturnFocusId(null)}
             />
@@ -173,6 +180,23 @@ function App() {
             <Settings {...props} />
           )}
         </main>
+        {props &&
+          reviewPeriodId &&
+          (reviewPeriod ? (
+            <PeriodReviewDialog
+              key={reviewPeriod.id}
+              {...props}
+              period={reviewPeriod}
+              close={() => setReviewPeriodId(null)}
+            />
+          ) : (
+            <p role="alert">
+              This period is no longer available.{" "}
+              <button className="btn" onClick={() => setReviewPeriodId(null)}>
+                Close review
+              </button>
+            </p>
+          ))}
       </div>
     </div>
   );

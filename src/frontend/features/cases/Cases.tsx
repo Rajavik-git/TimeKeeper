@@ -68,6 +68,7 @@ export function Cases({
   action,
   navigate,
   openPeriodActivity,
+  openPeriodReview,
   selectedCase,
   refresh,
 }: ScreenProps) {
@@ -186,8 +187,13 @@ export function Cases({
     setValidatingIds(ids);
     showNotice(`Validating ${ids.length} period${ids.length === 1 ? "" : "s"}…`);
     try {
-      const result = await runValidation(ids, refresh);
-      showNotice(validationMessage(result.successful, ids.length, result.refreshFailed));
+      const result = await runValidation(
+        workspaceState.periods.filter((period) => ids.includes(period.id)),
+        refresh,
+      );
+      showNotice(
+        validationMessage(result.successful, ids.length, result.refreshFailed, result.stale),
+      );
     } finally {
       setValidatingIds([]);
     }
@@ -434,7 +440,7 @@ export function Cases({
       <>
         {header(
           "Cases",
-          `An overview of your practice. Changes in % compare with the same period last month (${new Date(`${prior.previousDay}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })} 1–${Number(prior.previousDay.slice(8))}).`,
+          `An overview of your practice. Estimates use current rates and billing state. Changes in % compare with the same period last month (${format(parseISO(prior.previousDay), "MMM")} 1–${Number(prior.previousDay.slice(8))}).`,
           true,
         )}
         {stats([
@@ -1185,7 +1191,9 @@ export function Cases({
                       <td className="r num">{formatPreciseDuration(effectiveMs(line))}</td>
                       <td className="r num">
                         {line.billingStatus === "billed"
-                          ? "In invoice"
+                          ? line.invoiceId != null
+                            ? "In invoice"
+                            : "Billed"
                           : currentCase.mode === "flat_fee"
                             ? "Flat fee"
                             : line.billable && effectiveMs(line) !== null
@@ -1227,6 +1235,17 @@ export function Cases({
                       </td>
                       <td>
                         <span className="case-rowact">
+                          {openPeriodReview && (
+                            <button
+                              className="btn sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openPeriodReview(line.id);
+                              }}
+                            >
+                              Review
+                            </button>
+                          )}
                           {!line.timeValidated && (
                             <button
                               className="btn sm attn"

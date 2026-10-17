@@ -1,8 +1,6 @@
-import { createHash } from "node:crypto";
 import { calendarDay, isCalendarDay } from "../../shared/dates.js";
 import { formatInvoiceCsv } from "./invoice-csv.js";
-import { nextCaseReference } from "../domain/nomenclature.js";
-import { defaultWeights, decision, type MarkerType } from "../domain/recognition.js";
+import { decision } from "../domain/recognition.js";
 import type {
   CompatibilityPort,
   CompatibilityRow,
@@ -16,6 +14,8 @@ import {
   type SourcePackScope,
   type SourcePackFilters,
 } from "./source-pack.js";
+import { CatalogService } from "./catalog.js";
+import { SourceExportService } from "./source-export.js";
 import { changePeriod, effectiveDuration, validateTime } from "../domain/rules.js";
 import { AppError, TimeKeeperService } from "./service.js";
 
@@ -31,10 +31,87 @@ const required = (value: unknown, label: string) => {
   return value;
 };
 
+const clientFields = {
+  name: "name",
+  code: "code",
+  type: "type",
+  mode: "mode",
+  rate_cents: "hourlyRateCents",
+  vat_applicable: "vatApplicable",
+  billing_address: "billingAddress",
+};
+const caseFields = {
+  client_id: "clientId",
+  title: "title",
+  category: "category",
+  case_number: "caseNumber",
+  opposing_party: "opposingParty",
+  mode: "mode",
+  own_rate_cents: "hourlyRateCents",
+  flat_fee_cents: "flatFeeCents",
+  hour_cap: "hourCap",
+  success_fee_percent: "successFeePercent",
+  budget_cents: "budgetCents",
+  status: "status",
+  opened_on: "openedOn",
+};
+const taskFields = {
+  code: "code",
+  label: "label",
+  billable_by_default: "billableByDefault",
+  off_screen: "offScreen",
+  sort_order: "sortOrder",
+};
+const firmFields = {
+  lawyer_name: "lawyerName",
+  address: "address",
+  vat_number: "vatNumber",
+  base_rate_cents: "globalHourlyRateCents",
+  base_unit: "baseUnit",
+  vat_rate: "vatRate",
+  currency: "currency",
+};
+const settingFields = {
+  confidence_threshold: "confidenceThreshold",
+  excluded_apps: "excludedApps",
+  capture_retention: "captureRetention",
+  notifications: "notifications",
+  pill_position: "pillPosition",
+  pill_always_on_top: "pillAlwaysOnTop",
+  pill_display: "pillDisplay",
+  pill_withhold_calls: "pillWithholdCalls",
+  invoice_prefix: "invoicePrefix",
+  next_number: "nextNumber",
+};
+function translate(body: Record<string, unknown>, fields: Record<string, string>) {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (!Object.hasOwn(fields, key)) throw new AppError("invalid-request", `unknown field: ${key}`);
+    let translated = value;
+    if (key === "client_id" || key === "matter_id") {
+      if (
+        typeof value !== "string" &&
+        !(typeof value === "number" && Number.isSafeInteger(value) && value > 0)
+      )
+        throw new AppError("invalid-request", "invalid catalog ID");
+      translated = String(value);
+    }
+    if (key === "status" && fields === caseFields) {
+      if (value !== "open" && value !== "closed")
+        throw new AppError("invalid-request", "invalid case status");
+      translated = value === "closed" ? "archived" : "active";
+    }
+    result[fields[key]!] = translated;
+  }
+  return result;
+}
+
 export class CompatibilityApiService {
   constructor(
     private readonly port: CompatibilityPort,
     private readonly core: TimeKeeperService,
+    private readonly catalog: CatalogService,
+    private readonly exports: SourceExportService,
   ) {}
 
   private get(table: CompatibilityTable, id: number | string): CompatibilityRow {
@@ -148,6 +225,8 @@ export class CompatibilityApiService {
     return this.port.transaction(() => {
       const before = this.get("time_entry", id);
       const prior = this.periodForEntry(before);
+      if (body.review_status === "approved")
+        this.assertApprovalRevision(prior, body.expected_effective_revision);
       if ("matter_id" in body) {
         if (body.matter_id === null)
           throw new AppError("invalid-request", "use a period question to resolve or exclude work");
@@ -163,7 +242,11 @@ export class CompatibilityApiService {
           "lawyer",
         );
       }
-      const { expected_assignment_revision: _revision, ...legacyBody } = body;
+      const {
+        expected_assignment_revision: _revision,
+        expected_effective_revision: _effective,
+        ...legacyBody
+      } = body;
       const after = updateTimeEntry(
         { ...assignment, transaction: (work) => work() },
         id,
@@ -182,8 +265,30 @@ export class CompatibilityApiService {
     });
   }
 
-  approveDay(date: string) {
+  private assertApprovalRevision(period: PeriodRecord, expected: unknown) {
+    if (!Number.isSafeInteger(expected) || (expected as number) < 0)
+      throw new AppError("invalid-request", "expected effective revision required");
+    if (period.effectiveRevision !== expected)
+      throw new AppError("conflict", "stale effective revision");
+  }
+  private assertApprovalMap(entries: CompatibilityRow[], expected: unknown) {
+    if (!expected || typeof expected !== "object" || Array.isArray(expected))
+      throw new AppError("invalid-request", "expected effective revisions required");
+    for (const entry of entries) {
+      const period = this.periodForEntry(entry);
+      this.assertApprovalRevision(period, (expected as Record<string, unknown>)[period.id]);
+    }
+  }
+  approveDay(date: string, expectedEffectiveRevisions: unknown) {
     return this.port.transaction(() => {
+      this.assertApprovalMap(
+        this.port
+          .rows("time_entry")
+          .filter(
+            (item) => item.date === date && item.matter_id && item.review_status !== "approved",
+          ),
+        expectedEffectiveRevisions,
+      );
       let approved = 0,
         unassigned = 0;
       for (const entry of this.port.rows("time_entry").filter((item) => item.date === date)) {
@@ -208,9 +313,17 @@ export class CompatibilityApiService {
     });
   }
 
-  approveCase(id: number | string) {
+  approveCase(id: number | string, expectedEffectiveRevisions: unknown) {
     this.get("matter", id);
     return this.port.transaction(() => {
+      this.assertApprovalMap(
+        this.port
+          .rows("time_entry")
+          .filter(
+            (item) => String(item.matter_id) === String(id) && item.review_status !== "approved",
+          ),
+        expectedEffectiveRevisions,
+      );
       let approved = 0;
       for (const entry of this.port
         .rows("time_entry")
@@ -315,62 +428,22 @@ export class CompatibilityApiService {
   }
 
   createCase(body: Record<string, unknown>) {
-    return this.editCatalog(() => {
-      required(body.client_id, "Client");
-      required(body.title, "Title");
-      const client = this.get("client", String(body.client_id));
-      const openedOn = currentDate();
-      const year = Number(openedOn.slice(0, 4));
-      const item = this.port.insert("matter", {
-        client_id: body.client_id,
-        reference: nextCaseReference(year, this.port.lastCaseSequence(year), String(client.code)),
-        title: String(body.title).trim(),
-        category: "N/A",
-        case_number: "N/A",
-        opposing_party: body.opposing_party || "N/A",
-        mode: "hourly",
-        own_rate_cents: null,
-        flat_fee_cents: null,
-        hour_cap: null,
-        success_fee_percent: null,
-        budget_cents: null,
-        status: "open",
-        opened_on: openedOn,
-      });
-      if (body.opposing_party)
-        this.port.insert("marker", {
-          matter_id: item.id,
-          type: "opposing_party",
-          value: body.opposing_party,
-          weight: defaultWeights.opposing_party,
-          learned: false,
-        });
-      this.port.audit("Case created", "", String(item.title));
-      return item;
-    });
+    const value = this.catalog.createCase(translate(body, caseFields));
+    return this.get("matter", value.id);
   }
-
   addMarker(body: Record<string, unknown>) {
-    return this.editCatalog(() => {
-      const item = this.port.insert("marker", {
-        matter_id: body.matter_id,
-        type: body.type,
-        value: required(body.value, "Value"),
-        weight: defaultWeights[body.type as MarkerType],
-        learned: false,
-      });
-      this.port.audit("Marker added", "", String(item.value));
-      return item;
-    });
+    const value = this.catalog.createMarker(
+      translate(body, {
+        matter_id: "caseId",
+        type: "type",
+        value: "value",
+        weight: "weight",
+      }),
+    );
+    return this.get("marker", value.id);
   }
-
   removeMarker(id: number) {
-    return this.editCatalog(() => {
-      const item = this.get("marker", id);
-      this.port.delete("marker", id);
-      this.port.audit("Marker removed", String(item.value));
-      return { deleted: true };
-    });
+    return this.catalog.removeMarker(id);
   }
 
   addExpense(body: Record<string, unknown>) {
@@ -442,21 +515,9 @@ export class CompatibilityApiService {
         audit: this.port.rows("audit_event").filter((item) => item.time_entry_id === entry.id),
         options,
       };
-      const hash = createHash("sha256").update(JSON.stringify(pack)).digest("hex");
-      const item = this.port.insert("source_export", {
-        time_entry_ids: String(entry.id),
-        options: options.join(","),
-        sha256: hash,
-        created_at: new Date().toISOString(),
-      });
-      this.port.audit(
-        "Source pack generated",
-        "",
-        `SHA-256 ${hash.slice(0, 16)}…`,
-        id,
-        entry.block_id as number | null,
-      );
-      return item;
+      const period = this.periodForEntry(entry);
+      const receipt = this.exports.recordReceipt(JSON.stringify(pack), [period.id], options);
+      return this.get("source_export", receipt.id);
     });
   }
 
@@ -474,7 +535,7 @@ export class CompatibilityApiService {
       const compatibilityEntryIds = new Map(
         periods.map((period) => [period.id, this.port.ensureCompatibilityEntryId(period.id)]),
       );
-      const { payload, periodIds, firstCompatibilityEntryId } = buildCaseSourcePack({
+      const { payload, periodIds } = buildCaseSourcePack({
         caseId: id,
         clientId: String(matter.client_id),
         scope,
@@ -492,21 +553,8 @@ export class CompatibilityApiService {
         periods,
         compatibilityEntryIds,
       });
-      const hash = createHash("sha256").update(payload).digest("hex");
-      const item = this.port.insert("source_export", {
-        time_entry_ids: JSON.stringify(periodIds),
-        options: [scope, ...options].join(","),
-        sha256: hash,
-        created_at: new Date().toISOString(),
-      });
-      this.port.audit(
-        "Source pack generated",
-        "",
-        "SHA-256 " + hash.slice(0, 16) + "…",
-        firstCompatibilityEntryId,
-        null,
-      );
-      return { export: item, payload };
+      const receipt = this.exports.recordReceipt(payload, periodIds, [scope, ...options]);
+      return { export: this.get("source_export", receipt.id), payload };
     });
   }
 
@@ -575,71 +623,34 @@ export class CompatibilityApiService {
     id: number | string,
     body: Record<string, unknown>,
   ) {
-    return this.editCatalog(() => {
-      const before = this.get(table, id);
-      if (table === "matter" && "reference" in body) throw Error("Case reference is immutable");
-      if (table === "client" && "code" in body && !/^[A-Z][A-Z0-9]*$/.test(String(body.code)))
-        throw Error("Client code must be uppercase letters or digits");
-      const after = this.port.update(table, id, body);
-      this.port.audit(`${table} updated`, JSON.stringify(before), JSON.stringify(after));
-      return after;
-    });
+    this.get(table, id);
+    if (table === "client") this.catalog.updateClient(String(id), translate(body, clientFields));
+    else if (table === "matter") this.catalog.updateCase(String(id), translate(body, caseFields));
+    else if (table === "task") this.catalog.updateTaskType(Number(id), translate(body, taskFields));
+    else
+      this.catalog.updateSettings(translate(body, table === "firm" ? firmFields : settingFields));
+    return this.get(table, id);
   }
-
   createClient(body: Record<string, unknown>) {
-    return this.editCatalog(() => {
-      const code = String(required(body.code, "Code")).trim();
-      if (!/^[A-Z][A-Z0-9]*$/.test(code))
-        throw Error("Client code must be uppercase letters or digits");
-      const item = this.port.insert("client", {
-        name: required(body.name, "Name"),
-        code,
-        type: "individual",
-        mode: "hourly",
-        rate_cents: required(body.rate_cents, "Rate"),
-        vat_applicable: false,
-        billing_address: "[ADDRESS]",
-      });
-      this.port.audit("Client created", "", String(item.name));
-      return item;
-    });
+    const value = this.catalog.createClient(translate(body, clientFields));
+    return this.get("client", value.id);
   }
-
   createTask(body: Record<string, unknown>) {
-    return this.editCatalog(() => {
-      const item = this.port.insert("task", {
-        code: required(body.code, "Code"),
-        label: required(body.label, "Label"),
-        billable_by_default: true,
-        off_screen: false,
-        sort_order: this.port.rows("task").length + 1,
-      });
-      this.port.audit("Task created", "", String(item.label));
-      return item;
-    });
+    const value = this.catalog.createTaskType(translate(body, taskFields));
+    return this.get("task", value.id);
   }
-
   createClientRule(body: Record<string, unknown>) {
-    const cap = body.type === "daily_research_cap";
-    if (!cap && body.type !== "nonbillable_travel") throw Error("Invalid type");
-    return this.editCatalog(() => {
-      const item = this.port.insert("client_rule", {
-        client_id: body.client_id,
-        type: body.type,
-        value: cap ? 5 : 0,
-        label: cap ? "No more than 0.5 h of billable research per day" : "Travel is not billable",
-      });
-      this.port.audit("Client rule created", "", String(item.label));
-      return item;
-    });
+    const value = this.catalog.createClientRule(
+      translate(body, {
+        client_id: "clientId",
+        type: "type",
+        value: "value",
+        label: "label",
+      }),
+    );
+    return this.get("client_rule", value.id);
   }
-
   removeClientRule(id: number) {
-    return this.editCatalog(() => {
-      const item = this.get("client_rule", id);
-      this.port.delete("client_rule", id);
-      this.port.audit("Client rule removed", String(item.label));
-      return { deleted: true };
-    });
+    return this.catalog.removeClientRule(id);
   }
 }

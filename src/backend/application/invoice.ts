@@ -1,3 +1,4 @@
+import { invoiceAmounts } from "../../shared/invoice-math.js";
 import { calendarDay, isCalendarDay, isTimeZone, systemTimeZone } from "../../shared/dates.js";
 import { AppError } from "./service.js";
 import type { InvoicePort, InvoiceSnapshot } from "../ports/invoice.js";
@@ -67,12 +68,18 @@ export function issueInvoice(
     const ids = new Set(snapshot.periodIds);
     if (ids.size !== snapshot.periodIds.length)
       throw new AppError("invalid-request", "duplicate period");
+    let durationMs = 0;
     for (const id of ids) {
       if (typeof id !== "string" || !id) throw new AppError("invalid-request", "invalid period ID");
       nonnegative(snapshot.revisions[id], `revision for ${id}`);
       const period = port.getPeriod(id);
       if (!period || period.caseId !== caseId || !period.billable || period.excluded)
         throw new AppError("conflict", "period is not billable for this case");
+      if (period.effectiveDurationMs === null)
+        throw new AppError("conflict", "period duration unavailable");
+      durationMs += period.effectiveDurationMs;
+      if (!Number.isSafeInteger(durationMs))
+        throw new AppError("invalid-request", "duration total exceeds supported range");
       if (
         period.billingStatus !== "unbilled" ||
         period.invoiceId !== null ||
@@ -101,6 +108,8 @@ export function issueInvoice(
       }
     }
     const expenseIds = new Set<number>();
+    let expensesCents = 0;
+    let disbursementsCents = 0;
     let workLines = 0;
     let flatFeeLines = 0;
     for (const line of snapshot.lines) {
@@ -123,7 +132,9 @@ export function issueInvoice(
         if (
           line.originId !== caseId ||
           line.billedMinutes !== snapshot.billedMinutes ||
-          line.rateCents !== snapshot.rateCents
+          line.rateCents !== snapshot.rateCents ||
+          line.amountCents !== (item.mode === "flat_fee" ? 0 : snapshot.feesCents) ||
+          !line.vat
         )
           throw new AppError("conflict", "work line does not match selected periods");
       } else if (line.origin === "flat_fee") {
@@ -132,7 +143,10 @@ export function issueInvoice(
           item.mode !== "flat_fee" ||
           line.originId !== caseId ||
           snapshot.type !== "final" ||
-          line.amountCents !== item.flatFeeCents
+          line.amountCents !== item.flatFeeCents ||
+          line.billedMinutes !== 0 ||
+          line.rateCents !== 0 ||
+          !line.vat
         )
           throw new AppError("conflict", "flat fee line does not match case");
       } else {
@@ -149,12 +163,31 @@ export function issueInvoice(
           line.vat !== (expense.type === "expense")
         )
           throw new AppError("conflict", "expense changed or already billed");
+        if (line.billedMinutes !== 0 || line.rateCents !== 0)
+          throw new AppError("conflict", "expense line cannot contain work duration or rate");
+        if (expense.type === "expense") expensesCents += expense.amountCents;
+        else disbursementsCents += expense.amountCents;
       }
     }
-    if (ids.size > 0 !== (workLines === 1))
+    if (workLines !== (ids.size > 0 ? 1 : 0))
       throw new AppError("invalid-request", "one grouped work line required");
     if (flatFeeLines > 1) throw new AppError("invalid-request", "duplicate flat fee");
     if (snapshot.lines.length === 0) throw new AppError("invalid-request", "nothing to invoice");
+    if (item.mode === "flat_fee" && snapshot.type === "final" && flatFeeLines !== 1)
+      throw new AppError("invalid-request", "final flat-fee invoice requires the agreed fee line");
+    const expected = invoiceAmounts({
+      durationMs,
+      rateCents: rate,
+      flatFeeCents: item.mode === "flat_fee" ? (flatFeeLines ? (item.flatFeeCents ?? 0) : 0) : null,
+      expensesCents,
+      disbursementsCents,
+      vatRate: item.vatRate,
+      vatApplicable: item.vatApplicable,
+    });
+    for (const key of Object.keys(expected) as Array<keyof typeof expected>) {
+      if (!Number.isSafeInteger(expected[key]) || snapshot[key] !== expected[key])
+        throw new AppError("conflict", `invoice ${key} does not match authoritative records`);
+    }
     const { number, sequence } = port.nextInvoice();
     const id = port.createInvoice({ ...snapshot, timeZone }, number, at);
     for (const periodId of ids) port.markPeriodBilled(periodId, id, rate, at);

@@ -2195,48 +2195,6 @@ body {
   left: -6px;
   top: 3px;
 }
-.page:has(.settings-nav) {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  align-content: start;
-  align-items: start;
-  column-gap: 20px;
-}
-.page:has(.settings-nav) > .ph {
-  grid-column: 1/-1;
-}
-.page:has(.settings-nav) > .settings-nav {
-  grid-column: 1;
-  grid-row: 2 / span 10;
-}
-.page:has(.settings-nav) > :not(.ph):not(.settings-nav):not(footer) {
-  grid-column: 2;
-}
-.page:has(.settings-nav) > footer {
-  grid-column: 1/-1;
-}
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.settings-nav button {
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
-  background: none;
-  border-radius: 6px;
-  text-align: left;
-  color: var(--ink-2);
-}
-.settings-nav button[aria-current="true"] {
-  background: var(--active);
-  color: var(--ink);
-  font-weight: 500;
-}
-.settings-nav button:hover {
-  background: var(--hover);
-}
 @media (max-width: 980px) {
   .cases-layout,
   .pre-layout,
@@ -2256,18 +2214,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
-  }
-  .page:has(.settings-nav) {
-    grid-template-columns: 1fr;
-  }
-  .page:has(.settings-nav) > .settings-nav {
-    grid-column: 1;
-    grid-row: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .page:has(.settings-nav) > :not(.ph):not(.settings-nav):not(footer) {
-    grid-column: 1;
   }
 }
 .num {
@@ -2502,23 +2448,6 @@ body,
   height: auto;
   min-height: 0;
 }
-.page:has(.settings-nav) {
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  row-gap: 12px;
-  overflow: hidden;
-}
-.page:has(.settings-nav) > .settings-nav {
-  grid-row: 2;
-  overflow: auto;
-}
-.page:has(.settings-nav) > :not(.ph):not(.settings-nav):not(footer) {
-  grid-row: 2;
-  min-height: 0;
-  overflow: auto;
-}
-.page:has(.settings-nav) > footer {
-  grid-row: 3;
-}
 @media (max-width: 640px) {
   html,
   body,
@@ -2556,17 +2485,6 @@ body,
   .source-layout > .main,
   .source-layout > .side {
     overflow: visible;
-  }
-  .page:has(.settings-nav) {
-    grid-template-rows: auto;
-    overflow: visible;
-  }
-  .page:has(.settings-nav) > :not(.ph):not(.settings-nav):not(footer) {
-    grid-row: auto;
-    overflow: visible;
-  }
-  .page:has(.settings-nav) > footer {
-    grid-row: auto;
   }
 }
 

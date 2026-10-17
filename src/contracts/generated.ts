@@ -2145,6 +2145,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reconstruction-conflicts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read protected-period reconstruction conflicts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Stored proposals; no changes applied */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReconstructionConflict"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2662,10 +2698,14 @@ export interface components {
             label?: string;
             /** @enum {string} */
             review_status?: "approved";
-        };
+            expected_effective_revision?: number;
+        } & unknown;
         day_approve_postRequest: {
             /** Format: date */
             date: string;
+            expected_effective_revisions: {
+                [key: string]: number;
+            };
         };
         time_entries_manual_postRequest: {
             matter_id: number | string;
@@ -2811,14 +2851,18 @@ export interface components {
         };
         PostWorkPeriodsIdDurationOverrideRequest: {
             durationMs: number | null;
+            expectedRevision: number;
         };
         PostWorkPeriodsIdDetectedDurationRequest: {
             durationMs: number | null;
         };
-        PostWorkPeriodsIdValidateTimeRequest: Record<string, never>;
+        PostWorkPeriodsIdValidateTimeRequest: {
+            expectedEffectiveRevision: number;
+        };
         PostWorkPeriodsIdBillingStatusRequest: {
             /** @enum {string} */
             status: "billed" | "unbilled";
+            expectedRevision: number;
         };
         PostQuestionsAnswerRequest: {
             questionId: string;
@@ -2843,6 +2887,7 @@ export interface components {
             billable?: boolean;
             nonbillableReason?: string | null;
             excluded?: boolean;
+            expectedRevision: number;
         };
         PostSourcesInstanceIdContentTypeExternalIdAvailabilityRequest: {
             /** @enum {string} */
@@ -2871,7 +2916,11 @@ export interface components {
             timeZone?: string;
         };
         PostApiDemoResetRequest: Record<string, never>;
-        PostApiMattersIdApproveRequest: Record<string, never>;
+        PostApiMattersIdApproveRequest: {
+            expected_effective_revisions: {
+                [key: string]: number;
+            };
+        };
         PostApiTimeEntriesIdDiscardRequest: Record<string, never>;
         PostApiBlocksIdRecoverRequest: Record<string, never>;
         CatalogClient: {
@@ -3104,6 +3153,17 @@ export interface components {
             /** @description Version 2 JSON snapshot using canonical period and source identities, exact milliseconds, and the selected timezone. Receipt SHA-256 hashes this exact string. */
             payload: string;
         };
+        ReconstructionConflict: {
+            id: string;
+            periodId: string;
+            sessionId: string;
+            expectedRevision: number;
+            proposedStartedAt: string;
+            proposedEndedAt: string | null;
+            sourceReferences: string[];
+            /** @enum {string} */
+            status: "pending" | "resolved";
+        };
     };
     responses: never;
     parameters: never;
@@ -3199,6 +3259,15 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description Stale effective revision */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     day_approve_post: {
@@ -3244,6 +3313,15 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            /** @description Stale effective revision */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
         };
     };
     matters_id_approve_post: {
@@ -3255,7 +3333,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
                 "application/json": components["schemas"]["PostApiMattersIdApproveRequest"];
             };
@@ -3283,6 +3361,15 @@ export interface operations {
             };
             /** @description Not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Stale effective revision */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

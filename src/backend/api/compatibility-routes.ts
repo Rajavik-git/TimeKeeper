@@ -1,3 +1,7 @@
+import { CatalogService } from "../application/catalog.js";
+import { catalogRepository } from "../adapters/sqlite/catalog-repository.js";
+import { SourceExportService } from "../application/source-export.js";
+import { sourceExportPort } from "../adapters/sqlite/source-export.js";
 import { Hono } from "hono";
 import type { DatabaseSync } from "node:sqlite";
 import { AppError, TimeKeeperService } from "../application/service.js";
@@ -27,6 +31,8 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
   const compatibility = new CompatibilityApiService(
     createCompatibilityPort(db),
     new TimeKeeperService(new SqliteRepository(db)),
+    new CatalogService(catalogRepository(db)),
+    new SourceExportService(sourceExportPort(db)),
   );
   const assignment = assignmentPort(db);
   routes.get("/state", (c) =>
@@ -68,12 +74,19 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
       ),
     ),
   );
-  routes.post("/day/approve", async (c) =>
-    c.json(compatibility.approveDay((await c.req.json<{ date: string }>()).date)),
-  );
-  routes.post("/matters/:id/approve", (c) =>
-    c.json(compatibility.approveCase(catalogId(c.req.param("id")))),
-  );
+  routes.post("/day/approve", async (c) => {
+    const body = await c.req.json<{
+      date: string;
+      expected_effective_revisions: Record<string, number>;
+    }>();
+    return c.json(compatibility.approveDay(body.date, body.expected_effective_revisions));
+  });
+  routes.post("/matters/:id/approve", async (c) => {
+    const body = await c.req.json<{ expected_effective_revisions: Record<string, number> }>();
+    return c.json(
+      compatibility.approveCase(catalogId(c.req.param("id")), body.expected_effective_revisions),
+    );
+  });
   routes.post("/time-entries/:id/discard", (c) =>
     c.json(compatibility.discardEntry(id(c.req.param("id")))),
   );

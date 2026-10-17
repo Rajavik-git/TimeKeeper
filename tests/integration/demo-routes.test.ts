@@ -1,3 +1,13 @@
+function approvalRevisions(db: { prepare(sql: string): { all(): unknown[] } }) {
+  return Object.fromEntries(
+    (
+      db.prepare("SELECT id,effective_revision FROM work_periods").all() as Array<{
+        id: string;
+        effective_revision: number;
+      }>
+    ).map((row) => [row.id, row.effective_revision]),
+  );
+}
 import { readCatalog } from "../../src/backend/adapters/sqlite/catalog-repository.js";
 import { expect, it } from "vitest";
 import { one, all } from "../../src/backend/adapters/sqlite/repository.js";
@@ -43,7 +53,7 @@ it("projects canonical recovery to the compatibility block state", async () => {
     const app = createApp(db);
     const response = await app.request("/api/work-periods/excluded-20/details", {
       method: "PATCH",
-      ...json({ excluded: false }),
+      ...json({ excluded: false, expectedRevision: 0 }),
     });
     expect(response.status).toBe(200);
     expect(one(db, "block", 20)?.state).toBe("to_check");
@@ -175,6 +185,7 @@ it("keeps legacy assignment, approval and discard operations aligned with work p
         matter_id: 5,
         expected_assignment_revision: 0,
         review_status: "approved",
+        expected_effective_revision: 0,
       }),
     });
     expect(patch.status).toBe(200);
@@ -318,7 +329,7 @@ it("aligns legacy duration, manual time and expenses with canonical records", as
     });
     const approve = await app.request("/api/day/approve", {
       method: "POST",
-      ...json({ date: "2026-10-16" }),
+      ...json({ date: "2026-10-16", expected_effective_revisions: approvalRevisions(db) }),
     });
     expect(approve.status).toBe(200);
     const approved = db
@@ -350,8 +361,12 @@ it("aligns legacy duration, manual time and expenses with canonical records", as
       ).review_status,
     ).toBe("to_review");
     expect(
-      (await app.request("/api/day/approve", { method: "POST", ...json({ date: "2026-10-16" }) }))
-        .status,
+      (
+        await app.request("/api/day/approve", {
+          method: "POST",
+          ...json({ date: "2026-10-16", expected_effective_revisions: approvalRevisions(db) }),
+        })
+      ).status,
     ).toBe(200);
     expect(
       (

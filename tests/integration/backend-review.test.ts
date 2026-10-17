@@ -1,3 +1,7 @@
+import { CatalogService } from "../../src/backend/application/catalog.js";
+import { catalogRepository } from "../../src/backend/adapters/sqlite/catalog-repository.js";
+import { SourceExportService } from "../../src/backend/application/source-export.js";
+import { sourceExportPort } from "../../src/backend/adapters/sqlite/source-export.js";
 import { readCatalog } from "../../src/backend/adapters/sqlite/catalog-repository.js";
 import { afterEach, expect, it } from "vitest";
 import { all, one, update } from "../../src/backend/adapters/sqlite/repository.js";
@@ -17,7 +21,17 @@ function fixture() {
   databases.push(db);
   const repo = new SqliteRepository(db);
   const core = new TimeKeeperService(repo);
-  return { db, repo, core, demo: new CompatibilityApiService(createCompatibilityPort(db), core) };
+  return {
+    db,
+    repo,
+    core,
+    demo: new CompatibilityApiService(
+      createCompatibilityPort(db),
+      core,
+      new CatalogService(catalogRepository(db)),
+      new SourceExportService(sourceExportPort(db)),
+    ),
+  };
 }
 afterEach(() => {
   for (const db of databases.splice(0)) db.close();
@@ -38,7 +52,7 @@ it("uses canonical edits while preserving imported fixture rows", () => {
     rate_cents: 0,
   });
   const matter = demo.createCase({ client_id: client.id, title: "New synthetic case" });
-  expect(one(db, "matter", Number(matter.id))?.client_id).toBe(client.id);
+  expect(one(db, "matter", String(matter.id))?.client_id).toBe(client.id);
   const marker = demo.addMarker({
     matter_id: matter.id,
     type: "keyword",
@@ -224,7 +238,7 @@ it("upgrades an existing v4 database once while preserving preferences and histo
   // Remove migration 9 objects as well as its version marker to simulate a real v4 schema.
   const laterObjects = db
     .prepare(
-      "SELECT type,name FROM sqlite_master WHERE (type='trigger' AND name GLOB '*_extension_*') OR (type='index' AND name GLOB '*_id_idx')",
+      "SELECT type,name FROM sqlite_master WHERE (type='trigger' AND (name GLOB '*_extension_*' OR (name GLOB '*_value_*' OR name GLOB '*_receipt_*'))) OR (type='index' AND name GLOB '*_id_idx')",
     )
     .all() as Array<{ type: string; name: string }>;
   for (const object of laterObjects)
@@ -236,6 +250,7 @@ it("upgrades an existing v4 database once while preserving preferences and histo
     ALTER TABLE settings DROP COLUMN pill_display;
     ALTER TABLE settings DROP COLUMN pill_withhold_calls;
     ALTER TABLE invoices DROP COLUMN currency;
+    ALTER TABLE source_exports DROP COLUMN format_version;
     DELETE FROM schema_migrations WHERE version>=5;
     UPDATE setting SET pill_always_on_top=0,pill_display='time',pill_withhold_calls=0 WHERE id=1;`);
   migrate(db);
@@ -248,7 +263,7 @@ it("upgrades an existing v4 database once while preserving preferences and histo
       .get(),
   ).toMatchObject({ pill_always_on_top: 0, pill_display: "time", pill_withhold_calls: 0 });
   expect(db.prepare("SELECT currency FROM invoices WHERE id=1").get()?.currency).toBe("USD");
-  expect(db.prepare("SELECT count(*) AS count FROM schema_migrations").get()?.count).toBe(9);
+  expect(db.prepare("SELECT count(*) AS count FROM schema_migrations").get()?.count).toBe(10);
   expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
 });
 

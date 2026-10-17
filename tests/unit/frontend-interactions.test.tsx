@@ -227,3 +227,31 @@ it("renders a core-created case whose opening date is unknown", () => {
   expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("Test case");
   expect(screen.getByText("Unknown")).toBeTruthy();
 });
+
+it("labels independently billed work accurately and opens its period review", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  input.selectedCase = "case";
+  input.workspaceState.periods[0].billingStatus = "billed";
+  input.openPeriodReview = vi.fn();
+  render(<Cases {...input} />);
+  expect(screen.queryByText("In invoice")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Review", exact: true }));
+  expect(input.openPeriodReview).toHaveBeenCalledWith("period");
+});
+
+it("explains an invoice coverage blocker and links directly to the target period review", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  input.selectedCase = "case";
+  input.workspaceState.periods[0].durationOverrideMs = null;
+  input.openPeriodReview = vi.fn();
+  render(<PreInvoices {...input} />);
+  expect(screen.getByText(/No evidence is linked and no duration correction/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Coverage review required" })).toHaveProperty(
+    "disabled",
+    true,
+  );
+  await user.click(screen.getByRole("button", { name: "Review period", exact: true }));
+  expect(input.openPeriodReview).toHaveBeenCalledWith("period");
+});

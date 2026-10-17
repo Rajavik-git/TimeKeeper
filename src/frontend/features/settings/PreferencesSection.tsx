@@ -15,31 +15,27 @@ export function PreferencesSection({ catalogState, workspaceState, action, saved
   return (
     <>
       <section className="settings-card">
-        {cardHead("Capture", "What TimeKeeper reads from screenpipe.")}
+        {cardHead("Capture", "Screenpipe owns recording and capture retention.")}
+        <p className="settings-provider-note" id="capture-unavailable">
+          Manage excluded applications and retention in Screenpipe. TimeKeeper cannot enforce these
+          controls. Previously saved preferences below are inactive.
+        </p>
         <div className="settings-form">
           <label htmlFor="excluded">Never capture</label>
           <input
             className="input"
             id="excluded"
-            key={catalogState.settings.excludedApps}
-            defaultValue={catalogState.settings.excludedApps}
-            onBlur={(event) => {
-              if (event.target.value !== catalogState.settings.excludedApps)
-                void patchSetting({ excludedApps: event.target.value });
-            }}
+            value={catalogState.settings.excludedApps}
+            disabled
+            aria-describedby="capture-unavailable"
           />
           <label htmlFor="retention">Keep captures for</label>
           <input
             className="input"
             id="retention"
-            key={catalogState.settings.captureRetention}
-            defaultValue={catalogState.settings.captureRetention}
-            onBlur={(event) => {
-              if (event.target.value !== catalogState.settings.captureRetention)
-                void patchSetting({
-                  captureRetention: event.target.value,
-                });
-            }}
+            value={catalogState.settings.captureRetention}
+            disabled
+            aria-describedby="capture-unavailable"
           />
         </div>
       </section>
@@ -50,7 +46,7 @@ export function PreferencesSection({ catalogState, workspaceState, action, saved
           <input
             className="input"
             id="prefix"
-            key={catalogState.settings.invoicePrefix}
+            key={`invoice-prefix:${catalogState.settings.invoicePrefix}`}
             defaultValue={catalogState.settings.invoicePrefix}
             onKeyDown={blurOnEnter}
             onBlur={(event) => {
@@ -64,7 +60,7 @@ export function PreferencesSection({ catalogState, workspaceState, action, saved
             id="next"
             type="text"
             inputMode="numeric"
-            key={catalogState.settings.nextNumber}
+            key={`invoice-next:${catalogState.settings.nextNumber}`}
             defaultValue={String(catalogState.settings.nextNumber).padStart(4, "0")}
             onKeyDown={blurOnEnter}
             onBlur={(event) => {

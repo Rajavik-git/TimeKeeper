@@ -2,6 +2,7 @@ import { calendarDay, systemTimeZone } from "../../../shared/dates";
 import { BillingOverview } from "./BillingOverview";
 import { invoiceRows, invoiceRowsCsv, sortRows, type SortState, type SortKey } from "./invoiceRows";
 import { validatePeriods as runValidation, validationMessage } from "../../api/validatePeriods";
+import { coverageProblems } from "../../calculations/coverage";
 import { useToday } from "../../shared/hooks/useToday";
 import { sameId, type EntityId } from "../../api/client";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -40,6 +41,8 @@ export function PreInvoices({
   navigate,
   selectedCase,
   refresh,
+  openPeriodReview,
+  openPeriodActivity,
 }: ScreenProps) {
   const today = useToday();
   const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
@@ -59,6 +62,7 @@ export function PreInvoices({
   const [notice, setNotice] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [editingRevision, setEditingRevision] = useState<number | null>(null);
   const [correctedMinutes, setCorrectedMinutes] = useState("");
   const tableRef = useRef<HTMLDivElement>(null);
   const [tableFade, setTableFade] = useState({ top: false, bottom: false });
@@ -106,8 +110,13 @@ export function PreInvoices({
     setPendingAction("validate");
     setNotice(`Validating ${ids.length} period${ids.length === 1 ? "" : "s"}…`);
     try {
-      const result = await runValidation(ids, refresh);
-      setNotice(validationMessage(result.successful, ids.length, result.refreshFailed));
+      const result = await runValidation(
+        workspaceState.periods.filter((period) => ids.includes(period.id)),
+        refresh,
+      );
+      setNotice(
+        validationMessage(result.successful, ids.length, result.refreshFailed, result.stale),
+      );
     } finally {
       setPendingAction(null);
     }
@@ -159,6 +168,9 @@ export function PreInvoices({
   );
   const non = periods.filter((period) => !period.billable);
   const preview = draftInvoice(catalogState, workspaceState, item.id, type);
+  const coverageBlockers = billable
+    .map((period) => ({ period, reasons: coverageProblems(period, workspaceState.sources) }))
+    .filter((item) => item.reasons.length > 0);
   const pending = billable.filter((period) => !period.timeValidated);
   const expenses = workspaceState.billing.expenses.filter(
     (expense) => expense.caseId === String(item.id) && expense.invoiceId === null,
@@ -443,6 +455,10 @@ export function PreInvoices({
                             aria-label={`Correct time for ${row.label}`}
                             onClick={() => {
                               setEditing(row.id);
+                              setEditingRevision(
+                                workspaceState.periods.find((period) => period.id === row.id)!
+                                  .revision,
+                              );
                               setCorrectedMinutes(String((row.durationMs ?? 0) / 60000));
                             }}
                           >
@@ -466,8 +482,10 @@ export function PreInvoices({
                               className="btn small"
                               disabled={pendingAction !== null}
                               onClick={async () => {
-                                const value = Number(correctedMinutes);
-                                if (!Number.isFinite(value) || value < 0) {
+                                const value = correctedMinutes.trim()
+                                  ? Number(correctedMinutes)
+                                  : NaN;
+                                if (!Number.isSafeInteger(Math.round(value * 60000)) || value < 0) {
                                   setNotice("Enter a valid duration.");
                                   return;
                                 }
@@ -477,7 +495,10 @@ export function PreInvoices({
                                   const result = await action(
                                     api.POST("/api/work-periods/{id}/duration-override", {
                                       params: { path: { id: row.id } },
-                                      body: { durationMs: Math.round(value * 60000) },
+                                      body: {
+                                        durationMs: Math.round(value * 60000),
+                                        expectedRevision: editingRevision!,
+                                      },
                                     }),
                                   );
                                   if (result) {
@@ -668,6 +689,31 @@ export function PreInvoices({
                   : "The last invoice for this case."}
               </small>
             </div>
+            {coverageBlockers.length > 0 && (
+              <div className="billing-coverage-blockers" role="status">
+                <b>Invoice blocked by incomplete coverage</b>
+                <ul>
+                  {coverageBlockers.map(({ period, reasons }) => (
+                    <li key={period.id}>
+                      <span>
+                        {shortDate(calendarDay(period.startedAt))} · {period.label}:{" "}
+                        {reasons.join(" ")}
+                      </span>{" "}
+                      <button
+                        className="link"
+                        onClick={() =>
+                          openPeriodReview
+                            ? openPeriodReview(period.id)
+                            : openPeriodActivity(period.id)
+                        }
+                      >
+                        Review period
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <button
               className="btn primary"
               disabled={
@@ -691,7 +737,7 @@ export function PreInvoices({
               ) : pending.length ? (
                 `Validate ${pending.length} period${pending.length === 1 ? "" : "s"}`
               ) : !preview.complete ? (
-                "Resolve coverage gaps"
+                "Coverage review required"
               ) : preview.totalCents === 0 ? (
                 "Nothing to invoice"
               ) : (

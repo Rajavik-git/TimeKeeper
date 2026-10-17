@@ -1,3 +1,13 @@
+function approvalRevisions(db: { prepare(sql: string): { all(): unknown[] } }) {
+  return Object.fromEntries(
+    (
+      db.prepare("SELECT id,effective_revision FROM work_periods").all() as Array<{
+        id: string;
+        effective_revision: number;
+      }>
+    ).map((row) => [row.id, row.effective_revision]),
+  );
+}
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -121,7 +131,10 @@ it("approves a compatibility entry with no task without creating a zero task ref
     const response = await createApp(db).request("/api/day/approve", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ date: entry.date }),
+      body: JSON.stringify({
+        date: entry.date,
+        expected_effective_revisions: approvalRevisions(db),
+      }),
     });
     expect(response.status, await response.text()).toBe(200);
     const stored = new SqliteRepository(db).period(String(period.id));

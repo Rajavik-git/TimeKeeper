@@ -1,3 +1,4 @@
+import { invoiceAmounts } from "../../shared/invoice-math";
 import type { CoreState, State, EntityId } from "../api/client";
 import { summarize, type Summary } from "./summary";
 
@@ -126,12 +127,6 @@ export function draftInvoice(
     item.mode === "flat_fee" &&
     type === "final" &&
     !workspaceState.billing.invoices.some((i) => i.caseId === String(caseId) && i.type === "final");
-  const feesCents =
-    rate.origin === "flat_fee"
-      ? flatFeeDue
-        ? (item.flatFeeCents ?? 0)
-        : 0
-      : Math.round((summary.roundedMinutes * rate.rateCents) / 60);
   const expenses = workspaceState.billing.expenses.filter(
     (e) => e.caseId === String(caseId) && !e.invoiceId,
   );
@@ -141,9 +136,16 @@ export function draftInvoice(
   const disbursementsCents = expenses
     .filter((e) => e.type === "disbursement")
     .reduce((total, e) => total + e.amountCents, 0);
-  const vatCents = client.vatApplicable
-    ? Math.round(((feesCents + expensesCents) * (state.settings.vatRate ?? 0)) / 100)
-    : 0;
+  const amounts = invoiceAmounts({
+    durationMs: summary.preciseDurationMs,
+    rateCents: rate.rateCents,
+    flatFeeCents: rate.origin === "flat_fee" ? (flatFeeDue ? (item.flatFeeCents ?? 0) : 0) : null,
+    expensesCents,
+    disbursementsCents,
+    vatRate: state.settings.vatRate ?? 0,
+    vatApplicable: client.vatApplicable,
+  });
+  const { feesCents } = amounts;
   const lines: InvoiceDraft["lines"] = [];
   if (flatFeeDue)
     lines.push({
@@ -179,15 +181,9 @@ export function draftInvoice(
     caseId,
     periodIds: periods.map((p) => p.id),
     revisions: Object.fromEntries(periods.map((p) => [p.id, p.effectiveRevision])),
-    billedMinutes: summary.roundedMinutes,
+    ...amounts,
     rateCents: rate.rateCents,
     rateOrigin: rate.origin,
-    feesCents,
-    subtotalCents: feesCents + expensesCents,
-    expensesCents,
-    disbursementsCents,
-    vatCents,
-    totalCents: feesCents + expensesCents + disbursementsCents + vatCents,
     pendingPeriods: periods.filter((p) => !p.timeValidated).length,
     complete: summary.complete,
     lines,

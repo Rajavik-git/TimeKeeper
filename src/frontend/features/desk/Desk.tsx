@@ -1,4 +1,4 @@
-import { calendarTime } from "../../../shared/dates";
+import { calendarDay, calendarTime } from "../../../shared/dates";
 import { useToday } from "../../shared/hooks/useToday";
 import { useState } from "react";
 import {
@@ -34,7 +34,9 @@ export function Desk({ catalogState, workspaceState, action, navigate }: ScreenP
   const activeCase = caseById(catalogState, caseId);
   const owner = clientForCase(catalogState, caseId);
   const duration = period ? formatPreciseDuration(effectiveMs(period)) : "Unknown";
-  const day = workspaceState.periods.filter((p) => p.startedAt.startsWith(today) && !p.excluded);
+  const day = workspaceState.periods.filter(
+    (p) => calendarDay(p.startedAt) === today && !p.excluded,
+  );
   const dayDuration = summarizeWork(day, workspaceState.sources);
   const rate = caseId ? configuredRate(catalogState, caseId) : null;
   const currentAmount =

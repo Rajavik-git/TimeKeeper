@@ -10,7 +10,14 @@ import {
 } from "./dayView";
 import { useToday } from "../../shared/hooks/useToday";
 import { useResource, requireData } from "../../api/queries";
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   api,
   clientForCase,
@@ -23,6 +30,7 @@ import {
 } from "../../api/client";
 import {
   dayFees,
+  configuredRate,
   effectiveMs,
   formatPreciseDuration,
   formatRoundedMinutes,
@@ -41,8 +49,24 @@ type DayData = Pick<CoreState, "periods" | "coverageGaps" | "questions"> & {
   state: State;
 };
 type Period = CoreState["periods"][number];
-let rememberedMainSort: SortState<MainKey> = null;
-let rememberedLeftSort: SortState<LeftKey> = null;
+export type MyDayViewState = {
+  selectedDate: string;
+  month: string;
+  filter: Filter;
+  clientFilter: string;
+  caseFilter: string;
+  mainSort: SortState<MainKey>;
+  leftSort: SortState<LeftKey>;
+};
+export const initialMyDayView = (today: string): MyDayViewState => ({
+  selectedDate: today,
+  month: today.slice(0, 7),
+  filter: "all",
+  clientFilter: "",
+  caseFilter: "",
+  mainSort: null,
+  leftSort: null,
+});
 
 const sortNext = <Key extends string>(
   current: SortState<Key>,
@@ -101,12 +125,36 @@ export function MyDay({
   navigate,
   returnFocusId,
   onFocusReturned,
-}: ScreenProps & { returnFocusId?: string | null; onFocusReturned?: () => void }) {
+  viewState,
+  setViewState,
+  openPeriodReview,
+}: ScreenProps & {
+  returnFocusId?: string | null;
+  onFocusReturned?: () => void;
+  viewState: MyDayViewState;
+  setViewState: Dispatch<SetStateAction<MyDayViewState>>;
+}) {
   const today = useToday();
   const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
 
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [month, setMonth] = useState(today.slice(0, 7));
+  const { selectedDate, month, filter, mainSort, leftSort, clientFilter, caseFilter } = viewState;
+  const setSelectedDate = (date: string) =>
+    setViewState((current) => ({
+      ...current,
+      selectedDate: date,
+      month: date.slice(0, 7),
+      filter: "all",
+    }));
+  const setMonth = useCallback(
+    (value: string) =>
+      setViewState((current) => (current.month === value ? current : { ...current, month: value })),
+    [setViewState],
+  );
+  const setFilter = (value: Filter) => setViewState((current) => ({ ...current, filter: value }));
+  const setClientFilter = (value: string) =>
+    setViewState((current) => ({ ...current, clientFilter: value }));
+  const setCaseFilter = (value: string) =>
+    setViewState((current) => ({ ...current, caseFilter: value }));
 
   const pendingDays = new Set(
     workspaceState.periods
@@ -117,17 +165,13 @@ export function MyDay({
       .map((period) => calendarDay(period.startedAt)),
   );
 
-  const [filter, setFilter] = useState<Filter>("all");
-  const [mainSort, setMainSort] = useState<SortState<MainKey>>(rememberedMainSort);
-  const [leftSort, setLeftSort] = useState<SortState<LeftKey>>(rememberedLeftSort);
   const [editing, setEditing] = useState<string | null>(null);
+  const [editingRevision, setEditingRevision] = useState<number | null>(null);
   const [minutes, setMinutes] = useState("");
   const [durationSaving, setDurationSaving] = useState(false);
   const [excluding, setExcluding] = useState(false);
   const [recentlyAssigned, setRecentlyAssigned] = useState<string | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [clientFilter, setClientFilter] = useState("");
-  const [caseFilter, setCaseFilter] = useState("");
   const filterWrap = useRef<HTMLDivElement>(null);
   const [answerCase, setAnswerCase] = useState<EntityId | null>(null);
   const [validating, setValidating] = useState(false);
@@ -160,22 +204,10 @@ export function MyDay({
       document.removeEventListener("keydown", escape);
     };
   }, [filterOpen]);
-  const changeMainSort = (key: MainKey, numeric: boolean) => {
-    setMainSort((current) => {
-      rememberedMainSort = sortNext(current, key, numeric);
-      return rememberedMainSort;
-    });
-  };
-  const changeLeftSort = (key: LeftKey, numeric: boolean) => {
-    setLeftSort((current) => {
-      rememberedLeftSort = sortNext(current, key, numeric);
-      return rememberedLeftSort;
-    });
-  };
-  useEffect(() => {
-    setMonth(selectedDate.slice(0, 7));
-    setFilter("all");
-  }, [selectedDate]);
+  const changeMainSort = (key: MainKey, numeric: boolean) =>
+    setViewState((current) => ({ ...current, mainSort: sortNext(current.mainSort, key, numeric) }));
+  const changeLeftSort = (key: LeftKey, numeric: boolean) =>
+    setViewState((current) => ({ ...current, leftSort: sortNext(current.leftSort, key, numeric) }));
   const dayQuery = useResource(`day:${selectedDate}`, async (signal): Promise<DayData> => {
     const [state, periods, coverageGaps, questions] = await Promise.all([
       api.GET("/api/catalog", { signal }),
@@ -222,9 +254,10 @@ export function MyDay({
   useEffect(() => {
     if (!data || !returnFocusId) return;
     const button = document.querySelector<HTMLButtonElement>(
-      `[data-source-period-id="${CSS.escape(returnFocusId)}"]`,
+      `[data-source-period-id="${CSS.escape(returnFocusId)}"]:not(:disabled), [data-review-period-id="${CSS.escape(returnFocusId)}"]`,
     );
-    button?.focus();
+    if (!button) return;
+    button.focus();
     onFocusReturned?.();
   }, [data, returnFocusId, onFocusReturned]);
   const periods = data?.periods ?? [];
@@ -296,13 +329,17 @@ export function MyDay({
     );
   };
   const saveDuration = async (periodId: string) => {
-    const parsed = Number(minutes);
-    if (!Number.isFinite(parsed) || parsed < 0) return;
+    const parsed = minutes.trim() ? Number(minutes) : NaN;
+    const durationMs = Math.round(parsed * 60000);
+    if (!Number.isSafeInteger(durationMs) || durationMs < 0) {
+      showToast("Enter a non-negative duration in minutes.");
+      return;
+    }
     setDurationSaving(true);
     const result = await action(
       api.POST("/api/work-periods/{id}/duration-override", {
         params: { path: { id: periodId } },
-        body: { durationMs: Math.round(parsed * 60000) },
+        body: { durationMs, expectedRevision: editingRevision! },
       }),
     );
     setDurationSaving(false);
@@ -313,11 +350,10 @@ export function MyDay({
     setValidating(true);
     showToast(`Validating ${target.length} period${target.length === 1 ? "" : "s"}…`);
     try {
-      const result = await runValidation(
-        target.map((period) => period.id),
-        refresh,
+      const result = await runValidation(target, refresh);
+      showToast(
+        validationMessage(result.successful, target.length, result.refreshFailed, result.stale),
       );
-      showToast(validationMessage(result.successful, target.length, result.refreshFailed));
       if (focusQuestion && result.successful) setFocusQuestionAfterValidation(true);
     } finally {
       setValidating(false);
@@ -346,15 +382,11 @@ export function MyDay({
   const caseRate = (caseId: EntityId | null) => {
     if (!caseId)
       return `base rate ${money(catalogState.settings.globalHourlyRateCents ?? 0).replace(/\.00$/, "")}/h`;
-    const item = caseById(catalogState, caseId);
-    const owner = clientForCase(catalogState, caseId);
-    if (item?.mode === "flat_fee") return "flat fee";
-    const rate =
-      item?.hourlyRateCents ??
-      owner?.hourlyRateCents ??
-      catalogState.settings.globalHourlyRateCents ??
-      0;
-    return `${item?.hourlyRateCents != null ? "case rate" : "client rate"} ${money(rate).replace(/\.00$/, "")}/h`;
+    const { rateCents, origin } = configuredRate(catalogState, caseId);
+    if (origin === "flat_fee") return "flat fee";
+    const label =
+      origin === "matter" ? "case rate" : origin === "client" ? "client rate" : "base rate";
+    return `${label} ${money(rateCents).replace(/\.00$/, "")}/h`;
   };
   return (
     <>
@@ -544,7 +576,7 @@ export function MyDay({
                     const result = await action(
                       api.PATCH("/api/work-periods/{id}/details", {
                         params: { path: { id: periodId } },
-                        body: { excluded: true },
+                        body: { excluded: true, expectedRevision: unresolved[0]!.revision },
                       }),
                     );
                     setExcluding(false);
@@ -556,7 +588,7 @@ export function MyDay({
                           void action(
                             api.PATCH("/api/work-periods/{id}/details", {
                               params: { path: { id: periodId } },
-                              body: { excluded: false },
+                              body: { excluded: false, expectedRevision: result.revision },
                             }),
                           ),
                       );
@@ -744,7 +776,7 @@ export function MyDay({
                           void action(
                             api.PATCH("/api/work-periods/{id}/details", {
                               params: { path: { id: period.id } },
-                              body: { excluded: false },
+                              body: { excluded: false, expectedRevision: period.revision },
                             }),
                           )
                         }
@@ -921,6 +953,7 @@ export function MyDay({
                             title="Correct duration"
                             onClick={() => {
                               setEditing(period.id);
+                              setEditingRevision(period.revision);
                               setMinutes(String((effectiveMs(period) ?? 0) / 60000));
                             }}
                           >
@@ -936,6 +969,15 @@ export function MyDay({
                       </td>
                       <td>
                         <div className="day-actions">
+                          {openPeriodReview && (
+                            <button
+                              className="btn sm"
+                              data-review-period-id={period.id}
+                              onClick={() => openPeriodReview(period.id)}
+                            >
+                              Review
+                            </button>
+                          )}
                           {period.timeValidated ? (
                             <span className="day-validated">✓ Validated</span>
                           ) : period.caseId ? (

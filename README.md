@@ -20,15 +20,16 @@ The frontend development server and backend share a root `.env` file. Copy [`.en
 
 `npm run dev`, `npm run dev:server`, `npm run dev:ui`, `npm run db:reset`, and `npm run api:serve` load this file with Node's built-in environment loader. Exported shell variables take precedence. The commands still use their existing defaults when the file is absent. Restart the development processes after changing the file.
 
-| Variable                     | Default              | Purpose                                      |
-| ---------------------------- | -------------------- | -------------------------------------------- |
-| `UI_HOST`                    | `127.0.0.1`          | Frontend development server host.            |
-| `UI_PORT`                    | `5173`               | Frontend development server port.            |
-| `TIMEKEEPER_PORT`            | `8787`               | Local API port and frontend proxy target.    |
-| `TIMEKEEPER_DB`              | `data/timekeeper.db` | SQLite path relative to the repository root. |
-| `TIMEKEEPER_ALLOWED_ORIGINS` | Empty                | Additional allowed origins, comma-separated. |
+| Variable                     | Default                 | Purpose                                           |
+| ---------------------------- | ----------------------- | ------------------------------------------------- |
+| `UI_HOST`                    | `127.0.0.1`             | Frontend development server host.                 |
+| `UI_PORT`                    | `5173`                  | Frontend development server port.                 |
+| `TIMEKEEPER_PORT`            | `8787`                  | Local API port and frontend proxy target.         |
+| `VITE_TIMEKEEPER_API_URL`    | `http://127.0.0.1:8787` | Desktop frontend API origin, fixed at build time. |
+| `TIMEKEEPER_DB`              | `data/timekeeper.db`    | SQLite path relative to the repository root.      |
+| `TIMEKEEPER_ALLOWED_ORIGINS` | Empty                   | Additional allowed origins, comma-separated.      |
 
-Keep `UI_HOST`, `UI_PORT`, and `TIMEKEEPER_PORT` at their defaults for Tauri. Its development URL, API address, and content security policy currently use fixed addresses. Screenpipe and JEV configuration is not connected yet.
+Keep `UI_HOST` and `UI_PORT` at their defaults for Tauri's development URL. When changing its backend port, set `TIMEKEEPER_PORT` and the matching `VITE_TIMEKEEPER_API_URL`, then allow that loopback origin in `src-tauri/tauri.conf.json`'s content security policy. Export `VITE_TIMEKEEPER_API_URL` when invoking a production build; the build command does not load the root `.env` file. Browser development keeps relative API requests through Vite's proxy. The desktop API URL accepts only HTTP loopback origins without credentials, paths, or query parameters. Screenpipe and JEV configuration is not connected yet.
 
 Date operations use pinned `date-fns` 4.1.0 and `@date-fns/tz` 1.4.1 through one shared module. The UI sends its calendar timezone with date filters and new invoice or source-export snapshots. See the [calendar policy](docs/DATABASE.md#calendar-dates-and-timestamps).
 
@@ -77,6 +78,8 @@ Read-only chat tools, installed Screenpipe workflows, capture, and native packag
 The requirements define product behavior. The architecture and database documents explain its intended implementation. Research evidence does not establish runtime support in an installed release.
 
 The [data-format explanation](docs/DATABASE.md#data-formats-in-the-application) maps SQLite columns to current JSON fields. It explains string IDs, millisecond durations, cents and currency, strict calendar dates, explicit timezones, and the separate deprecated API.
+
+Start with [how to read the schema](docs/DATABASE.md#how-to-read-the-schema) for the core tables, ID choices, fixed states, and file responsibilities. `src/contracts/openapi.yaml` is the HTTP API specification, unrelated to OpenAI. It generates TypeScript API types and request validators; it does not create SQLite tables. Edit the specification and run `npm run contract:gen` rather than editing generated files.
 
 ## Mockup vs requirements at a glance
 

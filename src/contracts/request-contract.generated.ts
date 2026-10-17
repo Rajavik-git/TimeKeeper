@@ -32,7 +32,7 @@ export const requestContract = {
     "/api/matters/{id}/approve": {
       "post": {
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -772,9 +772,32 @@ export const requestContract = {
             "enum": [
               "approved"
             ]
+          },
+          "expected_effective_revision": {
+            "type": "integer",
+            "minimum": 0
           }
         },
-        "required": []
+        "required": [],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "review_status": {
+                  "const": "approved"
+                }
+              },
+              "required": [
+                "review_status"
+              ]
+            },
+            "then": {
+              "required": [
+                "expected_effective_revision"
+              ]
+            }
+          }
+        ]
       },
       "day_approve_postRequest": {
         "type": "object",
@@ -783,16 +806,34 @@ export const requestContract = {
           "date": {
             "type": "string",
             "format": "date"
+          },
+          "expected_effective_revisions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "required": [
-          "date"
+          "date",
+          "expected_effective_revisions"
         ]
       },
       "PostApiMattersIdApproveRequest": {
         "type": "object",
-        "properties": {},
-        "required": [],
+        "properties": {
+          "expected_effective_revisions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "required": [
+          "expected_effective_revisions"
+        ],
         "additionalProperties": false
       },
       "PostApiTimeEntriesIdDiscardRequest": {
@@ -1708,7 +1749,8 @@ export const requestContract = {
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "durationMs"
+          "durationMs",
+          "expectedRevision"
         ],
         "properties": {
           "durationMs": {
@@ -1718,6 +1760,10 @@ export const requestContract = {
             ],
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -1741,14 +1787,22 @@ export const requestContract = {
       "PostWorkPeriodsIdValidateTimeRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [],
-        "properties": {}
+        "required": [
+          "expectedEffectiveRevision"
+        ],
+        "properties": {
+          "expectedEffectiveRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
       },
       "PostWorkPeriodsIdBillingStatusRequest": {
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "status"
+          "status",
+          "expectedRevision"
         ],
         "properties": {
           "status": {
@@ -1757,6 +1811,10 @@ export const requestContract = {
               "billed",
               "unbilled"
             ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -1862,7 +1920,9 @@ export const requestContract = {
       "PatchWorkPeriodsIdDetailsRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [],
+        "required": [
+          "expectedRevision"
+        ],
         "properties": {
           "label": {
             "type": "string"
@@ -1878,6 +1938,10 @@ export const requestContract = {
           },
           "excluded": {
             "type": "boolean"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },

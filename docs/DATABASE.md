@@ -6,6 +6,72 @@ The agreed logical model replaces the original task/subtask hierarchy with work 
 
 Runtime queries use Drizzle table mappings in `src/backend/adapters/sqlite/tables.ts` over `node:sqlite`. Existing migrations remain the sole schema authority, including their constraints and triggers. The mapping-parity and upgrade tests check that the query model matches migrated databases. See [storage ownership](ARCHITECTURE.md#storage-and-implementation-gates) for the retained SQL and transaction boundaries.
 
+## How to read the schema
+
+Start with the work period. It records one piece of work, belongs to one session, and can be assigned to one case. The case supplies its client. A source is an observation linked to that work; it does not establish continuous worked time.
+
+| Table                       | What one row means                                            | Main relationships                                          |
+| --------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
+| `clients`                   | A client                                                      | Has cases.                                                  |
+| `cases`                     | A legal case                                                  | `client_id` identifies its client.                          |
+| `sessions`                  | An explicitly started recording-workflow session              | Contains work periods between its start and end boundaries. |
+| `work_periods`              | A piece of work to assign, correct, validate, and mark billed | `session_id` is required; `case_id` can be unknown.         |
+| `sources`                   | A recorded observation or evidence reference                  | `work_period_id` can be unknown until reconciliation.       |
+| `task_types`                | An editable category such as drafting or document review      | A period can reference it through `task_type_id`.           |
+| `invoices`, `invoice_lines` | An issued invoice and its frozen lines                        | Link billed work and expenses to the invoice.               |
+
+The client is not copied onto a work period as a second assignment. Source validation, time validation, and billing status are independent. `NULL` means unknown or unset, not zero.
+
+### Why some IDs are strings
+
+The main business and workflow identities use SQLite `TEXT` and JSON strings. New clients, cases, and manual periods normally receive UUIDs. Workflow commands can supply other stable opaque strings for sessions, periods, and sources. An opaque ID identifies a record; applications must not parse it to obtain its client, date, or display name. The case's human-readable `reference` is separate from its ID.
+
+String IDs let a producer identify a record before a database insert and reuse the same identity during delayed delivery, replay, and retries. An integer sequence is more compact, but would require another mapping for externally assigned identities. Changing existing IDs to integers would affect foreign keys, saved commands, evidence references, exports, and API callers without resolving a current business problem.
+
+Local categories, invoices, expenses, audit rows, and export receipts use integer IDs where a local database sequence is sufficient. These are valid different choices for different identities. Historical numeric aliases belong only to the deprecated API.
+
+### Why fixed states are text
+
+SQLite has no native `ENUM` column type. A fixed state uses a readable text value and a database constraint limiting the allowed values. For example, `billing_status` permits `unbilled` and `billed`; it does not accept an arbitrary string. Drizzle's enum configuration also narrows TypeScript types, but does not replace database checks.
+
+| Column                                | Allowed states                        | Meaning                                                     |
+| ------------------------------------- | ------------------------------------- | ----------------------------------------------------------- |
+| `cases.status`                        | `active`, `archived`                  | Whether the case remains in the active catalogue.           |
+| `work_periods.assignment_origin`      | `unresolved`, `automatic`, `lawyer`   | How its current assignment was made.                        |
+| `work_periods.time_validation_status` | `unvalidated`, `validated`            | Whether the effective case and duration have been reviewed. |
+| `work_periods.billing_status`         | `unbilled`, `billed`                  | Whether the work has been billed.                           |
+| `sources.validation_status`           | `unvalidated`, `validated`            | Whether the observation has been reviewed.                  |
+| `sources.availability_status`         | `unknown`, `available`, `unavailable` | Whether the referenced evidence is retrievable.             |
+
+Do not turn every fixed state into a lookup table. Separate tables are useful for editable catalogues such as `task_types`, where users can change labels and settings. Integer status codes would still need an allowed-value constraint and a translation to readable labels.
+
+### Which schema file owns which responsibility
+
+| File                                          | Responsibility                                                                                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/backend/adapters/sqlite/migrate.ts`      | Creates and upgrades the physical SQLite schema, constraints, indexes, and triggers.                                                             |
+| `src/backend/adapters/sqlite/tables.ts`       | Maps SQLite columns to typed Drizzle queries. It does not apply migrations.                                                                      |
+| `src/contracts/openapi.yaml`                  | Defines HTTP routes, JSON fields, allowed values, and request/response contracts. It is not an OpenAI configuration file or the database schema. |
+| `src/contracts/generated.ts`                  | Generated TypeScript API types. Do not edit directly.                                                                                            |
+| `src/contracts/request-contract.generated.ts` | Generated request schemas used by API validation. Do not edit directly.                                                                          |
+| `src/backend/adapters/sqlite/schema.sql`      | Historical imported schema retained for initialization, upgrades, and fixture compatibility. It does not define the canonical period model.      |
+
+The project file is `openapi.yaml`, not `openai.yml`. It currently contains JSON syntax, which is valid YAML. `npm run contract:gen` regenerates the two contract files after an OpenAPI change. SQL column names use `snake_case`; JSON attributes use `camelCase`.
+
+The physical database retains old singular tables such as `client`, `matter`, and `time_entry` alongside canonical tables such as `clients`, `cases`, and `work_periods`. Current screens use the canonical model. Retention supports older installations and fixtures; it is not a second authoritative client/case model. Fresh initialization still creates the historical tables. Separating that bootstrap from upgrade handling requires a preservation migration and remains distinct from changing IDs or enum storage.
+
+### Units and defaults
+
+Durations are integer milliseconds. Monetary amounts and rates are integer minor units with a separate currency. A research-cap rule's `value` uses tenths of an hour: `5` means 30 minutes. A `nonbillable_travel` row enables the travel rule; its value is not a duration. User-visible rule descriptions must follow the saved value.
+
+New-workspace USD currency, zero base rate, zero tax, the singleton settings row, unit-conversion factors, and viewport dimensions are explicit defaults or constants. They do not stand in for recorded client data, elapsed work, configured rates, provider capabilities, or the current date. Tests may fix a date or use sample IDs; normal startup does not load those records.
+
+Migration 10 strengthens new writes without renumbering records or rebuilding tables. It rejects null or blank text identities, fractional or unsafe integer amounts and durations, and invalid currency codes. Inserts check all guarded fields. Updates check changed fields so an unrelated edit can preserve a historical value that predates the guards. The Drizzle mappings also narrow fixed states to their allowed TypeScript values; SQL remains responsible for runtime enforcement.
+
+### Reviewed revisions in API requests
+
+An edit must identify the version that the user reviewed. The canonical API requires `expectedRevision` for period details, duration corrections, and billing status; `expectedEffectiveRevision` for time validation; and `expectedAssignmentRevision` for case assignment. Missing guards produce an invalid request. A stale guard produces a conflict instead of approving or overwriting newer data. The interface preserves drafts and requires an explicit reload before submitting a changed period again.
+
 ## Data formats in the application
 
 SQLite stores the application records. The local HTTP API sends JSON objects to React. Drizzle maps SQL columns to TypeScript values on the backend. The OpenAPI contract in `src/contracts/openapi.yaml` defines the JSON fields and generates the client types and request validators.
@@ -41,6 +107,10 @@ Local midnight boundaries account for daylight saving changes. A calendar day ca
 `CompatibilityApiService` and `api/compatibility-routes.ts` retain deprecated contracts for older callers. They preserve existing numeric entry aliases and historical table names. Current screens and canonical exports do not allocate or join through these aliases. The old `tenths_of_hour` projection remains only in that compatibility API; one tenth is six minutes, and the projection does not round individual periods.
 
 The compatibility tables remain for existing records and upgrade support. Their removal requires a separate data migration. Explicit fixture metadata such as `demoApp`, `demoWindowTitle`, and `demoConfidence` remains distinguishable from verified provider evidence. Normal startup creates no sample business records.
+
+Deprecated catalogue writes translate their older field names and call the same `CatalogService` use cases as canonical writes. They cannot use mapped database columns as an unrestricted update API. Valid legacy response shapes remain available. Approval calls now require the revision that the caller reviewed: `expected_effective_revision` for one compatibility entry and `expected_effective_revisions` keyed by canonical period ID for bulk approval. Missing guards are invalid requests; stale guards report a conflict.
+
+New source-export receipts use JSON arrays for canonical period IDs and options, with `source_exports.format_version = 2`. This receipt storage version is independent of the exported payload version. Existing mixed-format receipts remain version 1 and are not guessed or rewritten. Deprecated exporters retain their payload shape while sharing the canonical receipt writer and hashing the exact exported bytes.
 
 Canonical source packs use version 2 JSON with string period and source IDs, exact durations, the selected timezone, and a receipt containing the exact SHA-256 payload hash. Client-name redaction applies to descriptive text while IDs, timestamps, and links remain intact. No media is fetched or blurred by this metadata export.
 
@@ -209,7 +279,7 @@ These records cannot receive commands while the Node backend is stopped. The mec
 
 A screenshot proves an observation at a time. It does not prove continuous work until the next screenshot. Source count and application uptime are not duration measurements. The method for deriving work intervals from reviewed Screenpipe memory remains undefined. Do not silently count gaps, subtract inactivity, or invent a sampling interval.
 
-The lawyer can correct time. An override takes precedence over a detected duration. Preserve unrounded observation times, boundaries, and any detected duration. The interface calculates effective minutes and summaries from the complete detail set, using reviewed memory and retained corrections. SQLite and the backend do not calculate aggregate summaries.
+The lawyer can correct time. An override takes precedence over a detected duration. Preserve unrounded observation times, boundaries, and any detected duration. The interface calculates effective minutes and summaries from the complete detail set, using reviewed memory and retained corrections. SQLite and the backend do not supply calculated dashboard summaries. Before issuing an invoice, the backend verifies its submitted amounts against authoritative records with shared arithmetic; this validation does not create stored running totals on periods.
 
 Round upward only after combining the relevant effective durations. For the proposed millisecond representation, the interface uses `ceil(sum(effective_duration_ms) / 60000)`. An exact whole-minute total stays unchanged. A positive remainder rounds the total up. Do not round individual periods or persist rounded totals in place of precise detail records.
 

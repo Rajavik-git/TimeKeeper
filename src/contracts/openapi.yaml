@@ -119,6 +119,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Stale effective revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -189,6 +199,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Stale effective revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -246,6 +266,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Stale effective revision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -271,7 +301,7 @@
           }
         ],
         "requestBody": {
-          "required": false,
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -3735,6 +3765,26 @@
           }
         }
       }
+    },
+    "/api/reconstruction-conflicts": {
+      "get": {
+        "summary": "Read protected-period reconstruction conflicts",
+        "responses": {
+          "200": {
+            "description": "Stored proposals; no changes applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReconstructionConflict"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5900,9 +5950,28 @@
           "review_status": {
             "type": "string",
             "enum": ["approved"]
+          },
+          "expected_effective_revision": {
+            "type": "integer",
+            "minimum": 0
           }
         },
-        "required": []
+        "required": [],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "review_status": {
+                  "const": "approved"
+                }
+              },
+              "required": ["review_status"]
+            },
+            "then": {
+              "required": ["expected_effective_revision"]
+            }
+          }
+        ]
       },
       "day_approve_postRequest": {
         "type": "object",
@@ -5911,9 +5980,16 @@
           "date": {
             "type": "string",
             "format": "date"
+          },
+          "expected_effective_revisions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
-        "required": ["date"]
+        "required": ["date", "expected_effective_revisions"]
       },
       "time_entries_manual_postRequest": {
         "type": "object",
@@ -6505,12 +6581,16 @@
       "PostWorkPeriodsIdDurationOverrideRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["durationMs"],
+        "required": ["durationMs", "expectedRevision"],
         "properties": {
           "durationMs": {
             "type": ["integer", "null"],
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -6529,17 +6609,26 @@
       "PostWorkPeriodsIdValidateTimeRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [],
-        "properties": {}
+        "required": ["expectedEffectiveRevision"],
+        "properties": {
+          "expectedEffectiveRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
       },
       "PostWorkPeriodsIdBillingStatusRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["status"],
+        "required": ["status", "expectedRevision"],
         "properties": {
           "status": {
             "type": "string",
             "enum": ["billed", "unbilled"]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -6638,7 +6727,7 @@
       "PatchWorkPeriodsIdDetailsRequest": {
         "type": "object",
         "additionalProperties": false,
-        "required": [],
+        "required": ["expectedRevision"],
         "properties": {
           "label": {
             "type": "string"
@@ -6651,6 +6740,10 @@
           },
           "excluded": {
             "type": "boolean"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -6752,8 +6845,16 @@
       },
       "PostApiMattersIdApproveRequest": {
         "type": "object",
-        "properties": {},
-        "required": [],
+        "properties": {
+          "expected_effective_revisions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "required": ["expected_effective_revisions"],
         "additionalProperties": false
       },
       "PostApiTimeEntriesIdDiscardRequest": {
@@ -7644,6 +7745,51 @@
           "payload": {
             "type": "string",
             "description": "Version 2 JSON snapshot using canonical period and source identities, exact milliseconds, and the selected timezone. Receipt SHA-256 hashes this exact string."
+          }
+        }
+      },
+      "ReconstructionConflict": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "periodId",
+          "sessionId",
+          "expectedRevision",
+          "proposedStartedAt",
+          "proposedEndedAt",
+          "sourceReferences",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "periodId": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "proposedStartedAt": {
+            "type": "string"
+          },
+          "proposedEndedAt": {
+            "type": ["string", "null"]
+          },
+          "sourceReferences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "resolved"]
           }
         }
       }

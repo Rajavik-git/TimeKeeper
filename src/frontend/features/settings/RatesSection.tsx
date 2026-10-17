@@ -54,7 +54,7 @@ export function RatesSection({ catalogState, action, saved }: SectionProps) {
           <input
             className="input"
             id="base-rate"
-            key={catalogState.settings.globalHourlyRateCents}
+            key={`hourly-rate:${catalogState.settings.globalHourlyRateCents}`}
             defaultValue={(catalogState.settings.globalHourlyRateCents / 100).toFixed(2)}
             onKeyDown={blurOnEnter}
             onBlur={(event) =>
@@ -87,7 +87,7 @@ export function RatesSection({ catalogState, action, saved }: SectionProps) {
           <input
             className="input"
             id="sales-tax"
-            key={catalogState.settings.vatRate}
+            key={`vat-rate:${catalogState.settings.vatRate}`}
             defaultValue={
               catalogState.settings.vatRate ? String(catalogState.settings.vatRate) : "None"
             }

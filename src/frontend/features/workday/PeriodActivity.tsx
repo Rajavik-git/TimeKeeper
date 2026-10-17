@@ -25,6 +25,7 @@ export function PeriodActivity({
   selected,
   action,
   navigate,
+  openPeriodReview,
 }: Props) {
   const [clientId, setClientId] = useState("");
   const [caseId, setCaseId] = useState("");
@@ -485,6 +486,11 @@ export function PeriodActivity({
               </p>
             </div>
             <div className="activity-summary">
+              {period && openPeriodReview && (
+                <button className="btn sm" onClick={() => openPeriodReview(period.id)}>
+                  Review period
+                </button>
+              )}
               <span className={status === "Validated" ? "ok" : "pending"}>
                 <i aria-hidden="true" />
                 {status}

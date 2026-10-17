@@ -1,3 +1,13 @@
+function approvalRevisions(db: { prepare(sql: string): { all(): unknown[] } }) {
+  return Object.fromEntries(
+    (
+      db.prepare("SELECT id,effective_revision FROM work_periods").all() as Array<{
+        id: string;
+        effective_revision: number;
+      }>
+    ).map((row) => [row.id, row.effective_revision]),
+  );
+}
 import { readCatalog } from "../../src/backend/adapters/sqlite/catalog-repository.js";
 import { readFileSync } from "node:fs";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -150,7 +160,14 @@ it("returns taskless canonical periods within the compatibility response contrac
       components: contract.components,
     });
     expect(validate(state), JSON.stringify(validate.errors)).toBe(true);
-    expect((await post("/day/approve", { date: "2026-10-17" })).status).toBe(200);
+    expect(
+      (
+        await post("/day/approve", {
+          date: "2026-10-17",
+          expected_effective_revisions: approvalRevisions(db),
+        })
+      ).status,
+    ).toBe(200);
   } finally {
     db.close();
   }

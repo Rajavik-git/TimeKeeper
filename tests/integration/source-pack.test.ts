@@ -1,3 +1,7 @@
+import { CatalogService } from "../../src/backend/application/catalog.js";
+import { catalogRepository } from "../../src/backend/adapters/sqlite/catalog-repository.js";
+import { SourceExportService } from "../../src/backend/application/source-export.js";
+import { sourceExportPort } from "../../src/backend/adapters/sqlite/source-export.js";
 import { createHash } from "node:crypto";
 import { afterEach, expect, it } from "vitest";
 import { memoryDb } from "../fixtures/database.js";
@@ -14,7 +18,17 @@ function fixture() {
   databases.push(db);
   const core = new TimeKeeperService(new SqliteRepository(db));
   const port = createCompatibilityPort(db);
-  return { db, core, port, service: new CompatibilityApiService(port, core) };
+  return {
+    db,
+    core,
+    port,
+    service: new CompatibilityApiService(
+      port,
+      core,
+      new CatalogService(catalogRepository(db)),
+      new SourceExportService(sourceExportPort(db)),
+    ),
+  };
 }
 afterEach(() => {
   for (const db of databases.splice(0)) db.close();
@@ -163,6 +177,13 @@ it("rolls back the receipt when writing its audit event fails", () => {
       },
     },
     core,
+    new CatalogService(catalogRepository(db)),
+    new SourceExportService({
+      ...sourceExportPort(db),
+      auditExport: () => {
+        throw Error("Synthetic audit failure");
+      },
+    }),
   );
   expect(() => service.exportCaseSources(1, "case", [], {})).toThrow("Synthetic audit failure");
   expect(db.prepare("SELECT count(*) AS count FROM source_exports").get()).toEqual(beforeExports);

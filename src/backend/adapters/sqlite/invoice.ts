@@ -25,6 +25,8 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
           case_rate: tables.cases.hourly_rate_cents,
           client_rate: tables.clients.hourly_rate_cents,
           global_rate: tables.settings.global_hourly_rate_cents,
+          vat_rate: tables.settings.vat_rate,
+          vat_applicable: tables.clients.vat_applicable,
         })
         .from(tables.cases)
         .innerJoin(tables.clients, eq(tables.clients.id, tables.cases.client_id))
@@ -39,6 +41,8 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
             caseRateCents: row.case_rate as number | null,
             clientRateCents: row.client_rate as number | null,
             globalRateCents: Number(row.global_rate),
+            vatRate: Number(row.vat_rate),
+            vatApplicable: Boolean(row.vat_applicable),
           }
         : null;
     },
@@ -50,6 +54,8 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
         .get() as Row | undefined;
       return row
         ? {
+            effectiveDurationMs: (row.duration_override_ms ?? row.detected_duration_ms ?? null) as
+              number | null,
             id: String(row.id),
             caseId: row.case_id as string | null,
             effectiveRevision: Number(row.effective_revision),

@@ -468,4 +468,100 @@ export function migrate(db: DatabaseSync): void {
       throw error;
     }
   }
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 10").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const opaqueId = (field: string) =>
+        `typeof(NEW.${field})='text' AND length(trim(NEW.${field}))>0`;
+      const whole = (field: string, nullable = false) =>
+        `${nullable ? `NEW.${field} IS NULL OR ` : ""}(typeof(NEW.${field})='integer' AND NEW.${field} BETWEEN 0 AND 9007199254740991)`;
+      const guards: Record<string, Record<string, string>> = {};
+      const add = (table: string, field: string, valid: string) => {
+        (guards[table] ??= {})[field] = valid;
+      };
+      for (const table of [
+        "clients",
+        "cases",
+        "sessions",
+        "work_periods",
+        "sources",
+        "tag_targets",
+        "reconstruction_conflicts",
+        "retrieval_progress",
+        "assignment_deliveries",
+      ])
+        add(table, "id", opaqueId("id"));
+      add("pending_questions", "question_id", opaqueId("question_id"));
+      for (const [table, fields, nullable] of [
+        ["clients", ["hourly_rate_cents"], true],
+        ["cases", ["hourly_rate_cents", "flat_fee_cents", "budget_cents"], true],
+        ["sessions", ["revision"], false],
+        ["settings", ["global_hourly_rate_cents", "next_number"], false],
+        ["tag_targets", ["target_revision"], false],
+        ["pending_questions", ["expected_assignment_revision"], false],
+        ["reconstruction_conflicts", ["expected_revision"], false],
+        ["assignment_deliveries", ["target_revision", "attempts"], false],
+        ["client_rules", ["value"], false],
+        [
+          "work_periods",
+          [
+            "detected_duration_ms",
+            "duration_override_ms",
+            "validated_effective_revision",
+            "applied_hourly_rate_cents",
+          ],
+          true,
+        ],
+        ["work_periods", ["revision", "assignment_revision", "effective_revision"], false],
+        ["expenses", ["amount_cents"], false],
+        ["invoice_lines", ["billed_minutes", "rate_cents", "amount_cents"], false],
+        ["invoices", ["subtotal_cents", "vat_cents", "disbursements_cents", "total_cents"], true],
+      ] as const)
+        for (const field of fields) add(table, field, whole(field, nullable));
+      add(
+        "settings",
+        "currency",
+        "typeof(NEW.currency)='text' AND length(NEW.currency)=3 AND NEW.currency GLOB '[A-Z][A-Z][A-Z]'",
+      );
+      add(
+        "work_periods",
+        "applied_currency",
+        "NEW.applied_currency IS NULL OR (length(NEW.applied_currency)=3 AND NEW.applied_currency GLOB '[A-Z][A-Z][A-Z]')",
+      );
+      for (const [table, checks] of Object.entries(guards)) {
+        const insertInvalid = Object.values(checks)
+          .map((valid) => `NOT COALESCE((${valid}),0)`)
+          .join(" OR ");
+        const updateInvalid = Object.entries(checks)
+          .map(
+            ([field, valid]) => `(NEW.${field} IS NOT OLD.${field} AND NOT COALESCE((${valid}),0))`,
+          )
+          .join(" OR ");
+        db.exec(`CREATE TRIGGER ${table}_value_insert BEFORE INSERT ON ${table} WHEN ${insertInvalid} BEGIN SELECT RAISE(ABORT,'${table} value constraint'); END;
+          CREATE TRIGGER ${table}_value_update BEFORE UPDATE OF ${Object.keys(checks).join(",")} ON ${table} WHEN ${updateInvalid} BEGIN SELECT RAISE(ABORT,'${table} value constraint'); END;`);
+      }
+      // Earlier receipt contents are intentionally untouched. Their identifiers and options
+      // can be legacy scalars, CSV, or arrays; only new canonical receipts assert version 2.
+      db.exec(
+        "ALTER TABLE source_exports ADD COLUMN format_version INTEGER NOT NULL DEFAULT 1 CHECK(format_version IN (1,2))",
+      );
+      const validReceipt = ["period_ids_json", "options_json"]
+        .map(
+          (field) =>
+            `CASE WHEN json_valid(NEW.${field}) THEN json_type(NEW.${field})='array' ELSE 0 END`,
+        )
+        .join(" AND ");
+      db.exec(`CREATE TRIGGER source_exports_receipt_insert BEFORE INSERT ON source_exports
+        WHEN NEW.format_version=2 AND NOT (${validReceipt})
+        BEGIN SELECT RAISE(ABORT,'source_exports value constraint'); END;
+        CREATE TRIGGER source_exports_receipt_update BEFORE UPDATE OF format_version,period_ids_json,options_json ON source_exports
+        WHEN NEW.format_version=2 AND NOT (${validReceipt})
+        BEGIN SELECT RAISE(ABORT,'source_exports value constraint'); END;`);
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (10)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
 }

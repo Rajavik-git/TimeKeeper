@@ -11,6 +11,8 @@ export function RulesSection({ catalogState, action, saved, notify }: SectionPro
   const [ruleType, setRuleType] = useState<"daily_research_cap" | "nonbillable_travel">(
     "daily_research_cap",
   );
+  const [researchMinutes, setResearchMinutes] = useState("30");
+  const [error, setError] = useState("");
   const { head, sorted } = useSettingsSort("rules", notify);
   return (
     <section className="settings-card settings-rules">
@@ -89,19 +91,56 @@ export function RulesSection({ catalogState, action, saved, notify }: SectionPro
             value={ruleType}
             onChange={(event) => setRuleType(event.target.value as typeof ruleType)}
           >
-            <option value="daily_research_cap">Daily research cap (30m)</option>
+            <option value="daily_research_cap">Daily research cap</option>
             <option value="nonbillable_travel">Non-billable travel</option>
           </select>
+          {ruleType === "daily_research_cap" && (
+            <label>
+              Research minutes per day
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="6"
+                aria-label="Research minutes per day"
+                value={researchMinutes}
+                onChange={(event) => setResearchMinutes(event.target.value)}
+                aria-describedby="research-increment"
+              />
+              <span id="research-increment" className="muted">
+                {" "}
+                Use 6-minute increments.
+              </span>
+            </label>
+          )}
+          {error && (
+            <p role="alert" className="settings-error">
+              {error}
+            </p>
+          )}
           <button
             className="btn primary"
             disabled={selectedRuleClient === undefined}
             onClick={async () => {
               if (selectedRuleClient === undefined) return;
+              const minutes = researchMinutes.trim() ? Number(researchMinutes) : NaN;
+              if (
+                ruleType === "daily_research_cap" &&
+                (!Number.isSafeInteger(minutes) || minutes < 0 || minutes % 6 !== 0)
+              ) {
+                setError("Enter a non-negative number of minutes in 6-minute increments.");
+                return;
+              }
+              setError("");
               if (
                 await saved(
                   action(
                     api.POST("/api/catalog/client-rules", {
-                      body: { clientId: selectedRuleClient, type: ruleType },
+                      body: {
+                        clientId: selectedRuleClient,
+                        type: ruleType,
+                        ...(ruleType === "daily_research_cap" ? { value: minutes / 6 } : {}),
+                      },
                     }),
                   ),
                 )

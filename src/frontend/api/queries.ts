@@ -69,6 +69,7 @@ export async function loadApplication(signal: AbortSignal) {
     billing,
     auditEvents,
     coverageGaps,
+    reconstructionConflicts,
   ] = await Promise.all([
     api.GET("/api/catalog", { signal }),
     api.GET("/api/sessions/active", { signal }),
@@ -79,6 +80,7 @@ export async function loadApplication(signal: AbortSignal) {
     api.GET("/api/billing/state", { signal }),
     api.GET("/api/audit-events", { signal }),
     api.GET("/api/coverage-gaps", { signal, params: { query: { timeZone: systemTimeZone() } } }),
+    api.GET("/api/reconstruction-conflicts", { signal }),
   ]);
   const workspaceState: CoreState = {
     activeSession: requireData(active),
@@ -89,6 +91,7 @@ export async function loadApplication(signal: AbortSignal) {
     coverageGaps: requireData(coverageGaps),
     billing: requireData(billing),
     auditEvents: requireData(auditEvents),
+    reconstructionConflicts: requireData(reconstructionConflicts),
   };
   return { catalogState: requireData(catalog), workspaceState };
 }

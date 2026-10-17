@@ -133,16 +133,18 @@ export class SourceExportService {
         options: request.options,
       };
       const payload = JSON.stringify(pack);
+      const receipt = this.recordReceipt(payload, periodIds, request.options);
+      return { export: receipt, payload };
+    });
+  }
+  /** The receipt encoding is versioned independently of the exported payload. */
+  recordReceipt(payload: string, periodIds: string[], options: string[]) {
+    return this.port.transaction(() => {
       const sha256 = createHash("sha256").update(payload).digest("hex");
       const createdAt = this.now();
-      const receipt = this.port.saveReceipt({
-        periodIds,
-        options: request.options,
-        sha256,
-        createdAt,
-      });
+      const receipt = this.port.saveReceipt({ periodIds, options, sha256, createdAt });
       this.port.auditExport(sha256, createdAt);
-      return { export: receipt, payload };
+      return receipt;
     });
   }
   invoiceCsv(id: number) {

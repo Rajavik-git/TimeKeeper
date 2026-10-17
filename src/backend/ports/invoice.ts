@@ -1,4 +1,5 @@
 export interface InvoicePeriod {
+  effectiveDurationMs: number | null;
   id: string;
   caseId: string | null;
   effectiveRevision: number;
@@ -16,6 +17,8 @@ export interface InvoiceExpense {
   type: "expense" | "disbursement";
 }
 export interface InvoiceCase {
+  vatRate: number;
+  vatApplicable: boolean;
   id: string;
   mode: "hourly" | "flat_fee";
   flatFeeCents: number | null;

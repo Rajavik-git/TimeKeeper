@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { format, parseISO } from "date-fns";
 import { clientForCase, type Case, type ScreenProps } from "../../api/client";
 import { draftInvoice, formatRoundedMinutes } from "../../calculations/billing";
 import { previousBillingMetrics } from "../../calculations/cases";
@@ -70,7 +71,7 @@ export function BillingOverview({ catalogState, workspaceState, navigate, onSele
     };
   }, [openCases.length]);
   const prior = previousBillingMetrics(catalogState, workspaceState, today);
-  const note = `Changes in % compare with the same period last month (${new Date(`${prior.previousDay.slice(0, 7)}-01T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}–${prior.previousDay.slice(-2)}).`;
+  const note = `Estimates use current rates and billing state. Changes in % compare with the same period last month (${format(parseISO(`${prior.previousDay.slice(0, 7)}-01`), "MMM d")}–${prior.previousDay.slice(-2)}).`;
   const ready = openCases.filter(
     (row) =>
       row.item.mode !== "flat_fee" && row.preview.pendingPeriods === 0 && row.preview.complete,
@@ -177,7 +178,7 @@ export function BillingOverview({ catalogState, workspaceState, navigate, onSele
                   }
                 >
                   {!preview.complete
-                    ? "Resolve coverage gaps"
+                    ? "Review incomplete coverage"
                     : preview.pendingPeriods
                       ? `${preview.pendingPeriods} to validate`
                       : caseItem.mode === "flat_fee"

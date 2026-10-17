@@ -637,6 +637,30 @@ export class SqliteRepository implements Repository {
       .where(eq(tables.sources.id, s.id))
       .run();
   }
+  reconstructionConflicts() {
+    return orm(this.db)
+      .select({
+        id: tables.reconstruction_conflicts.id,
+        periodId: tables.reconstruction_conflicts.protected_period_id,
+        sessionId: tables.work_periods.session_id,
+        expectedRevision: tables.reconstruction_conflicts.expected_revision,
+        proposedStartedAt: tables.reconstruction_conflicts.proposed_started_at,
+        proposedEndedAt: tables.reconstruction_conflicts.proposed_ended_at,
+        sourceReferencesJson: tables.reconstruction_conflicts.source_references_json,
+        status: tables.reconstruction_conflicts.status,
+      })
+      .from(tables.reconstruction_conflicts)
+      .innerJoin(
+        tables.work_periods,
+        eq(tables.work_periods.id, tables.reconstruction_conflicts.protected_period_id),
+      )
+      .all()
+      .map(({ sourceReferencesJson, ...row }) => ({
+        ...row,
+        sourceReferences: JSON.parse(sourceReferencesJson) as string[],
+        status: row.status as "pending" | "resolved",
+      }));
+  }
   insertConflict(
     id: string,
     periodId: string,

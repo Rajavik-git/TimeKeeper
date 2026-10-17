@@ -70,7 +70,18 @@ export interface CoverageGap {
   endedAt: string;
   status: "pending" | "failed";
 }
+export interface ReconstructionConflict {
+  id: string;
+  periodId: string;
+  sessionId: string;
+  expectedRevision: number;
+  proposedStartedAt: string;
+  proposedEndedAt: string | null;
+  sourceReferences: string[];
+  status: "pending" | "resolved";
+}
 export interface Repository {
+  reconstructionConflicts(): ReconstructionConflict[];
   transaction<T>(work: () => T): T;
   activeSession(): SessionRecord | null;
   listSessions(): SessionRecord[];

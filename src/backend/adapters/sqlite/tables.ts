@@ -7,7 +7,7 @@ export const assignment_deliveries = sqliteTable("assignment_deliveries", {
   tag_target_id: text("tag_target_id").notNull(),
   target_revision: integer("target_revision").notNull(),
   intended_tags_json: text("intended_tags_json").notNull(),
-  status: text("status").notNull(),
+  status: text("status", { enum: ["pending", "verified", "failed", "blocked"] }).notNull(),
   attempts: integer("attempts")
     .notNull()
     .default(sql`0`),
@@ -57,7 +57,7 @@ export const cases = sqliteTable("cases", {
   reference: text("reference").notNull(),
   title: text("title").notNull(),
   hourly_rate_cents: integer("hourly_rate_cents"),
-  status: text("status")
+  status: text("status", { enum: ["active", "archived"] })
     .notNull()
     .default(sql`'active'`),
   created_at: text("created_at").notNull(),
@@ -71,7 +71,7 @@ export const cases = sqliteTable("cases", {
   opposing_party: text("opposing_party")
     .notNull()
     .default(sql`''`),
-  mode: text("mode")
+  mode: text("mode", { enum: ["hourly", "flat_fee"] })
     .notNull()
     .default(sql`'hourly'`),
   flat_fee_cents: integer("flat_fee_cents"),
@@ -103,7 +103,7 @@ export const client_rule = sqliteTable("client_rule", {
 export const client_rules = sqliteTable("client_rules", {
   id: integer("id").primaryKey(),
   client_id: text("client_id").notNull(),
-  type: text("type").notNull(),
+  type: text("type", { enum: ["daily_research_cap", "nonbillable_travel"] }).notNull(),
   value: integer("value").notNull(),
   label: text("label").notNull(),
 });
@@ -117,10 +117,10 @@ export const clients = sqliteTable("clients", {
   created_at: text("created_at").notNull(),
   updated_at: text("updated_at").notNull(),
   code: text("code"),
-  type: text("type")
+  type: text("type", { enum: ["individual", "company"] })
     .notNull()
     .default(sql`'individual'`),
-  mode: text("mode")
+  mode: text("mode", { enum: ["hourly", "subscription"] })
     .notNull()
     .default(sql`'hourly'`),
   hourly_rate_cents: integer("hourly_rate_cents"),
@@ -157,7 +157,7 @@ export const expenses = sqliteTable("expenses", {
   case_id: text("case_id").notNull(),
   date: text("date").notNull(),
   label: text("label").notNull(),
-  type: text("type").notNull(),
+  type: text("type", { enum: ["expense", "disbursement"] }).notNull(),
   amount_cents: integer("amount_cents").notNull(),
   invoice_id: integer("invoice_id"),
 });
@@ -199,7 +199,7 @@ export const invoice_line = sqliteTable("invoice_line", {
 export const invoice_lines = sqliteTable("invoice_lines", {
   id: integer("id").primaryKey(),
   invoice_id: integer("invoice_id").notNull(),
-  origin: text("origin").notNull(),
+  origin: text("origin", { enum: ["work_period", "flat_fee", "expense"] }).notNull(),
   origin_id: text("origin_id").notNull(),
   label: text("label").notNull(),
   billed_minutes: integer("billed_minutes").notNull(),
@@ -214,8 +214,8 @@ export const invoices = sqliteTable("invoices", {
   case_id: text("case_id").notNull(),
   number: text("number").notNull(),
   date: text("date").notNull(),
-  type: text("type").notNull(),
-  status: text("status").notNull(),
+  type: text("type", { enum: ["deposit", "final"] }).notNull(),
+  status: text("status", { enum: ["sent", "issued"] }).notNull(),
   subtotal_cents: integer("subtotal_cents"),
   vat_cents: integer("vat_cents"),
   disbursements_cents: integer("disbursements_cents"),
@@ -258,7 +258,18 @@ export const marker = sqliteTable("marker", {
 export const markers = sqliteTable("markers", {
   id: integer("id").primaryKey(),
   case_id: text("case_id").notNull(),
-  type: text("type").notNull(),
+  type: text("type", {
+    enum: [
+      "reference",
+      "case_number",
+      "opposing_party",
+      "client_name",
+      "file",
+      "email",
+      "domain",
+      "keyword",
+    ],
+  }).notNull(),
   value: text("value").notNull(),
   weight: real("weight").notNull(),
   learned: integer("learned")
@@ -302,7 +313,7 @@ export const pending_questions = sqliteTable("pending_questions", {
   session_id: text("session_id").notNull(),
   work_period_id: text("work_period_id").notNull(),
   expected_assignment_revision: integer("expected_assignment_revision").notNull(),
-  status: text("status").notNull(),
+  status: text("status", { enum: ["pending", "answered", "superseded"] }).notNull(),
   response_command_id: text("response_command_id"),
   response_result_json: text("response_result_json"),
 });
@@ -313,7 +324,7 @@ export const processed_commands = sqliteTable("processed_commands", {
   kind: text("kind").notNull(),
   payload_fingerprint: text("payload_fingerprint").notNull(),
   session_id: text("session_id"),
-  status: text("status").notNull(),
+  status: text("status", { enum: ["pending", "applied", "rejected"] }).notNull(),
   prerequisite_id: text("prerequisite_id"),
   payload_json: text("payload_json").notNull(),
   result_json: text("result_json"),
@@ -328,7 +339,7 @@ export const reconstruction_conflicts = sqliteTable("reconstruction_conflicts", 
   proposed_started_at: text("proposed_started_at").notNull(),
   proposed_ended_at: text("proposed_ended_at"),
   source_references_json: text("source_references_json").notNull(),
-  status: text("status")
+  status: text("status", { enum: ["pending", "resolved"] })
     .notNull()
     .default(sql`'pending'`),
 });
@@ -341,7 +352,7 @@ export const retrieval_progress = sqliteTable("retrieval_progress", {
   requested_end_at: text("requested_end_at").notNull(),
   cursor: text("cursor"),
   last_completed_at: text("last_completed_at"),
-  status: text("status").notNull(),
+  status: text("status", { enum: ["pending", "complete", "failed"] }).notNull(),
 });
 
 export const schema_migrations = sqliteTable("schema_migrations", {
@@ -394,7 +405,7 @@ export const settings = sqliteTable("settings", {
   lawyer_name: text("lawyer_name"),
   address: text("address"),
   vat_number: text("vat_number"),
-  base_unit: text("base_unit")
+  base_unit: text("base_unit", { enum: ["hour", "intervention"] })
     .notNull()
     .default(sql`'hour'`),
   vat_rate: real("vat_rate")
@@ -424,7 +435,7 @@ export const settings = sqliteTable("settings", {
   pill_always_on_top: integer("pill_always_on_top")
     .notNull()
     .default(sql`1`),
-  pill_display: text("pill_display")
+  pill_display: text("pill_display", { enum: ["fees", "time", "case"] })
     .notNull()
     .default(sql`'fees'`),
   pill_withhold_calls: integer("pill_withhold_calls")
@@ -457,6 +468,7 @@ export const source_exports = sqliteTable("source_exports", {
   options_json: text("options_json").notNull(),
   sha256: text("sha256").notNull(),
   created_at: text("created_at").notNull(),
+  format_version: integer("format_version").notNull().default(1),
 });
 
 export const source_relocations = sqliteTable("source_relocations", {
@@ -477,11 +489,13 @@ export const sources = sqliteTable("sources", {
   app_name: text("app_name"),
   window_name: text("window_name"),
   url: text("url"),
-  validation_status: text("validation_status")
+  validation_status: text("validation_status", { enum: ["unvalidated", "validated"] })
     .notNull()
     .default(sql`'unvalidated'`),
   validated_at: text("validated_at"),
-  availability_status: text("availability_status")
+  availability_status: text("availability_status", {
+    enum: ["unknown", "available", "unavailable"],
+  })
     .notNull()
     .default(sql`'unknown'`),
   availability_checked_at: text("availability_checked_at"),
@@ -540,15 +554,15 @@ export const work_periods = sqliteTable("work_periods", {
   session_id: text("session_id").notNull(),
   case_id: text("case_id"),
   initial_case_id: text("initial_case_id"),
-  initial_origin: text("initial_origin").notNull(),
+  initial_origin: text("initial_origin", { enum: ["unresolved", "automatic", "lawyer"] }).notNull(),
   started_at: text("started_at").notNull(),
   ended_at: text("ended_at"),
   detected_duration_ms: integer("detected_duration_ms"),
   duration_override_ms: integer("duration_override_ms"),
-  assignment_origin: text("assignment_origin")
+  assignment_origin: text("assignment_origin", { enum: ["unresolved", "automatic", "lawyer"] })
     .notNull()
     .default(sql`'unresolved'`),
-  time_validation_status: text("time_validation_status")
+  time_validation_status: text("time_validation_status", { enum: ["unvalidated", "validated"] })
     .notNull()
     .default(sql`'unvalidated'`),
   effective_revision: integer("effective_revision")
@@ -556,7 +570,7 @@ export const work_periods = sqliteTable("work_periods", {
     .default(sql`0`),
   validated_effective_revision: integer("validated_effective_revision"),
   time_validated_at: text("time_validated_at"),
-  billing_status: text("billing_status")
+  billing_status: text("billing_status", { enum: ["unbilled", "billed"] })
     .notNull()
     .default(sql`'unbilled'`),
   billed_at: text("billed_at"),

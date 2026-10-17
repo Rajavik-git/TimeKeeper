@@ -531,6 +531,9 @@ export class TimeKeeperService {
       return result;
     });
   }
+  reconstructionConflicts() {
+    return this.repo.reconstructionConflicts();
+  }
   setDetectedDuration(id: string, durationMs: number | null): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id);
@@ -545,10 +548,16 @@ export class TimeKeeperService {
       return view(next);
     });
   }
-  setDurationOverride(id: string, durationMs: number | null): PeriodView {
+  setDurationOverride(
+    id: string,
+    durationMs: number | null,
+    expectedRevision?: number,
+  ): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id);
       if (!p) throw new AppError("not-found", "period not found");
+      if (expectedRevision !== undefined && p.revision !== expectedRevision)
+        throw new AppError("conflict", "stale period revision");
       if (p.billingStatus === "billed")
         throw new AppError("pending", "billed-period edit policy is open");
       const next = {
@@ -621,10 +630,13 @@ export class TimeKeeperService {
       nonbillableReason?: string | null;
       excluded?: boolean;
     },
+    expectedRevision?: number,
   ): PeriodView {
     return this.repo.transaction(() => {
       const period = this.repo.period(id);
       if (!period) throw new AppError("not-found", "period not found");
+      if (expectedRevision !== undefined && period.revision !== expectedRevision)
+        throw new AppError("conflict", "stale period revision");
       if (period.billingStatus === "billed")
         throw new AppError("conflict", "billed period must be unbilled before editing");
       if (
@@ -659,10 +671,15 @@ export class TimeKeeperService {
       return view(next);
     });
   }
-  validatePeriod(id: string): PeriodView {
+  validatePeriod(id: string, expectedEffectiveRevision?: number): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id);
       if (!p) throw new AppError("not-found", "period not found");
+      if (
+        expectedEffectiveRevision !== undefined &&
+        p.effectiveRevision !== expectedEffectiveRevision
+      )
+        throw new AppError("conflict", "stale effective revision");
       if (p.caseId === null || (p.durationOverrideMs ?? p.detectedDurationMs) === null)
         throw new AppError(
           "pending",
@@ -673,10 +690,16 @@ export class TimeKeeperService {
       return view(next);
     });
   }
-  setBillingStatus(id: string, status: "unbilled" | "billed"): PeriodView {
+  setBillingStatus(
+    id: string,
+    status: "unbilled" | "billed",
+    expectedRevision?: number,
+  ): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id);
       if (!p) throw new AppError("not-found", "period not found");
+      if (expectedRevision !== undefined && p.revision !== expectedRevision)
+        throw new AppError("conflict", "stale period revision");
       if (status === "unbilled" && p.invoiceId != null)
         throw new AppError("pending", "issued invoice reversal is not defined");
       if (status === "billed" && (p.caseId === null || !timeIsValidated(p)))
