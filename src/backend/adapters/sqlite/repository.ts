@@ -55,18 +55,23 @@ export function openDb(
   path = resolve(projectRoot, process.env.TIMEKEEPER_DB ?? "data/timekeeper.db"),
 ) {
   mkdirSync(dirname(path), { recursive: true });
-  const firstRun = !existsSync(path);
+  const fileExisted = existsSync(path);
   const db = new DatabaseSync(path);
+  const firstRun = !db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='setting'").get();
   if (firstRun) {
     try {
+      db.exec("PRAGMA foreign_keys = ON");
+      db.exec("BEGIN IMMEDIATE");
       db.exec(schemaSql());
       db.exec(seedSql());
+      db.exec("COMMIT");
       refreshDemoRecognition(db);
       seedCanonicalDemo(db);
       return db;
     } catch (error) {
+      if (db.isTransaction) db.exec("ROLLBACK");
       db.close();
-      rmSync(path, { force: true });
+      if (!fileExisted) rmSync(path, { force: true });
       throw error;
     }
   }
