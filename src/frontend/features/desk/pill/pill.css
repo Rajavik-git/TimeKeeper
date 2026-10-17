@@ -1,7 +1,7 @@
 @import "@fontsource-variable/geist/wght.css";
 @import "@fontsource-variable/geist-mono/wght.css";
 :root {
-  font-family:"Geist",ui-sans-serif,system-ui,sans-serif;
+  font-family:"Geist Variable",ui-sans-serif,system-ui,sans-serif;
   color:#18181b;
   background:transparent;
   --pill-bg:#f7f7f8;
@@ -168,6 +168,16 @@ button,select {
 .pill-select select {
   width:100%;
   color:inherit;
+  min-height:38px;
+  padding:0 28px 0 10px;
+  appearance:none;
+  font-family:"Geist Variable",ui-sans-serif,system-ui,sans-serif;
+  background-color:var(--pill-panel);
+  background-image:linear-gradient(45deg,transparent 50%,var(--pill-muted) 50%),linear-gradient(135deg,var(--pill-muted) 50%,transparent 50%);
+  background-position:calc(100% - 14px) 15px,calc(100% - 10px) 15px;
+  background-size:4px 4px;
+  background-repeat:no-repeat;
+  border-radius:6px;
 }
 
 .pill-open {

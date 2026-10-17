@@ -32,7 +32,7 @@ How to read the sections:
 | Server | Hono with `@hono/node-server`, started by `src/backend/api/index.ts`. |
 | Address | `127.0.0.1` only, port `8787`, overridable with `TIMEKEEPER_PORT`. |
 | Routes | Demo and mockup routes in `src/backend/api/app.ts`. Canonical session, period, question, source, and billing routes in `src/backend/api/core-routes.ts`, mounted under `/api`. |
-| Browser origins | CORS allow-list in `app.ts:25-33`: Tauri origins and the Vite dev server (`127.0.0.1:5173`, `localhost:5173`). Other origins get `403`. Requests without an `Origin` header are allowed. |
+| Browser origins | CORS allow-list in `app.ts`: Tauri origins and the Vite dev server (`127.0.0.1:5173`, `localhost:5173`). `UI_PORT` adds the dev server on another port (`127.0.0.1` and `localhost`), and `TIMEKEEPER_ALLOWED_ORIGINS` adds a comma-separated list, for example a shared preview (both from `mvp` at `d7ce0e0`). Other origins get `403 forbidden-origin`. Requests without an `Origin` header are allowed. |
 | Bodies | JSON. |
 | Authentication | None. Any local process can call the API. Kept as is for the hackathon ([D1](#d1-no-local-access-token-for-the-hackathon)). |
 | Frontend client | `openapi-fetch` with generated types, in `src/frontend/api/client.ts`. |
