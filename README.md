@@ -4,18 +4,18 @@ TimeKeeper is a planned desktop application for macOS and Windows. It uses Scree
 
 ## Status and scope
 
-The repository contains documentation and the folder skeleton defined in [AGENTS.md](AGENTS.md). Empty folders contain `.gitkeep` placeholders so Git can retain them. The selected stack is Tauri, React, a local Node.js backend, and SQLite. No dependencies, executable application, SQL migration, or runtime integration exists yet.
+The repository contains the product documentation and a disabled Screenpipe pipe with optional JEV instructions. The desktop application, backend API, MCP tools, and database migrations are not implemented. The selected application stack is Tauri, React, a local Node.js backend, and SQLite. See [AGENTS.md](AGENTS.md) for code ownership.
 
 ## Development setup
 
-The application cannot run locally yet. Git is sufficient to clone the current documentation checkout. The other prerequisites below prepare the planned development environment.
+The desktop application cannot run locally yet. The tools below prepare its future development environment. The Screenpipe pipe does not require a TimeKeeper Node.js package or TypeSafe SDK.
 
 ### Prerequisites
 
 | Requirement | Setup |
 | --- | --- |
 | Git | Install Git to clone the repository. |
-| Node.js | Install an [LTS release](https://nodejs.org/en/download) for the React frontend and Node backend. The project version remains to be pinned. |
+| Node.js and npm | Install a supported [Node.js release](https://nodejs.org/en/download) for future application development. The application toolchain remains to be pinned. |
 | Rust and Cargo | Install the stable toolchain through [rustup](https://rust-lang.org/tools/install/). These tools build the Tauri host. The project version remains to be pinned. |
 | macOS build tools | Install Xcode Command Line Tools with `xcode-select --install`. Full Xcode is optional for this desktop-only project. |
 | Windows build tools | Install Microsoft C++ Build Tools with the **Desktop development with C++** workload and Microsoft Edge WebView2 Runtime. Use the Rust MSVC toolchain for the target architecture. |
@@ -23,7 +23,7 @@ The application cannot run locally yet. Git is sufficient to clone the current d
 
 Follow the official [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/) for the native build tools. These platform requirements do not establish a tested TimeKeeper compatibility matrix.
 
-The JavaScript package manager has not been selected. SQLite will be an application dependency and does not require a separate database server. No SQLite CLI is required by the current design.
+Application dependencies remain unconfigured. SQLite will be an application dependency and does not require a separate database server or CLI.
 
 ### Install the tools on macOS
 
@@ -120,25 +120,63 @@ On macOS, `xcode-select -p` checks the selected developer-tools directory. On Wi
 
 ### Optional JEV integration for Screenpipe
 
-JEV is optional and belongs only to the Screenpipe workflow. Skip this section unless you enable that integration. Installing and starting TimeKeeper does not require JEV, a TypeSafe API key, or the TypeSafe SDK. See the [integration boundary](docs/ARCHITECTURE.md#mcp-and-jev-boundaries).
+The integration consists of [pipe.md](integrations/screenpipe/pipes/timekeeper/pipe.md). Its instructions let the Screenpipe agent ask JEV whether the active case changed and, if so, which existing case matches. There is no helper script, SDK, package install, or separate skill import. JEV is optional: without the installed pipe's `.env`, the workflow skips JEV. See the [pipe workflow](docs/ARCHITECTURE.md#jev-pipe-workflow).
 
-When enabled, the proposed integration calls JEV through TypeSafe's hosted API. It does not require a local JEV binary, model download, or GPU.
+JEV has no workflow memory. Each comparison includes the active case, its previous observation, and the newer observation. `same_case` returns `no_change`; `uncertain` does not switch the assignment. For a supported switch, the workflow identifies a unique existing destination automatically and returns `identified` with `applied: false`. It sends an unresolved-switch request through MCP only when no unique destination matches. Read-only MCP case queries remain allowed.
 
-1. Create an API key in the [TypeSafe console](https://console.typesafe.ai/), as described in its [quick start](https://docs.typesafe.ai/introduction/quickstart).
-2. Allow the Screenpipe workflow to reach `POST https://api.typesafe.ai/v1/systemone` over HTTPS. Requests use bearer-key authentication. See the [TypeSafe API reference](https://docs.typesafe.ai/api).
-3. Keep the key with the Screenpipe workflow that makes the request. TimeKeeper's frontend and application backend do not need it. See the [JEV ownership boundary](docs/ARCHITECTURE.md#mcp-and-jev-boundaries).
+Missing previous evidence means uncertain, not unchanged. Initial assignment, operational failures, and incomplete lookups do not trigger the switch request. The scoped MCP tool does not exist yet; a qualifying unresolved switch returns `blocked` with delivery `not_sent` while the tool is unavailable.
 
-Prefer Screenpipe's native credential storage when the selected release supports the required connection. Screenpipe documents a secure store and local connection proxies, but its integration list does not include TypeSafe. Custom TypeSafe connection support and credential delivery remain unverified. A `.env` file is not a required setup step. See [Screenpipe credential storage](https://docs.screenpipe.com/connection-reference#credential-storage).
+1. Start Screenpipe with its local API available.
+2. Import the pipe with Screenpipe's [local pipe installation](https://docs.screenpipe.com/scheduled-tasks). In bash, replace the absolute source path below. This command requires Bun, or `SCREENPIPE_CLI` set to an available Screenpipe CLI command.
 
-If the workflow uses the [TypeSafe JavaScript SDK](https://docs.typesafe.ai/sdk/javascript), it requires Node.js 22 or newer. The provider's installation command is:
+   ```sh
+   cd "$(mktemp -d)" && ${SCREENPIPE_CLI:-bun x screenpipe@latest} pipe install "/ABSOLUTE/PATH/TimeKeeper/integrations/screenpipe/pipes/timekeeper"
+   ```
 
-```sh
-npm install @typesafe-ai/sdk
+3. If you want to use JEV, create `~/.screenpipe/pipes/timekeeper/.env` in a local editor with these settings. Preserve any existing credentials.
+
+   ```dotenv
+   JEV_ALLOWED_FIELDS=
+   TYPESAFE_API_KEY=
+   TYPESAFE_MODEL=jev-latest
+   ```
+
+4. If you created `.env`, fill `TYPESAFE_API_KEY` locally with a key from the [TypeSafe console](https://console.typesafe.ai/). Set `JEV_ALLOWED_FIELDS` to the approved comma-separated fields listed [below](#allowed-jev-fields). There is no separate enable flag. An empty key or field selection prevents a request.
+5. Select a working AI preset for the task in **Scheduled tasks → My tasks**. Keep the pipe disabled until the required TimeKeeper tools and workflow contracts exist.
+
+To skip JEV, leave `.env` absent or move it out of the installed pipe directory. The agent must explicitly load this file in the same invocation as the request; it must not fall back to a key from the process environment. Keep the key out of `pipe.md`, prompts, and logs. The frontend and application backend do not need it.
+
+The pipe uses `schedule: manual` and `enabled: false`. Results retain the original target, baseline case, source references, and assignment revision. The application remains the only assignment writer. An identified destination is not saved or made the active case; matched-case persistence and repeated switch detection remain open. Missing TimeKeeper API and MCP tools, folder detection, and event delivery still prevent an end-to-end workflow.
+
+Field filtering and response checks are agent instructions, not code-enforced guarantees. Enabled JEV requests use TypeSafe's hosted API. Live requests, Screenpipe loading, and desktop platform behavior have not been verified.
+
+#### Allowed JEV fields
+
+`JEV_ALLOWED_FIELDS` is a TimeKeeper setting. It tells the Screenpipe agent which information it may send to TypeSafe. `previous_observation.` fields describe earlier evidence associated with the active case and its assignment revision. `observation.` fields describe the newer activity. `candidates.` fields describe existing cases returned by TimeKeeper.
+
+| Field | Information permitted in the request |
+| --- | --- |
+| `previous_observation.text` | Recorded screen text from the earlier observation. |
+| `previous_observation.app_name` | Application name from the earlier observation. |
+| `previous_observation.window_title` | Window title from the earlier observation. |
+| `previous_observation.url` | Page URL from the earlier observation, when available. |
+| `observation.text` | Recorded screen text, such as accessibility text or OCR output. |
+| `observation.app_name` | Name of the application associated with the observation. |
+| `observation.window_title` | Title of the recorded window. |
+| `observation.url` | Page URL associated with the observation, when available. |
+| `candidates.reference` | Reference of each candidate case. |
+| `candidates.title` | Title of each candidate case. |
+| `candidates.client_name` | Name of the client associated with each candidate case. |
+
+For example, this selection permits both window titles, case references, and case titles:
+
+```dotenv
+JEV_ALLOWED_FIELDS=previous_observation.window_title,observation.window_title,candidates.reference,candidates.title
 ```
 
-Run this only inside the Screenpipe workflow helper's package after that package exists. The current repository has no package manifest. Direct HTTP requests do not require the SDK. The SDK reads `TYPESAFE_API_KEY` from its process environment. A key stored by Screenpipe is not automatically available to the SDK without an integration that supplies it.
+Select only fields approved for your deployment. Previous-observation fields require explicit selection; permission for `observation.` fields does not include them. A comparison needs at least one permitted field containing text from each observation. Initial assignment needs only the newer observation. Every candidate also needs at least one permitted descriptive field containing text. Missing required content or an unsupported selection prevents a request.
 
-Before sending recorded context, resolve the [permitted-data decision](docs/DESIGN_REVIEW.md#decisions-needed-before-dependent-implementation). The JEV integration is not implemented or tested yet.
+The pipe instructs the agent to exclude screenshots, actual case and client IDs, timestamps, and assignment revisions. It uses temporary aliases for case and client IDs. Selecting a field does not redact private information within its text. See the [configuration and data boundary](docs/ARCHITECTURE.md#jev-configuration-and-data-boundary) for the full contract.
 
 ### Get the source
 
@@ -157,7 +195,7 @@ Before sending recorded context, resolve the [permitted-data decision](docs/DESI
 3. Read [AGENTS.md](AGENTS.md), the [requirements](docs/REQUIREMENTS.md), and the [architecture](docs/ARCHITECTURE.md).
 4. Review the [implementation gates](docs/DESIGN_REVIEW.md) before starting application work.
 
-No `package.json`, `Cargo.toml`, Tauri configuration, or database migrations exist. Dependency installation, local startup, migration, build, lint, and test commands must be added here when the corresponding tooling exists.
+No root `package.json`, `Cargo.toml`, Tauri configuration, or database migration exists. Application dependencies and commands such as `npm ci` and `npm run dev` are not configured. There are no application build or test commands yet.
 
 ## MVP behavior
 

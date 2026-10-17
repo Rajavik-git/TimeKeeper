@@ -1,6 +1,6 @@
 # TimeKeeper requirements
 
-This document is the authoritative record of agreed business rules, use cases, and open product decisions. The user's latest explicit decisions take precedence. The repository contains documentation and an empty folder skeleton. These requirements do not establish that the application or integrations work.
+This document is the authoritative record of agreed business rules, use cases, and open product decisions. The user's latest explicit decisions take precedence. The repository includes a disabled Screenpipe pipe with optional JEV instructions. The application remains unimplemented. These requirements do not establish working end-to-end integration.
 
 See [Architecture](ARCHITECTURE.md) for component ownership and integration flows, and [Data model](DATABASE.md) for storage responsibilities and constraints. Provider capabilities and verification gaps remain in the Screenpipe research documents.
 
@@ -39,6 +39,10 @@ Reusable folder learning, chat-calculated summaries, and advanced currency behav
 - A case correction affects the selected period and its sources. It must preserve other periods and must not change the current active case when correcting historical work.
 - Reconstruction must not automatically split, merge, or replace a corrected or validated period. Preserve that period, its sources, and its overrides, and flag the proposed reconstruction for review. A reconstruction proposal must not discard the override or copy or distribute it across replacement periods. Do not count candidate replacement time alongside the original period.
 - JEV is optional and used only by the Screenpipe workflow. Installing and starting TimeKeeper must not require JEV, a TypeSafe API key, or the TypeSafe SDK. When enabled, JEV can assist ambiguous decisions among existing cases. It cannot invent IDs or validate time for the lawyer. A manual correction takes precedence over later automatic results and retries.
+- When JEV is configured, the workflow asks it whether work stayed on the active case, switched cases, or is uncertain. Supply the authoritative active case, a previous observation associated with it, and the new observation. A candidate selection alone does not establish a switch. The workflow must not require a switch to be established before asking JEV to assess it.
+- Missing comparison evidence or conflicting model results are uncertain, not confirmation of continued work. Ordinary uncertainty must not change the assignment. An independently established unknown-folder transition still requires an unresolved period and the lawyer's answer. With no active case, case selection is initial assignment, not switch detection.
+- After a supported switch, the pipe automatically tries to identify the destination among existing cases. Return a unique supported match to Screenpipe without an MCP write or direct application API write. Identification does not save the assignment, validate time, or advance the application's authoritative active case. The persistence path for matched cases remains open.
+- Send an unresolved-switch request through MCP only when a completed lookup and valid assessment cannot identify a unique destination. This includes an independently established unknown-folder switch without JEV. The application owns the unresolved period and lawyer question. Read-only MCP case queries remain allowed. Uncertain transitions, initial assignment, incomplete lookup, and operational failures do not trigger this switch handoff. Missing MCP support must remain visibly undelivered.
 
 ### Evidence, duration, and rounding
 
@@ -74,7 +78,7 @@ Source validation remains separate throughout these transitions. The open billed
 
 ### Screenpipe interaction
 
-- Screenpipe owns the workflow after a trigger. Its workflow reads memory and submits scoped commands through TimeKeeper MCP and the application API. The Node backend validates and persists those commands.
+- Screenpipe owns the workflow after a trigger. Its workflow reads memory and submits authorized scoped commands through TimeKeeper MCP and the application API. For pipe switch results, only unresolved destinations use this write handoff; matched results stay in Screenpipe. The Node backend validates and persists accepted commands.
 - Screenpipe chat queries application details through read-only MCP tools and the API when those services are available.
 - Return resolved case associations to Screenpipe for the affected evidence. Update assignment metadata without rewriting source recordings. Track pending or failed synchronization, and confirm synchronization only after verification. A chat answer alone is not proof of stored assignment.
 - Record enough identity and revision information to prevent duplicate commands, duplicate evidence, stale automatic updates, and synchronization loops.
@@ -111,7 +115,7 @@ These examples define required behavior. No acceptance checks have run.
 7. Correct the resolved earlier A period's time to 12 minutes, then validate it. A replay must preserve the correction and validation if its effective case and duration are unchanged.
 8. Calculate the selected summary from precise effective durations, including the 12-minute override. Sum first and round the combined total upward. Show missing coverage and omit unaccepted replacement candidates from counted time. Source validation and billing status remain separate.
 
-The folder-identification, duration-derivation, and closed-app delivery mechanisms must be defined before this journey can pass.
+The folder-identification, matched-case persistence, duration-derivation, and closed-app delivery mechanisms must be defined before this journey can pass.
 
 ### Failure and recovery examples
 
@@ -132,11 +136,28 @@ The folder-identification, duration-derivation, and closed-app delivery mechanis
 15. During recovery, a new start depends on an earlier session's pending end. Apply that end first, then create the new session. Do not return the earlier session as if this were a repeated start.
 16. Screenpipe chat queries a stored period while TimeKeeper is available. Return the same case ID and validation state shown in the interface.
 
+### JEV continuity assessment
+
+These examples define the optional model workflow's intended behavior. They do not establish model accuracy. The development pipe returns identified matches to Screenpipe and specifies an MCP handoff only for unresolved switches. The application tools required for that handoff are not implemented.
+
+1. Work on case A in a document editor, then research A in a browser. If the evidence supports continuity, report `same_case` and propose no new period.
+2. Move from work on A to work on B inside the same application. If the evidence supports the transition and a unique existing B match, report `case_switch` with B identified and `applied: false`. Send no MCP write or direct API write. Do not advance the authoritative baseline to B from this result.
+3. A sidebar or quoted document mentions B while the lawyer still works on A. The mention alone must not produce a B switch proposal.
+4. Previous evidence is missing, or the observations cannot distinguish A from B. Report `uncertain`. Do not label uncertainty as `same_case` or invent a switch.
+5. An unknown-folder transition with no identified destination is independently established after a completed case lookup. Request application handling through the scoped MCP handoff, even if JEV is disabled or previous comparison evidence is missing. The application must create the unresolved period and guarded lawyer question before claiming completion. A model guess cannot override this rule.
+6. JEV proposes a switch but its destination selection is A, the active case. Treat the conflicting results as uncertain and send no switch command. A supported switch with no unique destination after a completed lookup follows the MCP handoff for the lawyer's answer, not an assignment to A.
+7. The authoritative state has no active case and the new evidence supports B. Return an initial assignment proposal with comparison not evaluated. Do not label it a switch.
+8. A result based on revision 7 arrives after a manual correction creates revision 8. Retain revision 7 in the result and reject any stale application attempt. Do not replace the baseline or undo the correction.
+9. The candidate lookup fails or has missing pages, or the provider returns an invalid result. Report the failure without sending an unresolved-switch command. Missing data is not evidence that no case matches.
+10. An unresolved switch is ready, but no compatible MCP tool is registered. Report the handoff as blocked and not sent. If a dispatched call times out, report unconfirmed delivery instead. Receipt or pending processing must not be described as a created period or question.
+11. An initial assignment has no unique match. Report initial assignment as unresolved without using the switch handoff. Same-case and uncertain results also send no switch command.
+
 ## Decisions still required
 
 | Decision | Required before |
 | --- | --- |
 | Folder identification, matching metadata, and case-reference uniqueness | Automatic case resolution. |
+| Persisting matched cases when the pipe sends only unresolved switches through MCP | Saved known-case transitions and advancement of the authoritative active-case baseline. |
 | Duration derivation, gaps, overlapping observations, and manual entries without evidence | Automatic duration calculation. |
 | When the applied rate becomes fixed and how later corrections affect it | Historical monetary totals. |
 | Which reviewed or validated periods contribute to each summary | Summary calculation acceptance. |
@@ -144,6 +165,6 @@ The folder-identification, duration-derivation, and closed-app delivery mechanis
 | Editing a billed period and any resulting billing-status transition | Billing-status controls. |
 | Durable end-command delivery while closed, command schemas, and crash recovery | Session lifecycle implementation. |
 | Trigger producer, bridge, and assignment acknowledgement on both platforms | Automatic workflow and Screenpipe synchronization. |
-| JEV execution contract and allowed data, local access, retention, and deletion | Model integration and persisted data handling. |
+| JEV workflow integration and deployment-approved fields, local access, retention, and deletion | Live model requests and persisted data handling. The [pipe workflow](ARCHITECTURE.md#jev-pipe-workflow) does not resolve these deployment decisions. |
 
 Technical versions, packaging, database location, migrations, and backup behavior are also pending. These choices must preserve the agreed rules above.

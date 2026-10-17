@@ -2,7 +2,7 @@
 
 ## Scope and ownership
 
-This document describes the intended implementation of the [requirements](REQUIREMENTS.md). The application is not implemented. Screenpipe integration findings are source research, not runtime verification.
+This document describes the intended implementation of the [requirements](REQUIREMENTS.md). The application is not implemented. The repository provides a disabled Screenpipe pipe with instructions for optional JEV requests. It has no separate helper, SDK dependency, or setup script. Provider research and prompt review do not establish end-to-end runtime support.
 
 TimeKeeper uses a Tauri desktop host, React, a local Node.js backend, and SQLite. Tauri owns the backend process lifecycle. The packaged application must include the backend runtime or executable. Exact versions and packaging remain to be selected. See Tauri's [sidecar documentation](https://v2.tauri.app/develop/sidecar/) for the external binary mechanism.
 
@@ -16,7 +16,7 @@ flowchart LR
     subgraph SP[Screenpipe]
         Commands[Explicit start and end commands]
         Bridge[Context-change trigger bridge]
-        Workflow[Pipe workflow using TimeKeeper skill]
+        Workflow[Screenpipe pipe workflow]
         Memory[Recorded memory API]
         Tags[Case tags on source frames]
         Chat[Read-only chat queries]
@@ -40,7 +40,9 @@ flowchart LR
         API --> Adapter
     end
     Launcher --> Host
-    Workflow -->|When available: scoped commands| MCP
+    Workflow -->|Read case context| MCP
+    Workflow -->|When available: session commands and unresolved switches| MCP
+    Workflow -->|Matched case: identification only| Match[Screenpipe result; persistence open]
     Chat <-->|When available: read tools| MCP
     API -->|Retrieve review sources| Memory
     Adapter -.->|Reconcile and verify tags| Tags
@@ -79,16 +81,16 @@ Two implementation options remain open: durable command storage outside the desk
 
 The [case and work-period requirements](REQUIREMENTS.md#cases-and-work-periods) define assignment behavior. Folder identification and effective-boundary rules remain open. The matching ideas in the [integration research](SCREENPIPE_INTEGRATION.md#resolving-the-correct-case) are proposals.
 
-The intended assignment flow is:
+The selected pipe flow is:
 
 1. A verified Screenpipe signal wakes the Screenpipe workflow.
 2. The workflow retrieves persisted observations through the Screenpipe API.
 3. The workflow retrieves candidate cases through MCP and the application API.
-4. The workflow resolves an existing case, uses JEV when enabled and needed, or asks the lawyer.
-5. The workflow submits the assignment and its evidence through a scoped MCP command.
-6. Node checks the session boundary, case identity, expected revision, and manual corrections.
-7. One transaction saves the period assignment and pending source-tag delivery.
-8. The adapter reconciles the tags and records successful verification or retryable failure.
+4. The workflow assesses continuity and, for a supported switch, tries to identify the destination among existing cases.
+5. A unique supported match remains in the Screenpipe result, without an MCP write or direct API write. Saving that match and advancing the authoritative active case remain open integration decisions.
+6. Only a supported switch with no unique destination after a completed lookup is submitted through a scoped MCP command for application handling. Initial assignment, uncertain evidence, and lookup failures do not use this handoff.
+7. Node checks the original target, session boundary, expected revision, and manual corrections before creating an unresolved period and its guarded lawyer question. The command schema and effective-boundary rule still require implementation.
+8. The application processes a later lawyer answer through its single assignment write path. A committed assignment and pending source-tag delivery belong in one transaction. The adapter then reconciles and verifies the tags.
 
 Workflow question and answer payloads carry the identifiers and assignment guard defined in the requirements. The [pending-question records](DATABASE.md#technical-persistence) persist that guard across deliveries. Application services own answer validation and reconstruction-conflict persistence.
 
@@ -131,13 +133,64 @@ Synchronization retries must not undo a newer manual correction or trigger a det
 
 ## MCP and JEV boundaries
 
-Chat queries follow `Screenpipe chat -> MCP -> application API -> SQLite`. Workflow writes use separately scoped commands. Corrections and validations use the desktop interface. Exact tool schemas, transport compatibility, and local access controls remain to be implemented.
+Chat queries follow `Screenpipe chat -> MCP -> application API -> SQLite`. Workflow writes use separately scoped commands. The pipe sends only unresolved switch results through this write path; matched cases remain in Screenpipe. Read-only case queries are allowed for both branches. Corrections and validations use the desktop interface. Exact tool schemas, transport compatibility, and local access controls remain to be implemented.
 
 JEV is an optional Screenpipe integration. TimeKeeper installation and startup must not require JEV configuration, a TypeSafe API key, or the TypeSafe SDK. When enabled, the Screenpipe workflow owns JEV calls and candidate selection. Backend services validate the proposed case and evidence without running a second inference workflow. This keeps model orchestration outside the Node application modules.
 
 The [integration research](SCREENPIPE_INTEGRATION.md) records custom HTTP MCP support, skill import format, and JEV API evidence. An imported skill supplies instructions. It does not register the MCP connection or make an event listener. Hosted JEV inference also requires a decision about permitted source data.
 
 When TimeKeeper is stopped, chat cannot read its API and must report that application details are unavailable. No hidden backend is assumed. Chat-calculated summaries are deferred beyond the MVP; read-only detail queries remain in scope when the services are available.
+
+### JEV pipe workflow
+
+The self-contained [pipe.md](../integrations/screenpipe/pipes/timekeeper/pipe.md) contains the workflow instructions. Screenpipe's agent makes a direct HTTP request to TypeSafe through its available tools. No separate JavaScript helper, TypeSafe SDK, npm package, or imported skill is required.
+
+The pipe requests the authoritative active case, existing candidates, the target period, and its assignment revision through connected services. If search omits the active case, fetch its record separately and include it. A missing record is incomplete input, not an absent active case. Missing application tools block a run.
+
+Continuity assessment compares one previous recorded observation associated with that active case and revision against a newer observation in the same session. The workflow retrieves both through Screenpipe's API and checks their order locally. It must supply this comparison in each request rather than assume JEV remembers previous calls. Missing or out-of-order comparison evidence produces an uncertain result without inference. The workflow does not require another component to establish a switch before asking JEV.
+
+One HTTP request contains two independent `Choice` questions. `case_transition` selects `same_case`, `case_switch`, or `uncertain`. `case_selection` asks which existing case would be the destination if a switch is supported, with an explicit unresolved option. The agent consumes the selection only for a switch. For initial assignment with no active case, the request contains only `case_selection` and reports `transition: not_evaluated`.
+
+| Assessment | Workflow outcome |
+| --- | --- |
+| Same case | Report `no_change` and propose no new period. Ignore the destination answer. |
+| Uncertain | Report `unresolved` without a switch proposal. Preserve an ordinary ambiguous assignment without claiming continuity was established. Ignore the destination answer. |
+| Switch to another existing case | Return an automatically identified match to Screenpipe, with the original and destination case IDs and `applied: false`. Send no write command. |
+| Switch with no unique supported destination | Request application handling through a scoped MCP tool after a completed lookup. The application owns the unresolved period and lawyer question. Do not assign the new work to the previous case. |
+| Switch selects the active case | Report conflicting model results as uncertain. |
+| Initial assignment | Return a case proposal or unresolved result. Do not label it a switch or use the switch handoff. |
+
+An independently established unknown-folder transition with no identified destination after a completed lookup bypasses inference and follows the same MCP handoff, including when JEV is disabled or comparison evidence is missing. Operational failures, incomplete lookup, malformed responses, and uncertain switch evidence do not qualify as unmatched switches. A model result does not establish a verified folder-identification mechanism, a transition timestamp, or continuous duration. The [acceptance examples](REQUIREMENTS.md#jev-continuity-assessment) cover these distinctions.
+
+The agent retains the evaluated target, baseline case, available source references and capture timestamps, and expected revision locally. It must not replace the revision after a delayed response. An unsaved match must not become the authoritative baseline; subsequent runs can therefore detect the same switch again until matched-case persistence is defined. Initial assignment proposals still require review. Application commands must check session boundaries, revisions, and manual corrections before saving anything, and case eligibility when assigning a case.
+
+The case assessment reports `applied: false`; it does not itself save an assignment. The unresolved-switch handoff separately reports what the actual MCP tool acknowledged. Missing tools mean blocked and not sent. A timeout after dispatch means unconfirmed delivery; receipt or pending processing is not completion. No tool schema or durable retry mechanism exists yet. Do not invent a tool name, switch timestamp, or application-issued period or question ID. Do not replace missing MCP support with a direct API write.
+
+This is an agent workflow, not a versioned CLI input/output contract. It does not directly create periods or execute session commands. Application services own any unresolved records and question guards created by a future MCP command. Matched output alone does not update Screenpipe source tags.
+
+### JEV configuration and data boundary
+
+The installed pipe's `.env` controls whether JEV is available. If it is absent, the workflow skips JEV even when the process environment contains a TypeSafe key. An inaccessible file blocks the optional request. If the file exists, it must contain a nonempty key and a permitted field selection before a request can proceed. There is no separate enable flag.
+
+The agent resolves the file relative to the installed pipe, independently of its shell working directory. It loads settings, sends the request, checks the response, and returns a sanitized result in the same tool invocation. The pipe instructs it to treat settings as literal data without exposing credentials. Automatic environment-file loading is not assumed.
+
+| Setting | Instruction |
+| --- | --- |
+| `TYPESAFE_API_KEY` | Required in the pipe's `.env` when it exists. An empty key prevents a request. Keep it out of prompts, source control, and logs. |
+| `JEV_ALLOWED_FIELDS` | Deployment-approved comma-separated fields. An empty or unsupported selection prevents a request. |
+| `TYPESAFE_MODEL` | Defaults to `jev-latest`, a model alias rather than a pinned version. |
+
+The [pipe](../integrations/screenpipe/pipes/timekeeper/pipe.md#load-local-settings) lists the selectable fields. `previous_observation.*` fields require their own explicit selection; permission for `observation.*` does not include historical text. Continuity assessment needs permitted nonblank text for both observations and each candidate description. Initial assignment needs only the new observation and candidate descriptions.
+
+The agent must send only approved text, with temporary aliases for candidate and client IDs. Actual IDs, source timestamps, and revisions stay outside the TypeSafe request. Field selection does not redact private information inside approved text. This selection applies to the TypeSafe request; it does not configure the Screenpipe agent's own AI provider.
+
+The pipe specifies a fixed HTTPS endpoint, a ten-second timeout, no retries or redirects, and response checks before a proposal. These are instructions followed by an agent, not checks enforced by application code. The script-based checks and tests have been removed for the selected pipe-only design. Configuration loading, request content, failure handling, and credential handling require verification in the selected Screenpipe runtime. Hosted inference sends the permitted context to TypeSafe.
+
+### Screenpipe development setup
+
+Import the pipe with Screenpipe's supported local import. Create its local `.env` only to use JEV; leave the file absent to skip it. The repository supplies only `pipe.md`; it does not create credentials or register TimeKeeper's MCP connection. No separate skill import is needed. See [README](../README.md#optional-jev-integration-for-screenpipe) for setup instructions.
+
+The pipe ships with `schedule: manual` and `enabled: false`. A working Screenpipe AI preset and request tools are still required. Application services, folder identification, a verified trigger, and durable command delivery remain unimplemented. Importing the pipe does not make these components available.
 
 ## Storage and implementation gates
 
