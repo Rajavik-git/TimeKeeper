@@ -80,7 +80,7 @@ The code on this branch aligns the five conflicts with the [requirements](docs/R
 | Review states | Time, source, availability, and billing states separated | Same | 🟢 | 6 |
 | Writes through the application layer | API mutations enter services; adapters synchronize retained demo tables and canonical records | All writes | 🟢 | — |
 | Data model | Sessions and work periods plus documented billing extensions; old tables retained for demo compatibility | Sessions and work periods | 🟢 | 3 |
-| Session start/end commands | Idempotent local API implemented; Screenpipe trigger integration pending | Required | ⚪ | 4 |
+| Session start/end commands | Idempotent local API implemented. Start button: [MCP `start_session`](docs/API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe) and a manual Screenpipe pipe, not yet verified in Screenpipe. End through Screenpipe pending | Required | ⚪ | 4 |
 | Unknown-folder question to the lawyer | Period-bound question and guarded answer implemented | Same | 🟢 | 2 |
 | Duration correction kept apart from detection | Implemented | Required | 🟢 | — |
 | Source validation and availability | Implemented per source | Required | 🟢 | 6 |

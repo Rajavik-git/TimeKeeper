@@ -409,10 +409,16 @@ This is about the **outgoing** calls TimeKeeper makes to Screenpipe (the Screenp
 - **Flow:** button → Screenpipe pipe run manually → TimeKeeper MCP tools `start_session` / `end_session` ([D6](#d6-screenpipe-reaches-the-api-through-the-timekeeper-mcp-server)) → `POST /api/commands/start` / `POST /api/commands/end`.
 - **Command fields:** each press creates a new `commandId` and records `occurredAt` at the moment of the press. `producerId` identifies the pipe. The end command carries the start's `commandId` as `prerequisiteCommandId`, so an end that arrives first waits as `pending`.
 - **What exists:** both endpoints, with idempotency, one active session, preserved end boundary, and prerequisite ordering, covered by tests.
+- **Start button (implemented, not yet verified in Screenpipe):**
+  - MCP server [`src/mcp/server.ts`](../src/mcp/server.ts), dependency-free, over stdio or loopback HTTP (`--http`, default port 3032, path `/mcp`). Tools: `timekeeper_status` (read-only) and `start_session`.
+  - `start_session` checks `GET /api/health`, then `GET /api/sessions/active`. If a session is active it does nothing and returns `already_active`. Otherwise it sends `POST /api/commands/start` with a new `commandId` and `sessionId`, `producerId` `screenpipe-start-button`, and `occurredAt` set to the press time. A start that another caller won returns that session as `already_active`. This is up to three API requests, not one as D6 describes; each is an existing endpoint.
+  - If the API does not answer, it returns `timekeeper_not_running` without starting anything. With `TIMEKEEPER_LAUNCH_COMMAND` set, it first runs that command and waits up to 60 seconds for `GET /api/health`; the press time remains the start boundary. A start whose answer is lost returns `unconfirmed`, never success.
+  - Button pipe [`start-timekeeper`](../integrations/screenpipe/pipes/start-timekeeper/pipe.md) (`schedule: manual`) and skill [`timekeeper`](../integrations/screenpipe/timekeeper/SKILL.md). If the pipe cannot reach MCP tools, it runs the same logic through [`src/mcp/start-session.ts`](../src/mcp/start-session.ts), configured as `TIMEKEEPER_START_COMMAND` in the pipe's `.env` (D6 fallback).
+  - Verified: unit tests in `tests/unit/mcp-session.test.ts`, and the stdio server and CLI against a stand-in HTTP API. Not verified: the real API (needs Node), a Screenpipe MCP connection, the pipe's Run button, and `TIMEKEEPER_LAUNCH_COMMAND` with the packaged app.
 - **What is missing:**
-  1. The MCP tools `start_session` and `end_session` (`src/mcp/` is empty).
-  2. The Screenpipe pipe the lawyer runs as the button. Screenpipe documents manual runs for pipes (`schedule: manual`, run from the app, `pipe run <name>`, or `POST /pipes/<name>/run`; [scheduled tasks](https://docs.screenpipe.com/scheduled-tasks.md)), and Michel's JEV pipe (`feat/jev-implementation`) already runs manually. How the manual run appears to the lawyer must still be checked on an installed Screenpipe.
-  3. The launcher (`integrations/screenpipe/launcher/`): on start, open TimeKeeper if it is closed and wait for `GET /api/health` ([A1](#missing-endpoints-and-rules)) before sending the command.
+  1. The MCP tool `end_session`.
+  2. How the manual pipe run appears to the lawyer, and whether pipes can call MCP tools, on an installed Screenpipe.
+  3. A launch command for the packaged app (`integrations/screenpipe/launcher/`); today it is a configurable shell command.
   4. Pressing end while TimeKeeper is closed: handled by [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder).
 
 ### D8. Synchronization at startup through a local inbox folder
