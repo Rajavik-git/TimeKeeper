@@ -1213,6 +1213,8 @@ export interface paths {
                 content: {
                     "application/json": {
                         durationMs: number | null;
+                        /** @description Optional guard: the effectiveRevision the lawyer saw. A different current revision returns 409 and changes nothing. */
+                        expectedEffectiveRevision?: number;
                     };
                 };
             };
@@ -1371,7 +1373,12 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @description Defaults to true. false removes the validation; repeating it changes nothing. */
+                        validated?: boolean;
+                        /** @description Optional guard: the effectiveRevision the lawyer saw. A different current revision returns 409 and changes nothing. */
+                        expectedEffectiveRevision?: number;
+                    };
                 };
             };
             responses: {
@@ -1615,7 +1622,10 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @description Defaults to true. false removes the validation; repeating it changes nothing. */
+                        validated?: boolean;
+                    };
                 };
             };
             responses: {

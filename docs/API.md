@@ -272,7 +272,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | ID | Item | Notes |
 | --- | --- | --- |
 | A1 | `GET /api/health` returning `{"status":"ok"}`. | **Done.** Lets the launcher and Tauri detect API readiness. When D8 synchronization is built, it must finish before this route answers. |
-| A2 | Revision guard on `validate-time` and `duration-override`: an `expectedEffectiveRevision` field, with `409` on mismatch. | Prevents validating or overriding a period that changed after the lawyer saw it. Periods already expose `effectiveRevision`. |
+| A2 | Revision guard on `validate-time` and `duration-override`: an `expectedEffectiveRevision` field, with `409` on mismatch. | **Done.** Prevents validating or overriding a period that changed after the lawyer saw it. The field is **optional** so the current interface, which sends `{}`, keeps working; the guard only protects calls that send it. **For the interface:** send the `effectiveRevision` of the period on screen in `PreInvoices.tsx`, `Cases.tsx`, and `MyDay.tsx`. |
 | A3 | Bulk validation: `POST /api/work-periods/validate-time` with a list of `{id, expectedEffectiveRevision}`, all or nothing. | Canonical replacement for the demo "approve day" and "approve case" routes. |
 | A4 | Filters on list endpoints. | **Done.** All optional query parameters; dates are `YYYY-MM-DD` and compare the start day. `GET /api/work-periods`: `date`, `from`, `to`, `clientId`, `caseId`, `sessionId`. `GET /api/sources`: `periodId`. `GET /api/coverage-gaps`: `date`, `from`, `to`, `sessionId`. `GET /api/questions`: `date`, `status` (`pending`, `answered`, `superseded`; other values are `400`), `sessionId`. The `date` filters and the first five work-period filters came from `mvp` (`2747b4b`). |
 | A5 | Canonical client, case, and global-rate endpoints using `createClient`, `createCase`, and `setGlobalRate`, which exist in `service.ts:123-136` but are not exposed. | Today configuration goes through the demo routes only. |
@@ -280,7 +280,7 @@ API work still to do, owned by the API branch. **Proposed** unless marked otherw
 | A7 | Read-only chat tools use existing read endpoints. | **Decided**, see [D3](#d3-read-only-chat-uses-existing-read-endpoints). Needs the A4 filters. |
 | A8 | No local access control for the hackathon. | **Decided**, see [D1](#d1-no-local-access-token-for-the-hackathon). |
 | A9 | Command delivery while TimeKeeper is closed. | **Decided**, see [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder). Not built yet. |
-| A10 | Undo time and source validation with `{"validated": false}`. | **Decided**, see [D2](#d2-undo-a-validation-through-the-same-endpoint). |
+| A10 | Undo time and source validation with `{"validated": false}`. | **Done**, as decided in [D2](#d2-undo-a-validation-through-the-same-endpoint). |
 | A11 | Replace `pending` refusals with `rule-not-decided` and `conflict`. | **Decided**, see [D4](#d4-error-codes-replacing-pending-for-refusals). Fixes [E1](#e1-undecided-rules-are-returned-as-successful-202-pending). |
 | A12 | `POST /api/sources`: import evidence references from Screenpipe. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added). |
 | A13 | Canonical reads: `GET /api/clients`, `GET /api/cases` (filters `clientId`, `status`), `GET /api/settings`. | **Done.** See [Why A12 and A13 were added](#why-a12-and-a13-were-added) and [Clients, cases, and settings](#clients-cases-and-settings). Complements the writes in A5. |
@@ -347,6 +347,7 @@ Decided by the API owner (mprifti42tech) on 2026-10-17, kept simple for the hack
   - `POST /api/sources/{instanceId}/{contentType}/{externalId}/validate` accepts the same optional body to remove source validation.
   - No body, or `{"validated": true}`, validates as today, so existing callers keep working.
 - **Rules:** undoing is idempotent (undoing twice changes nothing more). Undoing time validation on a `billed` period is refused with `409 conflict`; mark it `unbilled` first. Undoing does not change the case, duration, or billing status.
+- **As built:** `validate-time` accepts `{"validated": false, "expectedEffectiveRevision": n}`, with both fields optional; the source `validate` route accepts `{"validated": false}`. Any `validated` value other than `true` or `false` is `400`. Undoing an unvalidated period or source returns it unchanged without a new revision.
 - **Why:** otherwise a validation clicked by mistake can only be undone by changing the time, which is not what the lawyer wants.
 
 ### D3. Read-only chat uses existing read endpoints

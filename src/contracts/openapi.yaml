@@ -3478,6 +3478,11 @@
                       "integer",
                       "null"
                     ]
+                  },
+                  "expectedEffectiveRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Optional guard: the effectiveRevision the lawyer saw. A different current revision returns 409 and changes nothing."
                   }
                 }
               }
@@ -3648,7 +3653,17 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [],
-                "properties": {}
+                "properties": {
+                  "validated": {
+                    "type": "boolean",
+                    "description": "Defaults to true. false removes the validation; repeating it changes nothing."
+                  },
+                  "expectedEffectiveRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Optional guard: the effectiveRevision the lawyer saw. A different current revision returns 409 and changes nothing."
+                  }
+                }
               }
             }
           }
@@ -3932,7 +3947,12 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [],
-                "properties": {}
+                "properties": {
+                  "validated": {
+                    "type": "boolean",
+                    "description": "Defaults to true. false removes the validation; repeating it changes nothing."
+                  }
+                }
               }
             }
           }

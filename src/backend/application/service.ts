@@ -12,6 +12,10 @@ const fingerprint = (value: unknown): string => createHash('sha256').update(JSON
 function assertTime(value: string): void {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value) || !Number.isFinite(Date.parse(value))) throw new AppError('invalid-request', 'UTC timestamp required');
 }
+/** Optional guard (docs/API.md A2): the caller states which effective revision it saw; a newer one means the period changed. */
+function assertEffectiveRevision(p: PeriodRecord, expected: number | undefined): void {
+  if (expected !== undefined && p.effectiveRevision !== expected) throw new AppError('conflict','stale effective revision');
+}
 function assertId(value: string): void { if (!value || value.length > 200) throw new AppError('invalid-request', 'invalid identifier'); }
 function view(p: PeriodRecord): PeriodView {
   return { id:p.id, sessionId:p.sessionId, caseId:p.caseId, startedAt:p.startedAt, endedAt:p.endedAt,
@@ -269,9 +273,10 @@ export class TimeKeeperService {
       this.repo.savePeriod(next,this.clock.now()); return view(next);
     });
   }
-  setDurationOverride(id: string, durationMs: number | null): PeriodView {
+  setDurationOverride(id: string, durationMs: number | null, expectedEffectiveRevision?: number): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
+      assertEffectiveRevision(p,expectedEffectiveRevision);
       if (p.billingStatus === 'billed') throw new AppError('rule-not-decided','billed-period edit policy is open');
       const next = { ...changePeriod(p,{ durationOverrideMs:durationMs }),revision:p.revision+1 };
       this.repo.savePeriod(next,this.clock.now()); return view(next);
@@ -315,9 +320,21 @@ export class TimeKeeperService {
       return view(next);
     });
   }
-  validatePeriod(id: string): PeriodView {
+  /** Removes the lawyer's time validation (docs/API.md D2). Idempotent; refused on billed periods. */
+  unvalidatePeriod(id: string, expectedEffectiveRevision?: number): PeriodView {
     return this.repo.transaction(() => {
       const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
+      assertEffectiveRevision(p,expectedEffectiveRevision);
+      if (!timeIsValidated(p)) return view(p);
+      if (p.billingStatus === 'billed') throw new AppError('conflict','billed period must be unbilled before removing time validation');
+      const next = { ...p,validatedEffectiveRevision:null,timeValidatedAt:null,revision:p.revision+1 };
+      this.repo.savePeriod(next,this.clock.now()); return view(next);
+    });
+  }
+  validatePeriod(id: string, expectedEffectiveRevision?: number): PeriodView {
+    return this.repo.transaction(() => {
+      const p = this.repo.period(id); if (!p) throw new AppError('not-found','period not found');
+      assertEffectiveRevision(p,expectedEffectiveRevision);
       if (p.caseId === null || (p.durationOverrideMs ?? p.detectedDurationMs) === null)
         throw new AppError('conflict','case and effective duration are required before time validation');
       const next = { ...validateTime(p,this.clock.now()),revision:p.revision+1 };
@@ -364,6 +381,14 @@ export class TimeKeeperService {
     this.repo.transaction(() => {
       const s = this.repo.sourceByIdentity(instanceId,contentType,externalId); if (!s) throw new AppError('not-found','source not found');
       this.repo.saveSource({ ...s,validationStatus:'validated',validatedAt:s.validatedAt ?? this.clock.now() });
+    });
+  }
+  /** Removes a source validation (docs/API.md D2). Idempotent. */
+  unvalidateSource(instanceId: string, contentType: string, externalId: string): void {
+    this.repo.transaction(() => {
+      const s = this.repo.sourceByIdentity(instanceId,contentType,externalId); if (!s) throw new AppError('not-found','source not found');
+      if (s.validationStatus === 'unvalidated') return;
+      this.repo.saveSource({ ...s,validationStatus:'unvalidated',validatedAt:null });
     });
   }
   setSourceAvailability(instanceId: string, contentType: string, externalId: string, availability: 'available' | 'unavailable'): void {

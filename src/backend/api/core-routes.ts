@@ -19,6 +19,14 @@ function integer(value: unknown, name: string): number {
   return value;
 }
 function duration(value: unknown): number | null { return value === null ? null : integer(value,'durationMs'); }
+/** `validated` defaults to true; false removes the validation (docs/API.md D2). */
+function validated(b: Record<string, unknown>): boolean {
+  if (b.validated === undefined || b.validated === true) return true;
+  if (b.validated === false) return false;
+  throw new AppError('invalid-request','validated must be true or false');
+}
+const expectedRevision = (b: Record<string, unknown>): number | undefined =>
+  b.expectedEffectiveRevision === undefined ? undefined : integer(b.expectedEffectiveRevision,'expectedEffectiveRevision');
 const input = async (c: {req:{json:()=>Promise<unknown>}}) => object(await readJson(c));
 
 export function coreRoutes(db: DatabaseSync): Hono {
@@ -117,8 +125,16 @@ export function coreRoutes(db: DatabaseSync): Hono {
       b.origin === 'automatic' ? 'automatic' : b.origin === 'lawyer' ? 'lawyer' : (()=>{throw new AppError('invalid-request','origin required')})()));
   });
   router.post('/work-periods/:id/detected-duration',async c=>c.json(service.setDetectedDuration(c.req.param('id'),duration((await input(c)).durationMs))));
-  router.post('/work-periods/:id/duration-override',async c=>c.json(service.setDurationOverride(c.req.param('id'),duration((await input(c)).durationMs))));
-  router.post('/work-periods/:id/validate-time',c=>c.json(service.validatePeriod(c.req.param('id'))));
+  router.post('/work-periods/:id/duration-override',async c=>{
+    const b=await input(c);
+    return c.json(service.setDurationOverride(c.req.param('id'),duration(b.durationMs),expectedRevision(b)));
+  });
+  router.post('/work-periods/:id/validate-time',async c=>{
+    const b=await input(c);
+    return c.json(validated(b)
+      ? service.validatePeriod(c.req.param('id'),expectedRevision(b))
+      : service.unvalidatePeriod(c.req.param('id'),expectedRevision(b)));
+  });
   router.post('/work-periods/:id/billing-status',async c=>{
     const b=await input(c);
     if (b.status !== 'billed' && b.status !== 'unbilled') throw new AppError('invalid-request','status required');
@@ -149,8 +165,9 @@ export function coreRoutes(db: DatabaseSync): Hono {
     }));
     return c.json(Array.isArray(body) ? results : results[0]);
   });
-  router.post('/sources/:instanceId/:contentType/:externalId/validate',c=>{
-    service.validateSource(c.req.param('instanceId'),c.req.param('contentType'),c.req.param('externalId'));
+  router.post('/sources/:instanceId/:contentType/:externalId/validate',async c=>{
+    const identity=[c.req.param('instanceId'),c.req.param('contentType'),c.req.param('externalId')] as const;
+    if (validated(await input(c))) service.validateSource(...identity); else service.unvalidateSource(...identity);
     return c.json({status:'applied'});
   });
   router.post('/sources/:instanceId/:contentType/:externalId/availability',async c=>{
