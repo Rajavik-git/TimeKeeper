@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { api, client, matter, money, today, type CoreState, type Recognition, type ScreenProps, type State } from '../../api/client';
+import { api, client, matter, money, today, type CoreState, type ScreenProps, type State } from '../../api/client';
 import { dayFees, effectiveMs, formatPreciseDuration, formatRoundedMinutes, hasCoverageGap, summarizeWork } from '../../calculations/billing';
 import { MatterSelect } from '../../shared/components/MatterSelect';
 import { Kpi } from '../../shared/components/Kpi';
@@ -73,7 +73,7 @@ function DayCalendar({ selected, recorded, pending, onSelect, onMonthChange }: {
   const nextMonth = shiftMonth(month, 1);
   const otherPendingDays = [...pending].filter(date => date !== selected).length;
   return <div className="daypick" role="group" aria-label="Choose a day">
-    <button className="iconbtn" aria-label="Previous day" onClick={() => choose(shiftDay(selected, -1))}><span aria-hidden="true">‹</span></button>
+    <button className="iconbtn previous-day" aria-label="Previous day" onClick={() => choose(shiftDay(selected, -1))}><Icon name="chev" small /></button>
     <div className="calwrap" ref={wrapper}>
       <button className="datebtn" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(!open)}>{shortDay.format(dayDate(selected))}<Icon name="day" small />{otherPendingDays > 0 && <span className="datebadge" title={`${otherPendingDays} other day${otherPendingDays === 1 ? '' : 's'} with periods to validate`}>{otherPendingDays}</span>}</button>
       {open && <div className="cal" role="dialog" aria-label="Choose a day">
@@ -105,7 +105,7 @@ function DayCalendar({ selected, recorded, pending, onSelect, onMonthChange }: {
         <div className="calft"><div className="calkey"><span><i className="dotk" aria-hidden="true" />Validated</span><span><i className="dotk p" aria-hidden="true" />To validate</span><span>Grey: no work</span></div><button className="btn sm" onClick={() => choose(today)}>Today</button></div>
       </div>}
     </div>
-    <button className="iconbtn" aria-label="Next day" disabled={selected >= today} onClick={() => choose(shiftDay(selected, 1))}><span aria-hidden="true">›</span></button>
+    <button className="iconbtn" aria-label="Next day" disabled={selected >= today} onClick={() => choose(shiftDay(selected, 1))}><Icon name="chev" small /></button>
     {selected !== today && <button className="btn sm" onClick={() => choose(today)}>Today</button>}
   </div>;
 }
@@ -136,7 +136,6 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
   const [manualMinutes, setManualMinutes] = useState('60');
   const [manualLabel, setManualLabel] = useState('Case management hearing');
   const [answerCase, setAnswerCase] = useState<number | null>(null);
-  const [suggestions, setSuggestions] = useState<Record<string, Recognition>>({});
   const [notice, setNotice] = useState('');
   const [validating, setValidating] = useState(false);
   const changeMainSort = (key: MainKey, numeric: boolean) => setMainSort(current => { rememberedMainSort = sortNext(current, key, numeric); return rememberedMainSort; });
@@ -180,17 +179,6 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
   const recognized = review.filter(period => period.caseId && period.demoApp);
   useEffect(()=>{if(!notice)return;const timer=window.setTimeout(()=>setNotice(''),3500);return()=>window.clearTimeout(timer)},[notice]);
   const notRecordedMs = coverageGaps.reduce((total, gap) => total + Math.max(0, Date.parse(gap.endedAt) - Date.parse(gap.startedAt)), 0);
-  useEffect(() => {
-    let live = true;
-    const pending = (dayData?.date === selectedDate ? dayData.periods : []).filter(period => !period.excluded && !period.caseId);
-    void Promise.all(pending.map(async period => {
-      const old = dayData?.state.time_entry.find(entry => String(entry.id) === period.id);
-      if (!old?.block_id) return null;
-      const result = await api.GET('/api/blocks/{id}/recognition', { params: { path: { id: old.block_id } } });
-      return result.data ? [period.id, result.data] as const : null;
-    })).then(items => { if (live) setSuggestions(Object.fromEntries(items.filter(item => item !== null) as Array<readonly [string, Recognition]>)); });
-    return () => { live = false; };
-  }, [selectedDate, dayData]);
   const questionFor = (periodId: string) => data?.questions.find(question => question.periodId === periodId && question.status === 'pending');
   const assign = (periodId: string, caseId: number) => {
     const period = periods.find(item => item.id === periodId);
@@ -235,11 +223,18 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
     return compareText(label(a), label(b)) * (direction === 'ascending' ? 1 : -1);
   };
   mainRows.sort((a, b) => {
-    if (a.kind === 'gap') return b.kind === 'gap' ? compareText(a.gap.startedAt, b.gap.startedAt) : 1;
-    if (b.kind === 'gap') return -1;
+    if (a.kind === 'gap' || b.kind === 'gap') return compareText(a.kind === 'gap' ? a.gap.startedAt : a.period.startedAt, b.kind === 'gap' ? b.gap.startedAt : b.period.startedAt);
     return comparePeriod(a.period, b.period, mainSort?.key ?? 'period', mainSort?.direction ?? 'ascending');
   });
   const leftRows = [...excluded].sort((a, b) => comparePeriod(a, b, leftSort?.key ?? 'time', leftSort?.direction ?? 'ascending'));
+  const caseRate = (caseId: number | null) => {
+    if (!caseId) return `base rate ${money(s.firm[0]?.base_rate_cents ?? 0).replace(/\.00$/, '')}/h`;
+    const item = matter(s, caseId);
+    const owner = client(s, caseId);
+    if (item?.mode === 'flat_fee') return 'flat fee';
+    const rate = item?.own_rate_cents ?? owner?.rate_cents ?? s.firm[0]?.base_rate_cents ?? 0;
+    return `${item?.own_rate_cents != null ? 'case rate' : 'client rate'} ${money(rate).replace(/\.00$/, '')}/h`;
+  };
   return <>
     <div className="ph"><div className="t"><h1>My day</h1><p>{longDate(selectedDate)}{selectedDate === today ? ' · today' : ''}</p></div>
       <div className="actions"><DayCalendar selected={selectedDate} recorded={recorded} pending={pendingDays} onSelect={setSelectedDate} onMonthChange={setMonth} />
@@ -258,12 +253,16 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
       <section className="card day-question"><div><h2><Icon name="alert" small /> Which case was this?</h2>
         {unresolved[0] ? <p>{unresolved[0].startedAt.slice(11, 16)}–{unresolved[0].endedAt?.slice(11, 16)} · {unresolved[0].demoWindowTitle ?? unresolved[0].label}</p> : <p>Every period has a case. You can review the list below.</p>}</div>
         {unresolved[0] && <div className="row"><MatterSelect s={s} value={answerCase} allowEmpty onChange={setAnswerCase} /><button className="btn primary" disabled={!answerCase} onClick={() => { if (answerCase) void assign(unresolved[0]!.id, answerCase); }}>Answer</button>
-          <button className="btn" onClick={() => void action(api.PATCH('/api/work-periods/{id}/details', { params: { path: { id: unresolved[0]!.id } }, body: { excluded: true } }))}>Not client work</button></div>}
+          <button className="btn ghost" onClick={() => void action(api.PATCH('/api/work-periods/{id}/details', { params: { path: { id: unresolved[0]!.id } }, body: { excluded: true } }))}>Not client work</button></div>}
       </section>
     </div>
     <section className="card day-periods"><div className="toolbar"><div className="seg" role="group" aria-label="Work periods filter">
       {tabs.map(([key, title, count]) => <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{title}<span className="c">{count}</span></button>)}
-    </div></div>
+    </div><div className="right"><button className="btn ghost sm" onClick={() => setFilter(filter === 'review' ? 'all' : 'review')}><Icon name="filter" small />Filter</button><button className="btn ghost sm" onClick={() => {
+      const rows = included.map(period => [period.startedAt.slice(11, 16), period.endedAt?.slice(11, 16) ?? '', client(s, Number(period.caseId))?.name ?? '', matter(s, Number(period.caseId))?.title ?? '', period.label, formatPreciseDuration(effectiveMs(period))]);
+      const csv = [['Start', 'End', 'Client', 'Case', 'Work performed', 'Duration'], ...rows].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
+      const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); link.download = `timekeeper-${selectedDate}.csv`; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }}><Icon name="down" small />Export</button></div></div>
       {!data && !loadError ? <div className="empty" role="status"><b>Loading day…</b></div> : filter === 'left' ? <div className="tbl"><table><thead><tr>
         <SortHeader label="Time" sort={leftSort} sortKey="time" numeric onSort={changeLeftSort} />
         <SortHeader label="Application" sort={leftSort} sortKey="application" onSort={changeLeftSort} />
@@ -279,17 +278,16 @@ export function MyDay({ s, core, action, source, refresh }: ScreenProps) {
         <SortHeader label="Duration" sort={mainSort} sortKey="duration" numeric className="r" onSort={changeMainSort} />
         <th scope="col" className="r">Actions</th>
       </tr></thead><tbody>{mainRows.map(row => {
-        if (row.kind === 'gap') return <tr key={row.gap.id}><td className="num muted">{row.gap.startedAt.slice(11, 16)}–{row.gap.endedAt.slice(11, 16)}</td><td colSpan={4}><span className="flag"><Icon name="alert" small />Coverage gap</span> <span className="muted">· not recorded or counted as work.</span></td></tr>;
+        if (row.kind === 'gap') return <tr key={row.gap.id}><td className="num muted">{row.gap.startedAt.slice(11, 16)}–{row.gap.endedAt.slice(11, 16)}</td><td colSpan={4}><span className="flag"><Icon name="alert" small />Coverage gap</span> <span className="muted">· no recording for {Math.round((Date.parse(row.gap.endedAt) - Date.parse(row.gap.startedAt)) / 60000)} min. Not counted as work, not counted as idle.</span></td></tr>;
         const period = row.period;
         const caseId = period.caseId ? Number(period.caseId) : null;
         const item = matter(s, caseId), owner = client(s, caseId);
         const linked = core.sources.filter(record => record.workPeriodId === period.id);
         const validatedSources = linked.filter(record => record.validationStatus === 'validated').length;
-        const candidate = suggestions[period.id]?.candidates[0], suggestion = candidate ? matter(s, candidate.matter_id) : undefined;
         return <tr key={period.id}>
           <td className="num">{period.startedAt.slice(11, 16)}–{period.endedAt?.slice(11, 16) ?? '…'}<span className="sub">{period.demoApp ?? 'Off-screen'}</span></td>
-          <td>{item ? <>{owner?.name}<span className="sub">{item.title} · <MatterReference value={item.reference} /></span></> : <><span className="flag"><Icon name="alert" small />Unresolved</span><span className="sub">Answer above</span>{suggestion && <span className="sub suggest">Suggested: {suggestion.title} <button className="link" onClick={() => assign(period.id, suggestion.id)}>Assign</button></span>}</>}</td>
-          <td className="wrap">{period.label}<span className="sub">{s.task.find(task => task.id === period.taskTypeId)?.label ?? 'Work period'} · {period.billable ? 'Billable' : period.nonbillableReason ?? 'Not billable'}</span></td>
+          <td>{item ? <>{owner?.name}<span className="sub">{item.title} · <MatterReference value={item.reference} /></span></> : <><span className="flag"><Icon name="alert" small />Unresolved</span><span className="sub">Waiting for your answer above</span></>}</td>
+          <td className="wrap">{period.label}<span className="sub">{s.task.find(task => task.id === period.taskTypeId)?.label ?? 'Work period'} · {caseRate(caseId)}</span></td>
           <td className="r num">{editing === period.id ? <span className="row"><input className="field" type="number" min="0" step="0.001" aria-label="Corrected minutes" value={minutes} onChange={event => setMinutes(event.target.value)} /><button className="btn sm primary" onClick={() => saveDuration(period.id)}>Save</button><button className="btn sm" onClick={() => setEditing(null)}>Cancel</button></span>
             : <button className="day-duration" disabled={period.billingStatus === 'billed'} aria-label={`Correct duration for ${period.label}`} title="Correct duration" onClick={() => { setEditing(period.id); setMinutes(String((effectiveMs(period) ?? 0) / 60000)); }}>{formatPreciseDuration(effectiveMs(period))}</button>}
             {period.durationOverrideMs !== null && <span className="sub">was {formatPreciseDuration(period.detectedDurationMs)}</span>}</td>

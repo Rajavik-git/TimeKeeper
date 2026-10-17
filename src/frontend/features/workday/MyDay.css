@@ -46,3 +46,39 @@
 .dotk { display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ok-dot); }
 .dotk.p { width:7px;height:7px;background:var(--warn-dot); }
 @media (max-width:1100px) { .day-periods .day-table th:nth-child(2) { width:175px; } .day-periods .day-table th:nth-child(4) { width:105px; } .day-periods .day-table th:nth-child(5) { width:120px; } .day-periods .day-table th:nth-child(6) { width:158px; } }
+
+/* My day layout from the approved mockup. */
+.day-prompts { grid-template-columns:repeat(2,minmax(0,1fr));gap:20px; }
+.page .day-prompts > .card { padding:16px;gap:12px;min-height:158px; }
+.day-prompts .card > div:first-child { gap:0; }
+.page .day-prompts h2 { font-size:var(--fs-lg);font-weight:600; }
+.page .day-prompts p { font-size:var(--fs-md);line-height:1.5; }
+.day-ready .btn { height:42px; }
+.day-question .row { flex-wrap:wrap;gap:8px; }
+.day-question .row .field { flex:1;min-width:200px; }
+.day-periods .day-table table { table-layout:fixed; }
+.day-periods .day-table th:nth-child(1) { width:148px; }
+.day-periods .day-table th:nth-child(2) { width:25%; }
+.day-periods .day-table th:nth-child(3) { width:auto; }
+.day-periods .day-table th:nth-child(4) { width:137px; }
+.day-periods .day-table th:nth-child(5) { width:170px; }
+.day-table td { height:56px;white-space:normal;overflow-wrap:normal; }
+.day-table td:nth-child(1),.day-table td:nth-child(4) { white-space:nowrap; }
+.day-table td:nth-child(2) { overflow-wrap:anywhere; }
+.day-table .sub { white-space:normal; }
+.day-table .day-actions { justify-content:flex-end; }
+.day-table .day-actions .btn { padding:0 11px; }
+.day-duration { text-decoration:none; }
+.day-duration:not([disabled]):hover { text-decoration:underline; }
+.day-question .btn.primary[disabled] { opacity:1;cursor:not-allowed; }
+.daypick .iconbtn { border:1px solid var(--line-2);font-size:var(--fs-lg); }
+.daypick .iconbtn[disabled] { opacity:.45; }
+@media (max-width:1280px) { .day-periods .day-table th:nth-child(2) { width:25%; } }
+.page .day-prompts { gap:20px; }
+.page .day-periods .day-table th:nth-child(1) { width:11%; }
+.page .day-periods .day-table td { height:58px; }
+.page .day-periods .day-table tr:has(td[colspan]) td { height:50px; }
+.daypick .previous-day svg { transform:rotate(180deg); }
+.daypick .iconbtn { display:inline-flex;align-items:center;justify-content:center; }
+.day-table td:nth-child(1) .sub,.day-table td:nth-child(2) .sub { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.datebadge { min-width:18px;height:18px;border-radius:9px;font-size:11px; }

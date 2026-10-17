@@ -136,18 +136,6 @@ function App() {
           ) : (
             <Settings {...props} />
           )}
-          <footer className="tiny muted">
-            Fictional demo data · everything stays on this device ·{" "}
-            <button
-              className="link"
-              onClick={async () => {
-                if (confirm("Reset the demo?"))
-                  await action(api.POST("/api/demo/reset"));
-              }}
-            >
-              Reset demo
-            </button>
-          </footer>
         </div>
       </div>
     </div>

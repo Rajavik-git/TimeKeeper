@@ -62,6 +62,9 @@ const paths = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  filter: <path d="M3 5h18l-7 8v6l-4-2v-4z" />,
+  down: <><path d="M12 4v12M6 10l6 6 6-6M4 20h16" /></>,
+  chev: <path d="M9 6l6 6-6 6" />,
   alert: (
     <>
       <path d="M12 3l9 16H3z" />
