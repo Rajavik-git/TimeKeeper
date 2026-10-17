@@ -18,7 +18,7 @@ export type Client = components["schemas"]["client"];
 export type Recognition = components["schemas"]["Recognition"];
 export type Block = components["schemas"]["block"];
 export type View =
-  "desk" | "myDay" | "matters" | "preInvoices" | "source" | "settings";
+  "desk" | "desktop" | "myDay" | "matters" | "preInvoices" | "source" | "settings";
 export type ScreenProps = {
   s: State;
   core: CoreState;
