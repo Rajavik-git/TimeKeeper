@@ -4,6 +4,7 @@ import { configuredRate, effectiveMs } from '../../calculations/billing';
 import { Card } from "../../shared/components/Card";
 import { Pill } from "../../shared/components/Pill";
 import { MatterReference } from "../../shared/components/MatterReference";
+import { showToast } from "../../shared/components/Toast";
 type Tab = "clients" | "matters" | "base" | "tasks" | "rules" | "preferences" | "pill";
 type SortState={column:number;direction:1|-1};
 let rememberedSorts:Record<string,SortState>={};
@@ -18,6 +19,7 @@ function ordered<T>(rows:T[], sort:SortState|undefined, values:(row:T)=>Array<st
 }
 const dollarInput = (s: string) => Math.round(Number(s.replaceAll(",", "")) * 100);
 export function Settings({ s, core, action, navigate }: ScreenProps) {
+  const [resetting, setResetting] = useState(false);
   const [tab, setTab] = useState<Tab>("clients"),
     [name, setName] = useState(""),
     [clientCode, setClientCode] = useState(""),
@@ -487,7 +489,7 @@ export function Settings({ s, core, action, navigate }: ScreenProps) {
                 <tr>
                   {header("rules",0,"Client")}
                   {header("rules",1,"Rule")}
-                  <th />
+                  <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -607,6 +609,13 @@ export function Settings({ s, core, action, navigate }: ScreenProps) {
             />{" "}
             Pill notifications
           </label>
+          <div className="row"><button className="btn" disabled={resetting} aria-busy={resetting} onClick={async () => {
+            if (!window.confirm('Reset all fictional demo data?')) return;
+            setResetting(true);
+            const result = await action(api.POST('/api/demo/reset'));
+            setResetting(false);
+            if (result) showToast('Demo data reset');
+          }}>Reset demo data</button></div>
         </Card>
       )}
     </>

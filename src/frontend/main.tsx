@@ -46,7 +46,6 @@ function App() {
   const action = async <T,>(
     promise: Promise<{ data?: T; error?: unknown }>,
   ): Promise<T | undefined> => {
-    showToast('Working…');
     try {
       const r = await promise;
       if (r.error)
@@ -56,7 +55,6 @@ function App() {
             : JSON.stringify(r.error),
         );
       await refresh();
-      showToast('Saved');
       return r.data;
     } catch (e) {
       showToast(String(e));

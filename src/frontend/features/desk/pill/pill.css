@@ -224,7 +224,7 @@ button:disabled,select:disabled {
 }
 
 button:focus-visible,select:focus-visible {
-  outline:2px solid color-mix(in srgb,var(--pill-accent) 30%,transparent);
+  outline:2px solid var(--pill-accent);
   outline-offset:2px;
 }
 .pill-floating-notice {

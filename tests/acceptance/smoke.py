@@ -112,6 +112,8 @@ with sync_playwright() as p:
     nav.get_by_role('button', name='Activity').click()
     page.get_by_role('heading', name='Timeline').wait_for()
     nav.get_by_role('button', name='Settings').click()
+    page.get_by_role('button', name='Capture and invoices').click()
+    assert page.get_by_role('button', name='Reset demo data').is_visible()
     page.get_by_role('button', name='Desk pill').click()
     page.get_by_role('button', name='Open preview').click()
     page.get_by_role('heading', name='MEMORANDUM OF LAW IN OPPOSITION').wait_for()
