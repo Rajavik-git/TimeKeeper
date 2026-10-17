@@ -5,6 +5,7 @@ import { Card } from '../../shared/components/Card';
 import { MatterSelect } from '../../shared/components/MatterSelect';
 import { Kpi } from '../../shared/components/Kpi';
 import { MatterReference } from '../../shared/components/MatterReference';
+import { Logo } from '../../shared/brand/Logo';
 
 export function Desk({s,core,action,navigate}:ScreenProps) {
   const [open,setOpen]=useState(false);
@@ -25,7 +26,7 @@ export function Desk({s,core,action,navigate}:ScreenProps) {
     <div className="desk"><div className="docwin"><div className="row between dochead"><span>{period?.demoWindowTitle ?? 'No active period'}</span>
       <span className="num">{session?.startedAt.slice(11,16) ?? '—'}</span></div><div className="docpage"><h2>{period?.label ?? 'Waiting for a work period'}</h2>
       <p>{period?.demoWindowTitle ?? 'Recorded observations appear here when available.'}</p></div></div>
-      <button className="pastille" aria-expanded={open} onClick={()=>setOpen(!open)}><span className="mini-logo">T</span><span className="dot"/>
+      <button className="pastille" aria-expanded={open} onClick={()=>setOpen(!open)}><span className="mini-logo"><Logo compact wordmark={false}/></span><span className="dot"/>
         <span>{owner?.name ?? 'No case'}</span><span className="num">{duration}</span></button>
       {open&&<div className="float glass pad col"><div className="row between"><b><MatterReference value={activeCase?.reference ?? ''}/> {activeCase?.title ?? 'Case answer needed'}</b>
         <span className="tiny muted">{session ? `Session since ${session.startedAt.slice(11,16)}` : 'No active session'}</span></div>

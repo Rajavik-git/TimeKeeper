@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
 import { api, type CoreState, type State } from '../../../api/client';
 import { effectiveMs, formatPreciseDuration } from '../../../calculations/billing';
+import { Logo } from '../../../shared/brand/Logo';
 import './pill.css';
 
 const tauri='__TAURI_INTERNALS__' in window;
@@ -50,7 +51,7 @@ function Pill() {
   };
   return <main className="pill-root">
     <button className="pill-bar" onClick={()=>void toggle()} aria-expanded={expanded} aria-label="TimeKeeper, toggle panel">
-      <span className="pill-logo">T</span><span className={`status-dot ${active?'':'paused'}`}/>
+      <span className="pill-logo"><Logo compact wordmark={false}/></span><span className={`status-dot ${active?'':'paused'}`}/>
       <span className="pill-client">{offline?'Server not running':active?owner?.name??'Session active':'No active session'}</span>
       <strong className="pill-amount">{offline?'—':current?formatPreciseDuration(effectiveMs(current)):'—'}</strong>
       {pending>0&&<span className="pill-badge" aria-label={`${pending} periods to review`}>{pending}</span>}

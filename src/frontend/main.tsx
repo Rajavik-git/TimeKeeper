@@ -9,6 +9,7 @@ import { Source } from "./features/workday/Source";
 import { Settings } from "./features/settings/Settings";
 import { ThemeSwitch, restoreTheme } from "./shared/components/ThemeSwitch";
 import { Icon } from "./shared/components/Icon";
+import { Logo } from "./shared/brand/Logo";
 import "./shared/theme.css";
 
 restoreTheme();
@@ -94,13 +95,6 @@ function App() {
   const props = s && core
     ? { s, core, refresh, action, navigate, source, selectedCase }
     : undefined;
-  const lawyer = s?.firm[0]?.lawyer_name ?? "TimeKeeper";
-  const initials = lawyer
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
   const pending = core?.periods.filter(p=>p.startedAt.startsWith(today) && !p.excluded && !p.timeValidated).length ?? 0;
   const activePeriod = core?.periods.find(p=>p.sessionId === core.activeSession?.id && p.endedAt === null);
   const currentCase = s?.matter.find(m=>String(m.id) === activePeriod?.caseId);
@@ -112,13 +106,7 @@ function App() {
     <div className="app">
       <aside className="shell-side">
         <div className="ws">
-          <span className="logo" aria-hidden="true">
-            T
-          </span>
-          <span className="t">
-            <b>TimeKeeper</b>
-            <span>{lawyer}</span>
-          </span>
+          <Logo compact />
         </div>
         <nav className="nav" aria-label="Screens">
           {primaryViews.map(([key, title, icon, shortcut]) => (
@@ -165,14 +153,7 @@ function App() {
             </button>
           </div>
           <ThemeSwitch />
-          <div className="user">
-            <span className="avatar">{initials}</span>
-            <span className="t">
-              {lawyer}
-              <span>Attorney at law</span>
-            </span>
-            <Icon name="more" small />
-          </div>
+
         </div>
       </aside>
       <div className="shell-main">
