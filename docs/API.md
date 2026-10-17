@@ -256,7 +256,7 @@ Each entry gives the location, what goes wrong, why it matters, and a suggested 
 ### E11. Hand-written contract types duplicate generated ones
 
 - **Severity:** Low.
-- **Status:** Partly fixed: `ErrorCode` in `src/contracts/index.ts` now lists the current codes; the duplicated types remain. The rest is **postponed**: it is tidiness rather than a defect, and it touches the service and the ports for little hackathon value.
+- **Status:** Fixed on `mprifti42tech/api`. `src/contracts/index.ts` keeps its exports, so no import changed, but every type is now derived from `generated.ts`: `ApiError` and `ErrorCode` from `Error`, `StartCommand`, `EndCommand`, and `QuestionAnswer` from their route request bodies, `CommandOutcome` from its schema, and `PeriodView` from `WorkPeriod` without `clientId`. To keep the precision the hand-written types had, the contract now gives `WorkPeriod.billingStatus` the values `unbilled` and `billed`, and describes `CommandOutcome` as exactly two shapes: `applied` (`sessionId`, `startedAt`, `endedAt`) or `pending` (`commandId`). The JSON on the wire is unchanged.
 - **Where:** `src/contracts/index.ts` defines `ErrorCode`, `ApiError`, `StartCommand`, `PeriodView`, and others next to `generated.ts`.
 - **What goes wrong:** the two sets can drift. `ApiError` already includes `message`, while the generated `Error` type does not ([E2](#e2-the-contracts-error-schema-rejects-the-message-field)).
 - **Suggested fix:** derive shared types from `generated.ts`, or generate them from the same schema.

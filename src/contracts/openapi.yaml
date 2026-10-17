@@ -6748,35 +6748,52 @@
         }
       },
       "CommandOutcome": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "status"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "applied"
-            ]
+        "description": "Applied: the session as it is now. Pending: stored, waiting for its prerequisite command.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "sessionId",
+              "startedAt",
+              "endedAt"
+            ],
+            "properties": {
+              "status": {
+                "const": "applied"
+              },
+              "sessionId": {
+                "type": "string"
+              },
+              "startedAt": {
+                "type": "string"
+              },
+              "endedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
           },
-          "commandId": {
-            "type": "string"
-          },
-          "sessionId": {
-            "type": "string"
-          },
-          "startedAt": {
-            "type": "string"
-          },
-          "endedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "commandId"
+            ],
+            "properties": {
+              "status": {
+                "const": "pending"
+              },
+              "commandId": {
+                "type": "string"
+              }
+            }
           }
-        }
+        ]
       },
       "IssuedInvoice": {
         "type": "object",

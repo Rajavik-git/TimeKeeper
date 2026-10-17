@@ -3207,13 +3207,17 @@ export interface components {
             responseCommandId?: string | null;
             responseResultJson?: string | null;
         };
+        /** @description Applied: the session as it is now. Pending: stored, waiting for its prerequisite command. */
         CommandOutcome: {
-            /** @enum {string} */
-            status: "pending" | "applied";
-            commandId?: string;
-            sessionId?: string;
-            startedAt?: string;
-            endedAt?: string | null;
+            /** @constant */
+            status: "applied";
+            sessionId: string;
+            startedAt: string;
+            endedAt: string | null;
+        } | {
+            /** @constant */
+            status: "pending";
+            commandId: string;
         };
         IssuedInvoice: {
             id: number;
