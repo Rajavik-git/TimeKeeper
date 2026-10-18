@@ -149,11 +149,12 @@ describe('timekeeper_status', () => {
 describe('MCP protocol', () => {
   const call = (deps: SessionDeps, method: string, params?: Record<string, unknown>) => handle({ jsonrpc: '2.0', id: 1, method, params }, deps);
 
-  it('initializes and lists both tools', async () => {
+  it('initializes and lists its tools', async () => {
     const { deps } = fakeApi();
     expect(await call(deps, 'initialize')).toMatchObject({ result: { capabilities: { tools: {} }, serverInfo: { name: 'timekeeper' } } });
     const list: any = await call(deps, 'tools/list');
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(['timekeeper_status', 'start_session', 'end_session', 'list_cases', 'record_case_transition']);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(['timekeeper_status', 'start_session', 'end_session', 'list_cases', 'record_case_transition',
+      'list_work_periods', 'list_questions', 'answer_question', 'tab_detection_status', 'screenpipe_link_status']);
     expect(await handle({ jsonrpc: '2.0', method: 'notifications/initialized' }, deps)).toBeNull();
   });
 

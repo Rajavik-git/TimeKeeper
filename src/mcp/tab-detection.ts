@@ -1,7 +1,7 @@
 // Starts the JEV tab-change detection (integrations/screenpipe/jev-check) alongside a TimeKeeper session.
 // The watcher is read-only, single-instance, and stops by itself when the session ends.
 import { spawn } from 'node:child_process';
-import { existsSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync } from 'node:fs';
 import { join } from 'node:path';
 import { JEV_CHECK_DIR, runningWatcher, WATCH_LOG } from '../../integrations/screenpipe/jev-check/session-bound.js';
 
@@ -37,6 +37,57 @@ export function findBun(env: NodeJS.ProcessEnv = process.env): string {
   if (process.versions.bun) return process.execPath;
   const bundled = process.platform === 'win32' && env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'screenpipe', 'bun.exe') : '';
   return bundled && existsSync(bundled) ? bundled : 'bun';
+}
+
+/** One JEV check as the watcher logged it (see integrations/screenpipe/jev-check/jev-check.ts print). */
+export interface TabCheck {
+  checkedAt: string; status: string; previous?: string; current?: string;
+  tabChange?: string; proposal?: string; assignment?: string; timekeeper?: string;
+}
+export interface TabDetectionStatus { running: boolean; pid: number | null; log: string; lastEvent: string | null; recentChecks: TabCheck[] }
+
+const CHECK_FIELDS: Record<string, keyof TabCheck> = {
+  previous: 'previous', current: 'current', 'tab change': 'tabChange', proposal: 'proposal', assignment: 'assignment', timekeeper: 'timekeeper',
+};
+
+/** Parses the end of watch.log into the latest checks, newest last. Window titles in it are untrusted screen content. */
+export function parseWatchLog(text: string, limit = 5): { lastEvent: string | null; checks: TabCheck[] } {
+  const checks: TabCheck[] = [];
+  let lastEvent: string | null = null;
+  let current: TabCheck | null = null;
+  for (const line of text.split(/\r?\n/)) {
+    const head = /^\[([^\]]+)\] (.*)$/.exec(line);
+    if (head) {
+      const check = /^status=(\S+)(.*)$/.exec(head[2]!);
+      if (check) { current = { checkedAt: head[1]!, status: check[1]! + check[2]!.trimEnd() }; checks.push(current); }
+      else { current = null; if (!/^stable for /.test(head[2]!)) lastEvent = `${head[1]} ${head[2]}`; }
+      continue;
+    }
+    const field = /^ {2}([a-z ]+?):\s+(.*)$/.exec(line);
+    const key = field && CHECK_FIELDS[field[1]!];
+    if (current && key) (current as any)[key] = field![2]!.trim();
+  }
+  return { lastEvent, checks: checks.slice(-Math.max(1, Math.min(limit, 20))) };
+}
+
+export function tabDetectionStatus(o: { dir?: string; limit?: number } = {}): TabDetectionStatus {
+  const dir = o.dir ?? JEV_CHECK_DIR;
+  const log = o.dir ? join(dir, 'watch.log') : WATCH_LOG;
+  const pid = runningWatcher(join(dir, '.watch.pid'));
+  let text = '';
+  if (existsSync(log)) {
+    // Only the end of the file: the log grows with every check.
+    const fd = openSync(log, 'r');
+    try {
+      const size = fstatSync(fd).size;
+      const length = Math.min(size, 200_000);
+      const buffer = Buffer.alloc(length);
+      readSync(fd, buffer, 0, length, size - length);
+      text = buffer.toString('utf8');
+    } finally { closeSync(fd); }
+  }
+  const { lastEvent, checks } = parseWatchLog(text, o.limit ?? 5);
+  return { running: pid !== null, pid, log, lastEvent, recentChecks: checks };
 }
 
 export async function startTabDetection(o: TabDetectionOptions): Promise<TabDetectionResult> {

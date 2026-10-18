@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { readScreenpipe, type LinkDeps } from './screenpipe-link.js';
 import type { SessionDeps } from './session.js';
 import { findBun, startTabDetection } from './tab-detection.js';
 
@@ -32,3 +34,25 @@ export function depsFromEnv(env: NodeJS.ProcessEnv = process.env): SessionDeps {
     } : {}),
   };
 }
+
+/**
+ * Screenpipe session link (server.ts --screenpipe-link):
+ * SCREENPIPE_URL                   Screenpipe API (default http://localhost:3030)
+ * TIMEKEEPER_LINK_GRACE_SECONDS    how long Screenpipe may stop before the session ends (default 60)
+ * TIMEKEEPER_LINK_STATE            state file (default data/screenpipe-link.json in the repository)
+ */
+export function linkFromEnv(env: NodeJS.ProcessEnv = process.env): { deps: LinkDeps; statePath: string } {
+  const url = (env.SCREENPIPE_URL || 'http://localhost:3030').replace(/\/+$/, '');
+  return {
+    deps: {
+      session: depsFromEnv(env),
+      readScreenpipe: () => readScreenpipe(url),
+      graceMs: (Number(env.TIMEKEEPER_LINK_GRACE_SECONDS) || 60) * 1000,
+      log: message => console.error(`[${new Date().toISOString()}] ${message}`),
+    },
+    statePath: linkStatePath(env),
+  };
+}
+
+export const linkStatePath = (env: NodeJS.ProcessEnv = process.env): string =>
+  env.TIMEKEEPER_LINK_STATE || fileURLToPath(new URL('../../data/screenpipe-link.json', import.meta.url));

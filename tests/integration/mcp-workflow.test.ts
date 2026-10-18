@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { memoryDb } from '../../src/backend/adapters/sqlite/repository.js';
 import { createApp } from '../../src/backend/api/app.js';
 import { ensureSession, getStatus, type SessionDeps } from '../../src/mcp/session.js';
-import { endSession, listCases, recordCaseTransition } from '../../src/mcp/workflow.js';
+import { answerQuestion, endSession, listCases, listQuestions, listWorkPeriods, recordCaseTransition } from '../../src/mcp/workflow.js';
 
 function realApi() {
   const app = createApp(memoryDb());
@@ -91,6 +91,41 @@ describe('MCP workflow against the application API', () => {
     const again = await ensureSession(deps);
     expect(again).toMatchObject({ status: 'started' });
     expect((again as any).session.id).not.toBe(sessionId);
+  });
+
+  it('lists periods and questions, answers a question, refuses a stale answer, and ends at a known earlier time', async () => {
+    const { deps, at } = realApi();
+    at('2026-10-17T08:00:00.000Z');
+    await endSession(deps);
+    at('2026-10-17T09:00:00.000Z');
+    const sessionId = ((await ensureSession(deps)) as any).session.id as string;
+    const [a, b] = await listCases(deps);
+
+    await recordCaseTransition(deps, { sessionId, transitionAt: '2026-10-17T09:05:00.000Z', caseId: a!.id });
+    const unknown = await recordCaseTransition(deps, { sessionId, transitionAt: '2026-10-17T09:30:00.000Z', caseId: null }) as any;
+
+    const listed = await listWorkPeriods(deps);
+    expect(listed).toMatchObject({ status: 'ok', session: { id: sessionId } });
+    expect((listed as any).periods).toEqual([
+      expect.objectContaining({ caseId: a!.id, case: `${a!.reference} - ${a!.title}`, startedAt: '2026-10-17T09:05:00.000Z', endedAt: '2026-10-17T09:30:00.000Z', timeValidated: false }),
+      expect.objectContaining({ caseId: null, case: null, startedAt: '2026-10-17T09:30:00.000Z', endedAt: null, assignmentRevision: 0 }),
+    ]);
+    const pending = await listQuestions(deps);
+    expect(pending).toMatchObject({ status: 'ok', questions: [{ questionId: unknown.questionId, status: 'pending', startedAt: '2026-10-17T09:30:00.000Z' }] });
+
+    // The lawyer's answer assigns the chosen case; answering again with another case is refused.
+    expect(await answerQuestion(deps, { questionId: unknown.questionId, caseId: b!.id }))
+      .toMatchObject({ status: 'answered', period: { id: unknown.period.id, caseId: b!.id, case: `${b!.reference} - ${b!.title}`, assignmentRevision: 1 } });
+    expect(await answerQuestion(deps, { questionId: unknown.questionId, caseId: a!.id })).toMatchObject({ status: 'error', error: 'conflict' });
+    expect(await listQuestions(deps)).toMatchObject({ questions: [] });
+    expect(await answerQuestion(deps, { questionId: 'nope', caseId: a!.id })).toMatchObject({ status: 'error', error: 'not-found' });
+
+    // Screenpipe session link: an end at a known earlier time never goes before the open period.
+    at('2026-10-17T12:00:00.000Z');
+    expect(await endSession(deps, undefined, { producerId: 'screenpipe-session-link', at: '2026-10-17T09:10:00.000Z' }))
+      .toMatchObject({ status: 'ended', session: { id: sessionId, endedAt: '2026-10-17T09:30:00.000Z' } });
+    // With no active session, the most recent one is listed.
+    expect(await listWorkPeriods(deps)).toMatchObject({ session: { id: sessionId } });
   });
 
   it('rejects malformed transitions without calling the API', async () => {

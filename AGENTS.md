@@ -22,7 +22,7 @@ Update the authoritative document when a decision changes. Link to it from other
 Use the requirements as the full specification. Preserve these boundaries in all work:
 
 - Screenpipe owns recording and triggered workflow execution. Retrieve evidence through its API. Do not access its database directly or add another recorder.
-- Explicit Screenpipe commands start and end sessions. Only one session is active per workspace. Repeated starts return it, and repeated ends preserve its original end boundary. Closing the Tauri app and Node backend leaves the session active.
+- Screenpipe's recording session starts and ends the TimeKeeper session; the explicit Start and End commands also do. Only one session is active per workspace. Repeated starts return it, and repeated ends preserve its original end boundary. Closing the Tauri app and Node backend leaves the session active.
 - The work period is the unit of case assignment, time correction, time validation, and billing status. Derive its client from its case.
 - Unknown folders require the lawyer's answer and an unresolved period. Bind questions and answers to the target period and expected assignment revision. Ordinary closure and evidence imports must not invalidate that guard. A delayed answer must not change a newer active case. Folder identification remains undefined.
 - Preserve manual corrections through replay. Ended sessions permit reconciliation inside their recorded boundaries, without reopening or extending the session.

@@ -91,8 +91,8 @@ async function waitUntilReady(deps: SessionDeps): Promise<boolean> {
  * Does nothing when a session is active; otherwise starts one, launching TimeKeeper first when configured.
  * Whenever a session is running afterwards, tab-change detection is started too (or left running).
  */
-export async function ensureSession(deps: SessionDeps): Promise<StartResult> {
-  const result = await ensureSessionOnly(deps);
+export async function ensureSession(deps: SessionDeps, producerId = PRODUCER_ID): Promise<StartResult> {
+  const result = await ensureSessionOnly(deps, producerId);
   if ((result.status === 'started' || result.status === 'already_active') && deps.startTabDetection) {
     try {
       result.tab_detection = await deps.startTabDetection();
@@ -103,7 +103,7 @@ export async function ensureSession(deps: SessionDeps): Promise<StartResult> {
   return result;
 }
 
-async function ensureSessionOnly(deps: SessionDeps): Promise<StartResult> {
+async function ensureSessionOnly(deps: SessionDeps, producerId: string): Promise<StartResult> {
   // The press time is the session start boundary, even if TimeKeeper needs launching first.
   const pressedAt = deps.now().toISOString();
   let launched = false;
@@ -126,7 +126,7 @@ async function ensureSessionOnly(deps: SessionDeps): Promise<StartResult> {
 
     const id = deps.newId();
     const command: StartCommand = {
-      producerId: PRODUCER_ID,
+      producerId,
       commandId: `start-${id}`,
       sessionId: `session-${id}`,
       occurredAt: pressedAt,

@@ -14,7 +14,7 @@ Screenpipe owns workflow execution after triggers. Node validates commands and w
 flowchart LR
     Lawyer[Lawyer]
     subgraph SP[Screenpipe]
-        Commands[Explicit start and end commands]
+        Commands[Start and end: Screenpipe recording session or buttons]
         Bridge[Context-change trigger bridge]
         Workflow[Screenpipe pipe workflow]
         Memory[Recorded memory API]
@@ -195,6 +195,8 @@ The pipe ships with `schedule: manual` and `enabled: false`. A working Screenpip
 ### Start and End buttons and tab detection
 
 The manual [Start TimeKeeper pipe](../integrations/screenpipe/pipes/start-timekeeper/pipe.md) calls the TimeKeeper MCP tool `start_session` ([src/mcp/](../src/mcp/server.ts); contract in [API D7](API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe)). The tool returns the active session unchanged, or starts one through `POST /api/commands/start`. The manual [End TimeKeeper pipe](../integrations/screenpipe/pipes/end-timekeeper/pipe.md) calls `end_session`, which ends the active session through `POST /api/commands/end`.
+
+The [Screenpipe session link](../src/mcp/screenpipe-link.ts) runs the same two operations automatically. It runs in the TimeKeeper MCP HTTP server process and polls Screenpipe's `/health`. A new Screenpipe run starts a session, or leaves the active one; a stop longer than the grace period ends it at the last time Screenpipe was running ([API D7](API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe)).
 
 ```mermaid
 sequenceDiagram

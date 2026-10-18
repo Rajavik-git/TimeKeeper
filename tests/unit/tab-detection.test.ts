@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { acquireWatchLock, releaseWatchLock, runningWatcher, sessionState } from '../../integrations/screenpipe/jev-check/session-bound.js';
-import { startTabDetection } from '../../src/mcp/tab-detection.js';
+import { parseWatchLog, startTabDetection, tabDetectionStatus } from '../../src/mcp/tab-detection.js';
 
 const dirs: string[] = [];
 const tempDir = () => { const d = mkdtempSync(join(tmpdir(), 'tk-tab-')); dirs.push(d); return d; };
@@ -38,6 +38,49 @@ describe('session state for the watcher', () => {
     expect(await sessionState('http://tk/api', at({ error: 'internal' }, 500))).toEqual({ state: 'unreachable' });
     const refused = (async () => { throw new TypeError('connection refused'); }) as unknown as typeof fetch;
     expect(await sessionState('http://tk/api', refused)).toEqual({ state: 'unreachable' });
+  });
+});
+
+describe('tab detection status', () => {
+  const LOG = [
+    '[2026-10-18T08:46:48.655Z] Watching Screenpipe focus events. Stability delay: 10s.',
+    '  update: window_focus Notepad.exe | Letter.txt -> timer reset',
+    '[2026-10-18T08:47:28.848Z] stable for 10s -> checking',
+    '',
+    '[2026-10-18T08:47:28.872Z] status=checked',
+    '  detection:  focus_change',
+    '  previous:   Code.exe | Editor (2026-10-18T10:47:05+02:00)',
+    '  current:    Notepad.exe | 2026-009-DAWSON letter.txt (2026-10-18T10:47:19+02:00)',
+    '  tab change: YES | yes=1.00 no=0.00 uncertain=0.00 | confidence=1.00 | jev-1.13.0',
+    '  proposal:   2026-009-DAWSON - Commercial lease (case 2, client 1) p=0.93 confidence=0.92',
+    '  still current: true -> display proposal: true',
+    '  timekeeper: record_case_transition -> applied period auto-x case 2',
+    '[2026-10-18T08:38:51.597Z] status=insufficient_data error=missing observation',
+    '[2026-10-18T08:48:22.524Z] TimeKeeper session ended: tab detection stopped.',
+  ].join('\n');
+
+  it('parses the latest checks and the last event from watch.log', () => {
+    const { lastEvent, checks } = parseWatchLog(LOG);
+    expect(lastEvent).toBe('2026-10-18T08:48:22.524Z TimeKeeper session ended: tab detection stopped.');
+    expect(checks).toEqual([
+      { checkedAt: '2026-10-18T08:47:28.872Z', status: 'checked',
+        previous: 'Code.exe | Editor (2026-10-18T10:47:05+02:00)', current: 'Notepad.exe | 2026-009-DAWSON letter.txt (2026-10-18T10:47:19+02:00)',
+        tabChange: 'YES | yes=1.00 no=0.00 uncertain=0.00 | confidence=1.00 | jev-1.13.0',
+        proposal: '2026-009-DAWSON - Commercial lease (case 2, client 1) p=0.93 confidence=0.92',
+        timekeeper: 'record_case_transition -> applied period auto-x case 2' },
+      { checkedAt: '2026-10-18T08:38:51.597Z', status: 'insufficient_data error=missing observation' },
+    ]);
+    expect(parseWatchLog(LOG, 1).checks).toHaveLength(1);
+  });
+
+  it('reports whether the watcher runs and reads only the log end', () => {
+    const dir = tempDir();
+    expect(tabDetectionStatus({ dir })).toEqual({ running: false, pid: null, log: join(dir, 'watch.log'), lastEvent: null, recentChecks: [] });
+    writeFileSync(join(dir, 'watch.log'), 'x'.repeat(300_000) + '\n' + LOG);
+    writeFileSync(join(dir, '.watch.pid'), String(process.pid));
+    const s = tabDetectionStatus({ dir });
+    expect(s).toMatchObject({ running: true, pid: process.pid });
+    expect(s.recentChecks).toHaveLength(2);
   });
 });
 

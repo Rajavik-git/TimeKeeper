@@ -68,11 +68,21 @@ export async function listCases(deps: SessionDeps): Promise<CaseInfo[]> {
   return cases.map(({ id, clientId, clientName, reference, title }) => ({ id, clientId, clientName, reference, title }));
 }
 
-export async function endSession(deps: SessionDeps, lockPath?: string): Promise<EndResult> {
-  const pressedAt = deps.now().toISOString();
+/**
+ * Ends the active session at the press time, or at `options.at` for a known earlier end (the Screenpipe session link).
+ * An earlier end never goes before the open period's start, which the API would refuse.
+ */
+export async function endSession(deps: SessionDeps, lockPath?: string,
+  options: { producerId?: string; at?: string } = {}): Promise<EndResult> {
+  let pressedAt = options.at ?? deps.now().toISOString();
   let session: SessionInfo | null;
   try {
     session = asSession(await getJson(deps, '/sessions/active'));
+    if (session && options.at) {
+      const open = await activePeriod(deps, session.id);
+      const floor = [session.startedAt, open?.startedAt].filter((t): t is string => !!t).map(Date.parse);
+      pressedAt = new Date(Math.max(Date.parse(options.at), ...floor)).toISOString();
+    }
   } catch (error) {
     if (error instanceof Unreachable) {
       return { status: 'timekeeper_not_running', ended: false,
@@ -86,7 +96,7 @@ export async function endSession(deps: SessionDeps, lockPath?: string): Promise<
   const commandId = `end-${id}`;
   let r: Response;
   try {
-    r = await postJson(deps, '/commands/end', { producerId: END_PRODUCER_ID, commandId, sessionId: session.id, occurredAt: pressedAt });
+    r = await postJson(deps, '/commands/end', { producerId: options.producerId ?? END_PRODUCER_ID, commandId, sessionId: session.id, occurredAt: pressedAt });
   } catch (error) {
     if (error instanceof Unreachable) {
       return { status: 'unconfirmed', ended: false, commandId,
@@ -102,6 +112,90 @@ export async function endSession(deps: SessionDeps, lockPath?: string): Promise<
   // The watcher checks the session every 10 seconds and stops by itself.
   return { status: 'ended', ended: true, session: ended, commandId,
     tab_detection: runningWatcher(lockPath) !== null ? 'stopping' : 'not_running' };
+}
+
+// --- Read-only checks and the lawyer's answer, for testing and asking from the Screenpipe chat ---
+
+export interface PeriodSummary {
+  id: string; caseId: string | null; case: string | null; startedAt: string; endedAt: string | null;
+  /** Increases with each change of the period's case, for example the lawyer's answer. */
+  assignmentRevision: number; timeValidated: boolean;
+}
+export type SessionPeriods = { status: 'ok'; session: SessionInfo | null; periods: PeriodSummary[] };
+export interface QuestionSummary { questionId: string; periodId: string; status: string; startedAt: string | null; endedAt: string | null }
+export type SessionQuestions = { status: 'ok'; session: SessionInfo | null; questions: QuestionSummary[] };
+export type ApiFailure = { status: 'timekeeper_not_running'; message: string } | { status: 'error'; error: string; message: string };
+export type AnswerResult = { status: 'answered'; period: PeriodSummary } | ApiFailure;
+
+const failure = (error: unknown): ApiFailure => error instanceof Unreachable
+  ? { status: 'timekeeper_not_running', message: 'TimeKeeper is not running.' }
+  : { status: 'error', error: 'unexpected', message: error instanceof Error ? error.message : String(error) };
+
+/** The given session, else the active one, else the most recent one. */
+async function targetSession(deps: SessionDeps, sessionId?: unknown): Promise<SessionInfo | null> {
+  if (typeof sessionId === 'string' && sessionId) return asSession(await getJson(deps, `/sessions/${encodeURIComponent(sessionId)}`));
+  const active = asSession(await getJson(deps, '/sessions/active'));
+  if (active) return active;
+  const all = (await getJson<any[]>(deps, '/sessions')).map(asSession).filter((s): s is SessionInfo => s !== null);
+  return all.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))[0] ?? null;
+}
+
+async function caseNames(deps: SessionDeps): Promise<Map<string, string>> {
+  const cases = await getJson<CaseInfo[]>(deps, '/cases');
+  return new Map(cases.map(c => [c.id, `${c.reference} - ${c.title}`]));
+}
+
+const summary = (p: any, names: Map<string, string>): PeriodSummary => ({
+  id: p.id, caseId: p.caseId ?? null, case: p.caseId ? names.get(p.caseId) ?? null : null, startedAt: p.startedAt, endedAt: p.endedAt ?? null,
+  assignmentRevision: Number(p.assignmentRevision ?? 0), timeValidated: p.timeValidated === true,
+});
+
+/** Work periods of a session, oldest first, with the case reference. */
+export async function listWorkPeriods(deps: SessionDeps, input?: { sessionId?: unknown }): Promise<SessionPeriods | ApiFailure> {
+  try {
+    const session = await targetSession(deps, input?.sessionId);
+    if (!session) return { status: 'ok', session: null, periods: [] };
+    const [periods, names] = await Promise.all([getJson<any[]>(deps, `/work-periods?sessionId=${encodeURIComponent(session.id)}`), caseNames(deps)]);
+    return { status: 'ok', session, periods: periods.map(p => summary(p, names)).sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt)) };
+  } catch (error) { return failure(error); }
+}
+
+/** Questions of a session (pending by default) with their period's times. */
+export async function listQuestions(deps: SessionDeps, input?: { sessionId?: unknown; status?: unknown }): Promise<SessionQuestions | ApiFailure> {
+  try {
+    const session = await targetSession(deps, input?.sessionId);
+    if (!session) return { status: 'ok', session: null, questions: [] };
+    const status = input?.status === 'all' ? '' : typeof input?.status === 'string' ? input.status : 'pending';
+    const [questions, periods] = await Promise.all([
+      getJson<any[]>(deps, `/questions?sessionId=${encodeURIComponent(session.id)}${status ? `&status=${encodeURIComponent(status)}` : ''}`),
+      getJson<any[]>(deps, `/work-periods?sessionId=${encodeURIComponent(session.id)}`),
+    ]);
+    const byId = new Map(periods.map(p => [p.id, p]));
+    return { status: 'ok', session, questions: questions.map(q => ({ questionId: q.questionId, periodId: q.periodId, status: q.status,
+      startedAt: byId.get(q.periodId)?.startedAt ?? null, endedAt: byId.get(q.periodId)?.endedAt ?? null })) };
+  } catch (error) { return failure(error); }
+}
+
+/**
+ * The lawyer's answer to an unknown-folder question: assigns the existing case to that period through the API, which
+ * refuses a stale answer (a newer assignment of the period) instead of overwriting it.
+ */
+export async function answerQuestion(deps: SessionDeps, input: unknown): Promise<AnswerResult> {
+  const i = input as Record<string, unknown> | null;
+  if (!i || typeof i.questionId !== 'string' || !i.questionId || typeof i.caseId !== 'string' || !i.caseId) {
+    return { status: 'error', error: 'invalid-request', message: 'questionId and caseId (from list_cases) are required' };
+  }
+  try {
+    const question = (await getJson<any[]>(deps, '/questions')).find(q => q.questionId === i.questionId);
+    if (!question) return { status: 'error', error: 'not-found', message: 'question not found' };
+    const r = await postJson(deps, '/questions/answer', {
+      questionId: question.questionId, sessionId: question.sessionId, periodId: question.periodId,
+      expectedAssignmentRevision: question.expectedAssignmentRevision, caseId: i.caseId, responseCommandId: `chat-answer-${deps.newId()}`,
+    });
+    const body = await r.json().catch(() => null) as any;
+    if (!r.ok) return { status: 'error', error: String(body?.error ?? `http-${r.status}`), message: String(body?.message ?? '') };
+    return { status: 'answered', period: summary(body, await caseNames(deps)) };
+  } catch (error) { return failure(error); }
 }
 
 function validTransition(input: unknown): TransitionInput | string {
