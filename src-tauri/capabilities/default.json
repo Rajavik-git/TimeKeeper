@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Local TimeKeeper windows",
+  "windows": ["pill", "main"],
+  "permissions": ["core:default", "core:event:allow-listen", "core:window:allow-start-dragging"]
+}

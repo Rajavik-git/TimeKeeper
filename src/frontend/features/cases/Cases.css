@@ -1,0 +1,1338 @@
+/* Cases hierarchy, search and comparisons. */
+.page > .cases-fill.card {
+  display: flex;
+  flex-direction: column;
+}
+.case-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+}
+.case-tile:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--shadow);
+}
+.case-tile-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.case-tile-top > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.case-tile-top strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.case-tile p {
+  color: var(--muted);
+}
+.case-tile-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 10px;
+  margin: 0;
+}
+.case-tile-facts div {
+  min-width: 0;
+}
+.case-tile-facts dt {
+  color: var(--muted);
+}
+.case-tile-facts dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-list,
+.attention-list {
+  padding: 5px 14px;
+}
+.bar-list > button {
+  flex-direction: column;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  text-align: left;
+}
+.bar-list > button > span:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.bar-list > button > span:first-child span {
+  color: var(--muted);
+}
+.bar-list .bar {
+  display: block;
+  width: 100%;
+}
+.attention-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.attention-list > div > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.attention-list small {
+  color: var(--muted);
+}
+.attention-list .bar {
+  display: block;
+}
+.attention-list > p {
+  padding: 10px 0;
+  color: var(--muted);
+}
+.case-detail-list {
+  overflow: hidden;
+}
+.case-detail-list > .tbl {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.case-detail-list > .marker-intro {
+  flex: none;
+}
+.case-detail-list > .card-b.row {
+  flex: none;
+}
+.case-tile p,
+.attention-list small {
+  font-size: 13.5px;
+}
+.case-tile-facts dt,
+.case-tile-facts dd {
+  font-size: 12.5px;
+}
+.case-tile-top strong {
+  font-size: 15px;
+}
+.case-tile-facts dd {
+  font-size: 13.5px;
+}
+.bar-list > button {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 0;
+}
+.bar-list .bar {
+  height: 10px;
+}
+.bar-client-name {
+  min-width: 0;
+  font-weight: 500;
+}
+.bar-amount,
+.bar-time {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bar-time {
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .bar-time {
+    display: none;
+  }
+}
+.case-search {
+  position: relative;
+  min-width: 245px;
+  z-index: 8;
+}
+.case-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  padding: 0 10px;
+  height: var(--h-md);
+}
+.case-search-box input {
+  border: 0;
+  background: transparent;
+  outline: 0;
+  min-width: 0;
+  width: 100%;
+}
+.case-search-results {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 5px);
+  width: min(420px, 85vw);
+  max-height: min(550px, 70vh);
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  border-radius: var(--r-lg);
+  padding: 6px;
+}
+.case-search-group {
+  padding: 9px 10px 4px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+}
+.case-search-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+  font-size: var(--fs-sm);
+  line-height: 1.3;
+}
+.case-search-item:hover,
+.case-search-item[aria-selected="true"] {
+  background: var(--hover);
+}
+.case-search-item small,
+.case-search-help {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.case-search-help {
+  padding: 8px 10px;
+}
+.case-attention-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.bar-time {
+  white-space: nowrap;
+}
+.case-sortable th button,
+.case-sortable button {
+  background: transparent;
+  border: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  padding: 0;
+  text-align: inherit;
+  white-space: nowrap;
+}
+.case-sortable button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+@media (max-width: 980px) {
+  .case-search {
+    min-width: 190px;
+  }
+}
+.bar-list > button {
+  grid-template-columns: 196px minmax(40px, 1fr) 90px 62px;
+}
+.bar-list .bar > span {
+  background: var(--bad);
+}
+.bar-client-name {
+  width: 196px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .bar-list > button {
+    grid-template-columns: minmax(0, 196px) minmax(40px, 1fr) 90px;
+  }
+}
+.client-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.bill-client-head {
+  position: relative;
+}
+.bill-client-link,
+.bill-case-row {
+  display: grid;
+  grid-template-columns: 196px minmax(40px, 1fr) 90px 62px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--h-lg);
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.bill-client-link:hover,
+.bill-case-row:hover {
+  background: var(--hover);
+}
+.bill-client-link .bar-client-name {
+  padding-left: 24px;
+  font-size: var(--fs-sm);
+}
+.bill-expand {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: var(--h-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.bill-expand span {
+  display: block;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.bill-expand[aria-expanded="true"] span {
+  transform: rotate(90deg);
+}
+.bill-case-list {
+  display: flex;
+  flex-direction: column;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+.bill-case-list[hidden] {
+  display: none;
+}
+.bill-case-row {
+  grid-template-columns: 184px minmax(40px, 1fr) 90px 62px;
+  min-height: var(--h-sm);
+  color: var(--ink-2);
+  font-size: var(--fs-xs);
+}
+.bill-case-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-left: 12px;
+  overflow-wrap: anywhere;
+}
+.bill-case-name strong {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.bill-case-row .bar {
+  height: 5px;
+}
+.bill-case-row .bar-amount,
+.bill-case-row .bar-time {
+  font-size: var(--fs-xs);
+}
+@media (max-width: 640px) {
+  .bill-client-link {
+    grid-template-columns: minmax(0, 196px) minmax(40px, 1fr) 90px;
+  }
+  .bill-case-row {
+    grid-template-columns: minmax(0, 184px) minmax(40px, 1fr) 90px;
+  }
+}
+/* The Cases hierarchy follows the approved mockup's compact card and row geometry. */
+.cases-clients .card-h .t,
+.cases-rail .card-h .t {
+  gap: 1px;
+}
+.cases-clients .client-grid {
+  display: grid;
+  height: max-content;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-auto-rows: minmax(160px, auto);
+  align-content: start;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.cases-clients .client-tile .case-tile-top {
+  display: block;
+}
+.cases-clients .client-tile .case-tile-top strong {
+  white-space: normal;
+  overflow: visible;
+}
+.cases-clients .client-tile .case-tile-top .muted {
+  font-size: var(--fs-sm);
+}
+.cases-clients .client-tile .case-tile-facts {
+  font-size: var(--fs-md);
+}
+.cases-clients .client-tile .case-tile-facts dt {
+  font-size: var(--fs-xs);
+}
+.cases-clients .client-tile .case-tile-facts dd {
+  line-height: 1.5;
+}
+.client-sort .field {
+  min-width: 126px;
+}
+.cases-dashboard .cases-rail .card:first-child {
+  flex: 0 1 auto;
+  max-height: 55%;
+}
+.cases-rail .card > .card-h {
+  flex: none;
+}
+.cases-rail .attention-list {
+  padding: 4px 16px;
+  max-height: 260px;
+}
+.cases-rail .attention-list > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: initial;
+  gap: 10px;
+  padding: 9px 0;
+}
+.cases-rail .attention-list > div > svg {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.attention-list > div > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.attention-list > div > span:nth-child(2) > span:first-child {
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+.attention-list strong {
+  font-weight: 600;
+}
+.attention-list small {
+  font-size: var(--fs-sm);
+}
+.attention-list .bar {
+  width: 100%;
+  max-width: 320px;
+  height: 4px;
+  margin-top: 6px;
+}
+.case-attention-actions {
+  flex-direction: row !important;
+  gap: 6px;
+  white-space: nowrap;
+}
+.cases-rail .bar-list {
+  padding: 6px 16px;
+}
+.bill-client-group {
+  border-bottom: 1px solid var(--line);
+}
+.bill-client-group:last-child {
+  border-bottom: 0;
+}
+.cases-rail .bill-client-head {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.cases-rail .bill-client-link {
+  grid-template-columns: minmax(0, 1.4fr) minmax(24px, 1fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 12px;
+  min-height: 38px;
+  padding: 7px 0;
+}
+.cases-rail .bill-client-link .bar-client-name {
+  width: auto;
+  min-width: 0;
+  padding-left: 0;
+  font-size: var(--fs-md);
+  font-weight: 400;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cases-rail .bill-expand {
+  position: static;
+  transform: none;
+  width: 22px;
+  height: 22px;
+}
+.cases-rail .bill-client-link .bar {
+  height: 10px;
+}
+.cases-rail .bill-client-link .bar-amount,
+.cases-rail .bill-client-link .bar-time {
+  min-width: 0;
+  font-size: var(--fs-md);
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.cases-rail .bill-case-list {
+  padding-left: 0;
+  border-left: 0;
+}
+.cases-rail .bill-case-row {
+  grid-template-columns: 22px minmax(0, 1.4fr) minmax(24px, 1fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 12px;
+  min-height: 34px;
+  padding: 5px 0;
+}
+.cases-rail .bill-case-row:before {
+  content: "";
+}
+.cases-rail .bill-case-name {
+  padding-left: 0;
+  line-height: 1.25;
+}
+.cases-rail .bill-case-name strong {
+  font-size: var(--fs-sm);
+  font-weight: 400;
+}
+.cases-rail .bill-case-row .bar {
+  height: 6px;
+}
+.cases-rail .bill-case-row :is(.bar-amount, .bar-time) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ph .case-search {
+  width: 340px;
+  min-width: 340px;
+}
+.case-search .case-search-box {
+  width: 340px;
+  padding: 0 12px;
+}
+.case-search-box input {
+  font-size: var(--fs-md);
+  color: var(--ink);
+}
+.case-search .case-search-results {
+  left: auto;
+  right: 0;
+  width: 460px;
+  max-height: min(520px, 70vh);
+  border-color: var(--line-2);
+  padding: 6px;
+  z-index: 20;
+}
+.case-search .case-search-group {
+  padding: 6px 8px 2px;
+  font-weight: 400;
+}
+.case-search .case-search-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px;
+  font-size: var(--fs-md);
+}
+.case-search .case-search-item > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.case-search .case-search-item .case-search-primary {
+  flex: 1;
+}
+.case-search .case-search-item .case-search-text {
+  display: inline;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.case-search .case-search-item strong {
+  font-weight: 600;
+}
+.case-search .case-search-item small {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  flex: none;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.case-search .case-search-help {
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding: 8px 8px 4px;
+  font-size: var(--fs-xs);
+}
+.case-search-item .matter-reference {
+  font-size: var(--fs-xs);
+}
+.page:has(.cases-dashboard) .ph .actions {
+  transform: none;
+}
+@media (max-width: 1300px) {
+  .cases-clients .client-grid {
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    grid-auto-rows: minmax(160px, auto);
+  }
+  .cases-clients .client-tile .case-tile-top strong {
+    letter-spacing: -0.02em;
+  }
+}
+.page:has(.cases-stats) .case-breadcrumb {
+  margin-bottom: 12px;
+}
+.page:has(.cases-stats) .ph .t {
+  gap: 4px;
+}
+.case-grid.cases-client-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 12px;
+  padding: 0;
+  overflow: auto;
+}
+.cases-client-grid .case-tile {
+  width: 100%;
+  max-width: none;
+  min-height: 228px;
+  gap: 10px;
+}
+.cases-client-grid .case-tile-top > span:first-child {
+  gap: 2px;
+}
+.cases-client-grid .case-tile-top .matter-reference {
+  font-size: var(--fs-xs);
+}
+.cases-client-grid .case-tile p {
+  font-size: var(--fs-sm);
+  min-height: 40px;
+}
+.cases-client-grid .case-tile-facts {
+  gap: 6px 12px;
+}
+.cases-client-grid .case-tile-facts dt {
+  font-size: var(--fs-xs);
+}
+.cases-client-grid .case-tile-facts dd {
+  font-size: var(--fs-sm);
+}
+.cases-client-grid .case-tile .bar {
+  margin-top: auto;
+}
+.cases-detail-header h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.cases-detail-header h1 .matter-reference {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--subtle);
+  padding: 0 5px;
+  letter-spacing: 0.01em;
+}
+.case-facts-card .facts {
+  border-top: 0;
+}
+.case-facts-card .budget {
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.case-detail-list .toolbar {
+  justify-content: space-between;
+}
+.case-toolbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.case-detail-list .marker-intro {
+  border-bottom: 1px solid var(--line);
+}
+.case-detail-list .case-marker-table td:nth-child(2) {
+  color: var(--muted);
+}
+/* Cases interaction polish stays local to this screen. */
+.page:has(.cases-stats) :is(.client-tile, .case-tile):hover {
+  border-color: var(--line-2);
+  box-shadow: var(--shadow);
+}
+.page:has(.cases-stats) :is(.client-tile, .case-tile):active {
+  transform: scale(0.985);
+}
+.page:has(.cases-stats)
+  :is(.bill-client-link, .bill-case-row, .bill-expand, .case-search-item):hover {
+  background: var(--hover);
+}
+.page:has(.cases-stats) .case-search-item[aria-selected="true"] {
+  background: var(--hover);
+  color: var(--ink);
+}
+.page:has(.cases-stats)
+  :is(.case-breadcrumb button, .case-sortable button, .case-empty button):hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.page:has(.cases-stats) :is(.case-search-results, .case-modal-back .modal) {
+  animation: case-pop-in 140ms ease-out both;
+  transform-origin: top right;
+}
+.case-modal-back .modal {
+  animation: case-pop-in 140ms ease-out both;
+  transform-origin: center;
+}
+.case-modal-back {
+  animation: case-fade-in 140ms ease-out both;
+}
+.case-toast {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: case-toast-in 140ms ease-out both;
+}
+.case-toast button {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.case-toast button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+@keyframes case-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes case-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes case-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+.page:has(.cases-stats) :is(.case-scroll, .case-detail-list > .tbl) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+.page:has(.cases-stats) :is(.cases-clients, .cases-rail .card, .case-detail-list) {
+  position: relative;
+}
+.page:has(.cases-stats) :is(.cases-clients, .cases-rail .card, .case-detail-list)::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 14px;
+  background: linear-gradient(transparent, var(--surface));
+  pointer-events: none;
+  z-index: 2;
+}
+.page:has(.cases-stats) :is(.cases-clients, .cases-rail .card, .case-detail-list)::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 8px;
+  background: linear-gradient(var(--surface), transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+.page:has(.cases-stats)
+  :is(.metric-value, .case-tile-facts, .bar-amount, .bar-time, .case-facts, .tbl .num) {
+  font-variant-numeric: tabular-nums;
+}
+.page:has(.cases-stats) :is(h1, h2, .case-tile-top strong) {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.page:has(.cases-stats) .case-detail-list .tbl th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+.page:has(.cases-stats) .case-detail-list .tbl tr:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  outline-offset: -2px;
+}
+.page:has(.cases-stats) .case-detail-list .tbl td.wrap {
+  overflow-wrap: anywhere;
+}
+.page:has(.cases-stats) .case-detail-list .case-marker-table td:first-child {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page:has(.cases-stats) .bill-case-name strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page:has(.cases-stats) .case-empty {
+  color: var(--muted);
+  padding: 18px 16px;
+  line-height: 1.5;
+}
+.page:has(.cases-stats) .case-empty button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+.page:has(.cases-stats) .case-scroll .case-empty {
+  grid-column: 1/-1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page:has(.cases-stats) :is(.case-search-results, .case-modal-back .modal),
+  .case-modal-back,
+  .case-modal-back .modal,
+  .case-toast {
+    animation: none;
+  }
+}
+/* Reviewer measurements from the approved Cases mockup. */
+.cases-clients .client-tile {
+  gap: 10px;
+}
+.cases-clients .client-tile .case-tile-top strong {
+  line-height: 1.25;
+  font-weight: 600;
+}
+.cases-clients .client-tile .case-tile-facts {
+  gap: 6px 12px;
+  align-items: start;
+}
+.case-to-bill-value {
+  font-weight: 600;
+}
+.page:has(.cases-dashboard) .ph {
+  align-items: flex-end;
+}
+.page:has(.cases-dashboard) .ph .actions {
+  align-self: flex-end;
+}
+.page:has(.cases-stats) .case-breadcrumb {
+  align-items: center;
+  gap: 6px;
+  margin: 10px -20px 0;
+  padding: 0 20px 0;
+  font-size: var(--fs-sm);
+  line-height: 1.25;
+}
+.case-breadcrumb .case-chevron-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+.case-down-icon,
+.case-chevron-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.page:has(.cases-stats) .stat.case-stat-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  cursor: pointer;
+}
+.page:has(.cases-stats) .stat.case-stat-action:hover {
+  filter: brightness(1.12);
+  box-shadow: var(--shadow);
+}
+.page:has(.cases-stats) .stat.case-stat-action:active {
+  transform: scale(0.98);
+}
+.page:has(.cases-stats) :is(.cases-clients, .cases-rail .card):focus {
+  outline: 2px solid color-mix(in srgb, var(--ink) 30%, transparent);
+  outline-offset: 2px;
+}
+.cases-rail .bill-expand {
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--muted);
+}
+.cases-rail .bill-expand:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.cases-rail .bill-expand .case-chevron-icon {
+  transition: transform 150ms ease-out;
+}
+.cases-rail .bill-expand[aria-expanded="true"] .case-chevron-icon {
+  transform: rotate(90deg);
+}
+.cases-rail .bill-case-row {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  border-bottom: 1px dashed var(--line);
+}
+.cases-rail .bill-case-row:last-child {
+  border-bottom: 0;
+}
+.cases-rail .bill-case-row .bar > span {
+  opacity: 0.6;
+}
+.page:has(.cases-stats) .bar > span {
+  border-radius: 2px;
+}
+.case-zero {
+  color: var(--muted);
+}
+.attention-list .matter-reference {
+  display: inline;
+  font-size: var(--fs-xs);
+}
+.cases-client-grid .case-tile-top strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.cases-client-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+.cases-client-content .cases-client-grid {
+  flex: none;
+  overflow: visible;
+}
+.cases-recent {
+  display: flex;
+  flex: none;
+  min-height: 210px;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cases-recent .tbl {
+  flex: 1;
+  min-height: 0;
+}
+.cases-recent .tbl td:nth-child(2),
+.cases-recent .tbl td:nth-child(3) {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.case-inline-link {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.case-inline-link:hover {
+  text-decoration: underline;
+}
+.case-detail-list .tbl:not(.case-marker-table) table {
+  table-layout: fixed;
+}
+.case-detail-list .tbl:not(.case-marker-table) th:nth-child(1) {
+  width: 102px;
+}
+.case-detail-list .tbl:not(.case-marker-table) th:nth-child(3) {
+  width: 110px;
+}
+.case-detail-list .tbl:not(.case-marker-table) th:nth-child(4) {
+  width: 113px;
+}
+.case-detail-list .tbl:not(.case-marker-table) th:nth-child(5) {
+  width: 141px;
+}
+.case-detail-list .tbl:not(.case-marker-table) th:nth-child(6) {
+  width: 148px;
+}
+.case-detail-list .tbl:not(.case-marker-table) th:nth-child(7) {
+  width: 139px;
+}
+.case-detail-list .tbl td.wrap {
+  padding: 8px 14px;
+}
+.case-rowact {
+  display: flex;
+  justify-content: flex-end;
+}
+.case-ref-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--subtle);
+  font: var(--fs-xs) var(--m);
+}
+.case-facts-card .facts dt {
+  font-size: var(--fs-sm);
+}
+.case-budget-muted {
+  color: var(--muted);
+}
+.case-detail-list .st {
+  font-size: var(--fs-sm);
+}
+.case-search-box .i {
+  color: var(--muted);
+}
+.case-search .case-search-item {
+  gap: 8px;
+}
+.case-search-help .matter-reference {
+  font-family: var(--m);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cases-rail .bill-expand .case-chevron-icon {
+    transition: none;
+  }
+}
+/* Product review refinements. */
+.case-attention-actions .btn.attn {
+  min-width: 96px;
+}
+.cases-rail .attention-list .bar {
+  width: 320px;
+  max-width: 100%;
+}
+.case-more-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+}
+.case-overflow {
+  position: relative;
+}
+.case-overflow-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 25;
+  min-width: 204px;
+  padding: 5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: case-pop-in 140ms ease-out both;
+  transform-origin: top right;
+}
+.case-overflow-menu button {
+  width: 100%;
+  text-align: left;
+}
+.case-overflow-menu button:hover {
+  background: var(--hover);
+}
+.case-facts-card .budget.case-budget-warn .bar > span {
+  background: var(--warn);
+}
+.case-facts-card .budget.case-budget-danger .bar > span {
+  background: var(--bad);
+}
+.case-facts:has(> div:nth-child(3):last-child) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.case-facts:has(> div:nth-child(2):last-child) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (prefers-reduced-motion: reduce) {
+  .case-overflow-menu {
+    animation: none;
+  }
+}
+/* Cases layout, formerly supplied by the shared theme. */
+.cases-layout {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+.cases-layout .list {
+  padding-bottom: 8px;
+}
+@media (max-width: 980px) {
+  .cases-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.cases-layout .card-h .ref {
+  vertical-align: 1px;
+}
+.page > .cases-fill {
+  flex: 1 1 auto;
+}
+.cases-fill {
+  min-height: 0;
+}
+.cases-dashboard > *,
+.cases-rail > * {
+  min-height: 0;
+}
+.cases-clients,
+.cases-rail .card {
+  display: flex;
+  flex-direction: column;
+}
+.cases-rail .card:last-child {
+  flex: 1;
+}
+.cases-dashboard {
+  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  min-height: 0;
+}
+.cases-clients {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0;
+}
+.cases-rail {
+  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  grid-column: 2;
+  grid-row: 1;
+  overflow: auto;
+}
+/* Cases content layout. */
+.case-facts {
+  border-top: 0;
+  margin: 0;
+}
+.case-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  line-height: 1.2;
+  margin-bottom: 3px;
+}
+.case-breadcrumb button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  padding: 0;
+}
+.case-breadcrumb button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.case-breadcrumb strong {
+  color: var(--ink);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.case-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.client-grid,
+.case-grid {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.case-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.client-tile {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.client-tile:hover {
+  border-color: var(--line-2);
+  box-shadow: var(--shadow);
+}
+.client-tile small {
+  margin-top: auto;
+}
+.case-facts-card {
+  flex: none;
+}
+.case-facts-card .facts {
+  margin: 0;
+}
+@media (max-width: 640px) {
+  .client-grid,
+  .case-grid {
+    grid-template-columns: 1fr;
+  }
+  .case-scroll {
+    overflow: visible;
+  }
+}
+.client-tile p {
+  font-size: var(--fs-sm);
+}
+.client-tile small,
+.case-breadcrumb {
+  font-size: var(--fs-xs);
+}
+.client-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(160px, auto);
+  gap: 10px;
+  min-height: 0;
+}
+.client-tile {
+  height: max-content;
+  min-height: 160px;
+  align-self: start;
+  text-align: left;
+}
+.client-tile .case-tile-facts {
+  min-width: 0;
+}
+.client-tile .case-tile-facts div,
+.client-tile .case-tile-facts dd {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+}
+.client-tile .case-tile-top {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+}
+.client-tile .case-tile-top span {
+  display: block;
+}
+.client-tile .case-tile-top strong {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .page > .cases-dashboard.cases-fill {
+    flex: none;
+  }
+  .cases-dashboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cases-clients,
+  .cases-rail {
+    grid-column: 1;
+    grid-row: auto;
+    min-height: auto;
+    overflow: visible;
+  }
+  .cases-clients .cases-client-scroll {
+    flex: none;
+    overflow: visible;
+  }
+  .cases-dashboard .cases-rail .card:first-child,
+  .cases-rail .card:last-child {
+    flex: none;
+    max-height: none;
+  }
+  .cases-rail .attention-list {
+    max-height: none;
+  }
+}
+@media (max-width: 640px) {
+  .cases-fill,
+  .cases-client-content {
+    min-height: auto;
+    overflow: visible;
+  }
+  .cases-clients .client-grid,
+  .client-grid,
+  .case-grid.cases-client-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

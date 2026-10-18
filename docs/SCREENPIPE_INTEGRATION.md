@@ -1,147 +1,82 @@
-# Screenpipe integration research
+# Screenpipe integration and research
 
-Research date: 2026-10-17. This document separates documented provider capabilities from the proposed TimeKeeper design. Public documentation was reviewed; no personal recordings were accessed, no provider calls were executed against user data, and no integration was implemented. Pin and test the installed Screenpipe release before implementation.
+Source review date: 2026-10-18. This document describes the current branch and separates it from provider research and proposed behavior. No Screenpipe release is pinned. Installed-release, macOS, and Windows acceptance remain pending.
 
-## Required outcome
+## Environment readiness and integration status
 
-Screenpipe supplies all recorded screen evidence through its memory API. The Screenpipe-owned workflow detects context changes from that evidence and submits assignments to TimeKeeper. Screenpipe chat can query TimeKeeper to retrieve the same case identities and assignments. TimeKeeper returns case associations to Screenpipe for the affected activity. See the [architecture](ARCHITECTURE.md) for the required adapter; the selected tag-based mechanism is defined in the architecture and remains untested.
+[Setup](SETUP.md#connect-screenpipe) covers the local service, URL, and protected-read token. `install.mjs` configures a missing API key through the installed CLI and checks public `GET /health`. It does not query protected recordings, install integrations, or start recording. `--check` never retrieves credentials or writes files. [MCP setup](../integrations/screenpipe/README.md) covers the separate chat connection, skill, manual pipes, and optional session link.
 
-Screenpipe captures the visible context. TimeKeeper must resolve that context to its own case catalogue. An observed tab change does not by itself identify a legal case. A legal case can also change inside the same tab, and multiple tabs can belong to one case.
+| Part                  | Current source behavior                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider reader       | Reads recorded focus and frame images through HTTP. No Screenpipe database access or additional recorder.                                          |
+| Desk pill             | Uses recorded application and window metadata for deterministic case suggestions. High-confidence matches apply after 20 seconds.                  |
+| Activity              | Retrieves frame metadata and screenshots for review on demand. Does not attach those previews to stored period evidence.                           |
+| MCP                   | Eight tools for sessions, catalogue and period reads, guarded question answers, and link status.                                                   |
+| Session link          | Optional health polling starts and ends linked sessions. Enabled by `npm run mcp:serve`.                                                           |
+| Skill and pipes       | Chat instructions and manual Start/End workflows exist. Installation is separate.                                                                  |
+| Remaining integration | JEV source integration and validation are pending. Durable import/catch-up, immediate event triggers, and verified tag write-back are absent here. |
 
-Here, "memory" means recorded activity accessible through Screenpipe's API. The specific `/memories` endpoint contains saved AI knowledge; it is not a complete stream of captured screen changes. Use recorded frames and text as primary evidence. [Screenpipe memories reference](https://docs.screenpipe.com/api-reference/memories/list-memories).
+These are source facts, not proof of a working installed provider workflow. [Architecture](ARCHITECTURE.md) owns component boundaries. [Requirements](REQUIREMENTS.md) owns business rules and unresolved decisions.
 
-## Verified capabilities
+## TimeKeeper reads Screenpipe
 
-| Capability | Documentation evidence | TimeKeeper use |
-| --- | --- | --- |
-| Capture changes in screen context | Screenpipe documents capture triggered by app switches, focus, interaction, and typing pauses, with accessibility text and OCR fallback. | Observe recorded context changes. This does not guarantee a public browser-tab-change event. |
-| Read recorded activity | `GET /search` supports time bounds, pagination, content types, app/window/URL filters, and focus filtering. Frame results can include timestamp, frame ID, text, URL, and window metadata. | Retrieve new observations and compare them with previous observations. |
-| Inspect a recorded frame | `GET /frames/{frame_id}/context` provides text, nodes, and extracted URLs. `GET /frames/{frame_id}` provides the recorded screenshot. | Enrich ambiguous observations and display evidence for review. |
-| Let chat call an external MCP server | The changelog documents custom HTTP MCP connections with a name, URL, optional headers, connection testing, and enablement. | Connect Screenpipe chat to TimeKeeper's read-only tools. |
-| SDK session events | Source confirms `app_switched` and `frames_progress` belong to a recorder created by the SDK session. | Not a drop-in subscription to the existing desktop recorder. See the event review. |
-| Daemon event transport | Source registers `/ws/events`, forwarding the internal event bus. | Candidate trigger transport; relevant capture producers and release availability are not established. |
+The HTTP adapter in `src/backend/adapters/screenpipe/http.ts` uses `SCREENPIPE_URL`, then `SCREENPIPE_API_URL`, then `http://127.0.0.1:3030`. Protected requests use `SCREENPIPE_API_KEY`, falling back to `SCREENPIPE_API_KEY_FILE`. The backend never sends the token to the browser.
 
-Sources: [capture architecture](https://docs.screenpipe.com/architecture), [search reference](https://docs.screenpipe.com/api-reference/search/search-screen-and-audio-content), [frame context](https://docs.screenpipe.com/api-reference/frames/get-frame-context), [frame image](https://docs.screenpipe.com/api-reference/frames/get-frame-by-id), and [Screenpipe changelog](https://docs.screenpipe.com/changelog).
+| Provider endpoint        | TimeKeeper use                                                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`            | Installer readiness and the optional MCP recording-session link. No token is sent.                                                                    |
+| `GET /search`            | Sequential `input`, `accessibility`, and `ocr` reads for recent focus; paginated `ocr` reads for Activity frames. Requests set `include_cloud=false`. |
+| `GET /frames/{frame_id}` | On-demand screenshot retrieval through the TimeKeeper API.                                                                                            |
 
-The search reference and bundled skills can evolve at different speeds. Treat response fields as version-dependent and validate the actual returned content types. A field can be missing; a missing URL must not be interpreted as an unchanged case.
+The focus endpoint searches the previous two minutes and shares results for one second. The pill polls every two seconds without overlapping requests and requires two matching observations before using a changed context. The matcher receives the application name and window title. It does not classify full OCR text, audio, or typed input. The adapter can return a browser URL, but current recognition does not use it.
 
-## Recommended two-way architecture
+Activity reads up to 200 frames within the latest 24 hours of a period. A nearby frame can support its preview, but those reads do not establish complete evidence coverage or worked duration. They do not populate `sources` or advance persistent retrieval progress.
 
-```mermaid
-flowchart TD
-    Capture[Screenpipe capture] --> Memory[Screenpipe recorded memory]
-    Worker[Screenpipe-owned pipe and skill workflow] -->|Read API| Memory
-    API[TimeKeeper application services and API]
-    Worker -->|Candidate lookup and scoped commands| MCP[TimeKeeper MCP server]
-    API <-->|Application records| DB[(TimeKeeper SQLite)]
-    Worker -->|Ambiguous text context and known candidates| JEV[JEV]
-    JEV -->|Typed judgment| Worker
-    Chat[Screenpipe chat] -->|Read-only HTTP MCP tools| MCP
-    MCP -->|Validated requests| API
-    UI[TimeKeeper interface] <-->|Review and corrections| API
-    UI --- Totals[Summary calculations]
-```
+Provider authentication failures and unavailable reads have separate API states. The reader retries bounded busy responses. Delayed indexing, title ambiguity, missing fields, and same-window content changes remain acceptance risks. [API contracts](API.md#screenpipe-read-endpoints) define the local route limits.
 
-Screenpipe owns the pipe/skill workflow. The Node backend validates and persists its commands and provides shared case services; it does not orchestrate a parallel detection workflow. Summary calculations remain in the interface.
+Screenpipe documents its public health endpoint and protected bearer authentication in [installation and API readiness](https://docs.screenpipe.com/getting-started). Its [search reference](https://docs.screenpipe.com/api-reference/search/search-screen-and-audio-content) documents time bounds, content types, pagination, and local/cloud selection. Validate actual response fields against the installed release.
 
-### Screenpipe queries TimeKeeper
+## Screenpipe calls TimeKeeper
 
-Register a TimeKeeper HTTP MCP server in Screenpipe's Connections settings. The exact transport implementation must be tested against the chosen release; the documented support for HTTP does not by itself prove every transport variant works.
+The implemented path is `Screenpipe chat or manual pipe -> TimeKeeper MCP -> application API -> SQLite`. HTTP MCP binds to loopback, requires `TIMEKEEPER_MCP_TOKEN`, and serves `/mcp`. Read tools do not calculate summaries. Writes require an explicit request to start or end a session or answer a particular question.
 
-Proposed tools, not existing Screenpipe APIs:
+The optional session link operates separately from chat tool calls. It polls public health every ten seconds, with a 60-second stop grace period by default. A connection failure can end a session after that grace period. The recorded boundary is the last observed running time, not a verified recorder event. See [link setup and behavior](../integrations/screenpipe/README.md#follow-screenpipe-recording).
 
-| Tool | Input | Result |
-| --- | --- | --- |
-| `find_cases` | Search text and optional client ID | Existing case IDs, references, titles, client IDs, and status. |
-| `get_case` | Case ID | Current case metadata. |
-| `get_period_context` | Period ID or source references | Stored assignment and evidence references. Inference stays in the Screenpipe workflow. |
-| `list_time_entries` | Time bounds and optional case/client ID | Stored entry details with validation and billing states. |
+The [Screenpipe changelog](https://docs.screenpipe.com/changelog) documents custom MCP connections. Exact transport compatibility, skill import, and pipe execution must still be checked against the selected release. Skills supply instructions; they do not register a connection or listen for events.
 
-These tools use the application API, never direct SQLite access. Chat can ask which case a recorded period belongs to and receive the actual `case_id`. Tool responses do not create or update Screenpipe memories. Instruction text alone does not register an MCP connection or implement a tool. Current source defines an importable skill as a folder containing `SKILL.md` with YAML `name` and `description`, then Markdown instructions. Plan an explicitly imported `timekeeper/SKILL.md` separately from the MCP connection; the earlier generic `skills.md` placeholder is superseded. This is verified in current source, not in the installed app. [Official skill importer](https://github.com/screenpipe/screenpipe/blob/main/apps/screenpipe-app-tauri/src-tauri/src/skills.rs).
+## Case assignment and duration limits
 
-Keep this chat path read-only. The Screenpipe pipe/skill workflow submits assignment writes through separately scoped MCP/API commands validated by the Node backend. Answers to workflow questions use the scoped answer command and its target period, not a general chat-write tool. Chat-calculated totals are deferred beyond the MVP because summary calculation belongs to the interface.
+The pill uses deterministic matching, including configured recognition cues. A high-confidence suggestion can apply automatically; other suggestions require lawyer action. This is an implemented heuristic, not a complete folder-identification contract. Its current transition boundary uses the interface's observation time rather than the provider's capture timestamp.
 
-### TimeKeeper queries Screenpipe
+An unknown case can remain unresolved with a period-bound question. Delayed answers must preserve newer assignments through the revision guards in [requirements](REQUIREMENTS.md#cases-and-work-periods). A manual correction takes precedence over later replay.
 
-The intended trigger path is a verified daemon event followed by a bounded `/search` read. The [event source review](SCREENPIPE_EVENTS.md) establishes the WebSocket transport but not a reliable frame producer in the current capture path. Until that release acceptance gate passes, bounded polling is the available fallback; it must not be presented as satisfying an immediate event-trigger requirement. Use a configurable base URL, time window, and the installed instance's authentication. Keep results local with the supported local-only search configuration, such as `include_cloud=false`. Read focused screen evidence when available. Do not filter retrieval to the current client, case, or application: that would hide transitions to another one.
+Screenshots prove observations, not continuous work. Duration derivation, gaps, overlap, and protected-period reconstruction approval remain open. Source review, time validation, and billing status stay separate. No screenshot count or session uptime establishes billable time.
 
-Example request shape, not an executed request:
+## Event contracts
 
-```http
-GET /search?content_type=accessibility&start_time=<RFC3339>&end_time=<RFC3339>&limit=20&offset=0&include_cloud=false
-```
+The following findings are retained from research on 2026-10-17 against public documentation and upstream `main`. They are not verified facts about a pinned installed release. Current TimeKeeper uses polling, not these proposed event connections.
 
-Use OCR records when accessibility evidence is unavailable. Retrieve all pages for a fixed window, deduplicate by source type and stable record identity, then sort observations by capture timestamp. Persist retrieval progress only after processing and saving the records. Revisit an overlapping window for delayed indexing and reconcile older ranges after interruption. Window overlap and polling interval require measurement; no latency guarantee is established.
+- Internal capture triggers, SDK recorder events, daemon events, and pipe triggers are different contracts. No dedicated legal-case or browser-tab callback was verified.
+- `/ws/events` provides a daemon event transport, but the reviewed capture path did not establish a reliable post-persistence producer. Recognized names such as `ui_frame` or `ocr_result` do not prove delivery after every capture.
+- The event bus has no durable replay cursor. A proposed bridge would need overlap reads, deduplication, bounded retries for delayed indexing, and committed retrieval progress.
+- The reviewed privacy and history-only middleware can reject event access. Do not disable protections to make a listener work.
+- `@screenpipe/sdk/session` creates another recorder. It is not a subscription to the existing desktop recorder and is excluded from this design.
+- A manual pipe or imported skill is not an app-switch listener. A trigger bridge remains separate work.
 
-Read `/frames/{frame_id}/context` only when extra context is needed, and load the screenshot for review on demand. Do not access Screenpipe's database files directly. Evidence retrieval does not write to Screenpipe. A separate assignment adapter is required to return case metadata. The selected mechanism is TimeKeeper-owned source tags, detailed in the architecture; its runtime behavior remains unverified.
+Research sources: [capture architecture](https://docs.screenpipe.com/architecture), [daemon WebSocket handler](https://github.com/screenpipe/screenpipe/blob/main/crates/screenpipe-engine/src/routes/websocket.rs), [event manager](https://github.com/screenpipe/screenpipe/blob/main/crates/screenpipe-events/src/events_manager.rs), [SDK session](https://github.com/screenpipe/screenpipe/blob/main/packages/sdk/session/index.js), and [pipe scheduler](https://github.com/screenpipe/screenpipe/blob/main/crates/screenpipe-core/src/pipes/mod.rs). Upstream `main` can change; select and inspect a release before implementing an event contract.
 
-## Choosing a detection method
+## JEV validation and deferred tag synchronization
 
-| Method | Assessment |
-| --- | --- |
-| Daemon `/ws/events`, then REST memory reads | Preferred trigger path if a relevant producer is verified in the selected release. Source confirms the transport, not the required capture notification. |
-| Poll recorded memory through REST | Fallback and recovery path. Supports replay using the same evidence. Detection follows recording and indexing latency. |
-| SDK session events | Not selected: the reviewed SDK creates its own recorder rather than subscribing to the existing desktop instance. |
-| Run a Screenpipe pipe using the TimeKeeper skill | Supported event-triggered tasks exist, but the reviewed scheduler does not directly subscribe to app switching. A bridge or explicit execution is required; see the event review. Choose one assignment writer. |
-| Add an independent screen or browser watcher | Outside the requested Screenpipe-memory-only evidence path. Not recommended for this design. |
+MCP, JEV, and Screenpipe skills are implemented with validation pending. The [integration tracker](FEATURES.md#implemented-integrations-awaiting-validation) records source availability and remaining integration work. Confirm the existing input allowlist, output contract, and thresholds before validation. Hosted inference sends approved data to an external provider. Do not describe it as local-only or enable it through setup.
 
-The REST documentation index omits the daemon WebSocket route. Source inspection establishes `/ws/events`, but no dedicated `tab_changed` or legal-case-change callback was verified. See [event triggers](SCREENPIPE_EVENTS.md) for producer gaps, authentication, delivery limits, and privacy restrictions.
-
-## Resolving the correct case
-
-The following algorithm is a proposal that satisfies the requested automatic-assignment goal without treating every screen change as a case change.
-
-1. Load a new recorded observation with source ID, timestamp, app, window, URL, and relevant text when present.
-2. Compare the observation with the previous context. Ignore irrelevant cosmetic changes, but inspect changed text even when the URL and window title stay the same.
-3. Retrieve possible cases from TimeKeeper. Folder identification is deferred; the following is a candidate strategy, not an agreed rule. Match a case reference, a known document identifier, or a configured URL/path association before relying on a client name alone.
-4. If one active case has an unambiguous identifying match with no conflicting evidence, assign that existing case automatically as an inference pending lawyer validation.
-5. Otherwise, use JEV for semantic continuity and candidate selection.
-6. Verify that the selected case exists, belongs to the selected client, remains eligible, and still matches the observation being processed.
-7. Close and open inferred periods only when the case changes. Preserve unrelated sibling periods and manual corrections. If recovery proposes splitting a corrected or validated period, retain that period and flag a reconstruction conflict without adding candidate time to totals. Use capture timestamps rather than model-response time for the proposed boundary.
-8. If ordinary screen content is ambiguous, retain the active case. If a new folder cannot be identified, ask the lawyer using a question ID tied to the affected period and expected assignment revision. Ordinary period closure and evidence imports do not make the answer stale. Keep that period unresolved until answered. Delayed answers must not change a newer active case. The precise transition boundary remains to be defined. Never invent a case ID.
-
-A client name is insufficient when that client has several cases. A case reference appearing in a sidebar or quoted document is not necessarily the active case. Candidate matching must consider the active content and conflicting references. Deterministic rules also need evaluation; they are not automatically reliable simply because they avoid an AI call.
-
-For a case change selected directly in TimeKeeper, the application already knows the chosen ID. Save that explicit user action as the authoritative assignment. Do not ask Screenpipe to rediscover it from the screen. Screenpipe chat obtains the updated assignment through MCP. Exclude the TimeKeeper review interface from automatic classification, or otherwise distinguish reviewing old evidence from doing new case work, to prevent feedback loops.
-
-## JEV's role
-
-TypeSafe's `Noul` returns the probability of a yes/no answer. Use separate questions for whether the client continues and whether the case continues. An uncertain result is not a hard boolean decision. [Noul reference](https://docs.typesafe.ai/primitives/noul).
-
-Use `Choice` to select among known case IDs, with an explicit unresolved/no-match option. Provide references, titles, client relationships, and the recorded text as context. Code maps the selected option to an existing ID. JEV must not generate identifiers or silently create cases. [Choice reference](https://docs.typesafe.ai/primitives/choice).
-
-Proposed evaluation state includes the previous assignment, the current observation, a bounded recent context, and candidate cases. Independent continuity and selection questions can share one request when all inputs are already available. If the first decision changes which candidates must be retrieved, make the second request after that retrieval.
-
-Confidence thresholds must be evaluated with representative case changes, ambiguous names, and incomplete captures. A concentrated model distribution is not proof of a correct assignment. [Confidence guidance](https://docs.typesafe.ai/confidence).
-
-The documented HTTP endpoint is `POST https://api.typesafe.ai/v1/systemone`. Its state accepts text or structured data. This proposal sends selected text context, not an assumed screenshot-understanding input. Using the hosted endpoint sends that context to TypeSafe, so this part of the application is not wholly local. Define the permitted fields and deployment choice before implementation. [TypeSafe API](https://docs.typesafe.ai/api).
-
-## Persistence requirements
-
-The [database design](DATABASE.md) now includes period assignment, source identity, revisions, retrieval progress, and command and delivery records. It is a documentation design, not an applied migration. Integration work must preserve:
-
-- case-matching metadata, such as aliases and known document or URL associations, with explicit scope and precedence;
-- source provenance sufficient for replay, including source type, instance/device identity where needed, recorded timestamp, and external record ID;
-- assignment state separate from time validation, with method, selected case, candidate evidence, model version where applicable, and unresolved reason;
-- retrieval progress and deduplication rules;
-- a revision or equivalent stale-result guard so delayed inference cannot replace a newer manual assignment;
-- independent period assignment so one correction does not change sibling periods.
-
-Map evidence identity separately to the canonical provider tag target before synchronization. All aliases for one target must agree on its assignment. See the [architecture](ARCHITECTURE.md#screenpipe-assignment-synchronization) for target ownership and delivery ordering. Recorded API capabilities do not establish that this mapping has been verified in the installed release.
+Returning case associations through Screenpipe tags remains planned. Existing local target and delivery tables do not establish a writer. The [synchronization design](ARCHITECTURE.md#screenpipe-assignment-synchronization) requires canonical target identity, alias agreement, revision guards, preserved unrelated tags, and read-back verification.
 
 ## Required acceptance checks
 
-1. Two different tabs concern the same case: keep the case assignment.
-2. Two cases belong to the same client: select the case reference, not only the client.
-3. A case changes inside one tab without a URL change: use newly recorded content.
-4. A detected new-folder transition has no reliable case match: keep its period unresolved and ask the lawyer. Ordinary ambiguous or background content does not clear the active case.
-5. A lawyer manually changes the assignment before JEV responds: retain the manual correction.
-6. Screenpipe capture is paused or indexing is delayed: display coverage uncertainty rather than inventing work time.
-7. TimeKeeper restarts: replay API evidence without duplicating periods. Any change to effective case or duration clears time validation; identical replay preserves it. A proposed split of a corrected or validated period remains a review conflict.
-8. Screenpipe chat asks about a period: return the same case ID and validation state as the interface.
-9. The lawyer reviews an old case in TimeKeeper: do not count that display as new work on the old case by default.
-10. All observations used for automatic assignment have Screenpipe API provenance. Assignment metadata is delivered separately to Screenpipe, with acknowledgement and revision checks; source recordings are not rewritten.
-
-Return to the [architecture](ARCHITECTURE.md) or [README](../README.md).
-
-Product behavior and use cases are maintained in [REQUIREMENTS.md](REQUIREMENTS.md). Session lifecycle, stopped-app command handling, JEV ownership, and source-tag synchronization are defined in [ARCHITECTURE.md](ARCHITECTURE.md).
+1. Pin the Screenpipe release and verify protected search, response fields, and screenshot retrieval on macOS and Windows.
+2. Test app, window, tab, URL, and same-window content changes separately. Confirm that background and ambiguous content do not cause an incorrect case switch.
+3. Verify the pill's confirmation, automatic countdown, deferral, and stale-result behavior against manual corrections.
+4. Test MCP authentication, read tools, explicit commands, delayed answers, and optional health-linked sessions separately.
+5. Stop or disconnect Screenpipe and the TimeKeeper API independently. Verify reported state, session boundaries, retries, and restart behavior.
+6. Keep missing media and incomplete coverage visible. Confirm that preview reads do not add counted time or duplicate evidence.
+7. Verify durable command delivery, evidence recovery, event triggers, and tag writes only after their missing contracts and implementations exist.

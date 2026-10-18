@@ -1,0 +1,176 @@
+.work-pill {
+  width: 100%;
+  min-width: 0;
+  color: var(--ink);
+  font: 400 var(--fs-sm)/1.5 var(--f);
+}
+.work-pill * {
+  box-sizing: border-box;
+}
+.work-pill .pill-bar {
+  height: 50px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 25px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.work-pill .pill-logo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+.work-pill .pill-logo .brand-mark {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+}
+.work-pill .pill-logo svg {
+  width: 100%;
+  height: 100%;
+}
+.work-pill .status-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok-dot);
+}
+.work-pill .status-dot.paused {
+  background: var(--ink);
+}
+.work-pill .pill-client {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.work-pill .pill-amount {
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+.work-pill .pill-badge {
+  min-width: 18px;
+  padding: 2px 4px;
+  border-radius: var(--r-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: var(--fs-xs);
+}
+.work-pill .pill-panel,
+.work-pill .pill-floating-notice {
+  margin-top: 6px;
+  padding: 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.work-pill .pill-panel {
+  max-height: calc(100dvh - 72px);
+  overflow: auto;
+}
+.work-pill .pill-case {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-md);
+}
+.work-pill .pill-case strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.work-pill .pill-case small,
+.work-pill .pill-subtitle,
+.work-pill .pill-totals small,
+.work-pill .pill-select,
+.work-pill .pill-notice small,
+.work-pill .pill-floating-notice small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.work-pill .pill-subtitle {
+  margin: 8px 0 14px;
+}
+.work-pill .pill-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.work-pill .pill-totals div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+}
+.work-pill .pill-totals strong {
+  font-size: 24px;
+  overflow-wrap: anywhere;
+}
+.work-pill .pill-actions {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+}
+.work-pill .pill-actions button {
+  flex: 1;
+}
+.work-pill .pill-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.work-pill .pill-select select {
+  width: 100%;
+}
+.work-pill .pill-open {
+  width: 100%;
+  margin-top: 14px;
+}
+.work-pill .pill-notice,
+.work-pill .pill-floating-notice {
+  display: flex;
+  gap: 6px;
+}
+.work-pill .pill-notice {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+.work-pill .pill-notice div,
+.work-pill .pill-floating-notice div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+.work-pill .pill-error {
+  margin: 10px 0;
+  color: var(--warn);
+}
+.desk-pill-preview {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(330px, calc(100% - 24px));
+}

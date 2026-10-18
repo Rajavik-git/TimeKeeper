@@ -1,0 +1,15 @@
+/* All application styles enter through this file. Shared components own their metrics. */
+@layer legacy, base, features, components, tokens;
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+@import "./legacy.css" layer(legacy);
+@import "./theme.css" layer(base);
+@import "../features/cases/Cases.css" layer(features);
+@import "../features/billing-status/Billing.css" layer(features);
+@import "../features/workday/MyDay.css" layer(features);
+@import "../features/workday/Activity.css" layer(features);
+@import "../features/workday/components/PeriodReviewDialog/PeriodReviewDialog.css" layer(features);
+@import "../features/settings/Settings.css" layer(features);
+@import "../features/desk/components/WorkPill/WorkPill.css" layer(features);
+@import "./design-system/components.css" layer(components);
+@import "./design-system/tokens.css" layer(tokens);

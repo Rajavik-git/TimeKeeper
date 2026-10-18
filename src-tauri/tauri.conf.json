@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TimeKeeper",
+  "version": "0.1.0",
+  "identifier": "com.timekeeper.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev:ui",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist/frontend"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: http://127.0.0.1:8787; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:8787"
+    },
+    "windows": [
+      {
+        "label": "pill",
+        "url": "pill.html",
+        "title": "TimeKeeper",
+        "width": 340,
+        "height": 38,
+        "resizable": false,
+        "decorations": false,
+        "shadow": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false
+      },
+      {
+        "label": "main",
+        "url": "index.html",
+        "title": "TimeKeeper",
+        "width": 1250,
+        "height": 850,
+        "minWidth": 900,
+        "minHeight": 650,
+        "visible": false
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "externalBin": ["binaries/timekeeper-api"],
+    "resources": {
+      "../dist/sidecar/api.cjs": "api.cjs"
+    },
+    "icon": ["icons/icon.png", "icons/icon.ico"]
+  }
+}

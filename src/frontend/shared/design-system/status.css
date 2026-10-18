@@ -1,0 +1,47 @@
+.st,
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 400 var(--fs-sm)/1.4 var(--f);
+  white-space: nowrap;
+}
+.st i,
+.pill::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.st.ok,
+.pill.p-ok {
+  color: var(--ok);
+}
+.st.ok i,
+.pill.p-ok::before {
+  background: var(--ok-dot);
+}
+.st.warn,
+.pill.p-warn {
+  color: var(--warn);
+}
+.st.warn i,
+.pill.p-warn::before {
+  background: var(--warn-dot);
+}
+.st.billed,
+.pill.p-solid {
+  color: var(--ink);
+}
+.st.billed i,
+.pill.p-solid::before {
+  background: var(--ink);
+}
