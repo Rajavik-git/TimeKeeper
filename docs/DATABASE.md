@@ -28,7 +28,7 @@ Historical migrations remain frozen. New migrations preserve existing rows. Mapp
 | --------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
 | `clients`                   | A client                                                      | Has cases.                                                  |
 | `cases`                     | A legal case                                                  | `client_id` identifies its client.                          |
-| `sessions`                  | An explicitly started recording-workflow session              | Contains work periods between its start and end boundaries. |
+| `sessions`                  | A recording-linked or explicitly started work session         | Contains work periods between its start and end boundaries. |
 | `work_periods`              | A piece of work to assign, correct, validate, and mark billed | `session_id` is required; `case_id` can be unknown.         |
 | `sources`                   | A recorded observation or evidence reference                  | `work_period_id` can be unknown until reconciliation.       |
 | `task_types`                | An editable category such as drafting or document review      | A period can reference it through `task_type_id`.           |
@@ -181,13 +181,13 @@ References are currently unique and immutable. Reference scope and folder aliase
 
 ### `sessions`
 
-| Field                      | Purpose or constraint                                                   |
-| -------------------------- | ----------------------------------------------------------------------- |
-| `id`                       | Stable session identity carried by workflow commands.                   |
-| `started_at`               | Explicit Screenpipe start boundary.                                     |
-| `ended_at`                 | Nullable explicit Screenpipe end boundary. Cannot precede `started_at`. |
-| `revision`                 | Monotonic version for stale-command checks.                             |
-| `created_at`, `updated_at` | Local persistence timestamps, distinct from boundaries.                 |
+| Field                      | Purpose or constraint                                                 |
+| -------------------------- | --------------------------------------------------------------------- |
+| `id`                       | Stable session identity carried by workflow commands.                 |
+| `started_at`               | Effective session start boundary.                                     |
+| `ended_at`                 | Nullable effective session end boundary. Cannot precede `started_at`. |
+| `revision`                 | Monotonic version for stale-command checks.                           |
+| `created_at`, `updated_at` | Local persistence timestamps, distinct from boundaries.               |
 
 Storage and services permit one active session per workspace. A repeated start returns it unchanged. A start dependent on a pending end waits. Process exit never sets `ended_at`.
 
@@ -276,7 +276,7 @@ Canonical tables own writes. Compatibility projections list contract fields expl
 
 Deprecated block recovery clears only the linked canonical period's exclusion flag. It preserves saved assignment, task, label, exact duration, non-billable reason, validation, and billing fields. Alias restoration and the audit event share the transaction. Recovery neither creates a replacement entry nor rewrites historical capture metadata.
 
-`markers` and `client_rules` store configured recognition cues. `audit_events`, `source_exports`, and `jev_reviews` store audit, export, and review records. Their presence does not imply a live recognition or JEV workflow. [Compatibility recognition](ARCHITECTURE.md#compatibility-recognition) defines the imported algorithm.
+`markers` and `client_rules` store configured recognition cues. `audit_events`, `source_exports`, and `jev_reviews` store audit, export, and review records. The pill uses configured cues for deterministic recognition. These tables do not establish hosted JEV inference. [Compatibility recognition](ARCHITECTURE.md#compatibility-recognition) defines the imported algorithm.
 
 ## Technical persistence
 
@@ -296,7 +296,7 @@ Question guards bind the original session, period, and assignment revision. Clos
 
 Tag mutations and ownership moves serialize per canonical target across all aliases. Check owner, desired tags, and revision before writing. Resolve prior target operations before committing a move, then reconcile its new revision. Remove only obsolete TimeKeeper-owned tags. Acknowledge only verified tags for the same revision. Stale acknowledgements cannot synchronize a new owner.
 
-These tables exist, but assignment writes create no delivery intent and no worker sends or verifies tags. No Screenpipe read loop advances retrieval progress. A stopped Node process cannot receive commands. Off-app delivery remains unresolved.
+These tables exist, but assignment writes create no delivery intent and no worker sends or verifies tags. Current focus and screenshot-preview reads do not persist sources or advance retrieval progress. A stopped Node process cannot receive commands. Off-app delivery remains unresolved.
 
 Local reconstruction protects corrected or validated periods. Source aliases spanning a split boundary or a canonical target with committed delivery produce a conflict instead of an unsafe source move.
 

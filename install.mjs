@@ -4,20 +4,29 @@ import { access, open, readFile, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
+import { prepareScreenpipeAuth } from "./scripts/screenpipe-auth.mjs";
 
 const HELP = `Prepare the TimeKeeper development environment.
 
-Usage: node install.mjs [--check] [--skip-screenpipe] [--desktop]
+Usage: node install.mjs [--check] [--skip-screenpipe] [--desktop] [--auth-only]
 
   --check             Check prerequisites without changing files or dependencies.
   --skip-screenpipe   Prepare the local app without checking Screenpipe.
   --desktop           Also check Rust and Cargo for Tauri development.
+  --auth-only         Configure a missing Screenpipe API key without npm ci.
   --help              Show this help.
 
 Reads .nvmrc and local .env from the repository, regardless of your working directory.
-Exported SCREENPIPE_API_URL overrides .env. Default: http://127.0.0.1:3030.
+SCREENPIPE_URL takes priority over SCREENPIPE_API_URL. Default: http://127.0.0.1:3030.
+Exported variables override the same variables in .env.
 Screenpipe checks use only GET /health with a five-second timeout.
-Setup never starts recording, installs workflows, or opens the database.
+Normal setup retrieves a missing key with an installed Screenpipe CLI and saves it
+to .env. --check and --skip-screenpipe never retrieve keys.
+Credential discovery never downloads packages.
+Setup never starts recording, registers integrations, or opens the database.
+MCP, its session link, and protected focus/activity reads need separate configuration
+and verification. See integrations/screenpipe/README.md. Tag writes remain pending.
+npm run mcp:serve enables the session link, which can start and end TimeKeeper sessions.
 
 Exit codes: 0 = selected checks passed; 1 = setup error; 2 = prerequisites incomplete.
 See docs/SETUP.md for installation and recovery steps.
@@ -74,7 +83,7 @@ export function screenpipeOrigin(value) {
   try {
     url = new URL(value);
   } catch {
-    throw new Error("SCREENPIPE_API_URL must be an HTTP loopback origin.");
+    throw new Error("The Screenpipe URL must be an HTTP loopback origin.");
   }
   if (
     url.protocol !== "http:" ||
@@ -86,7 +95,7 @@ export function screenpipeOrigin(value) {
     url.hash
   ) {
     throw new Error(
-      "SCREENPIPE_API_URL must be an HTTP loopback origin without credentials or a path.",
+      "The Screenpipe URL must be an HTTP loopback origin without credentials or a path.",
     );
   }
   return url.origin;
@@ -128,10 +137,11 @@ export async function install({
   nodeVersion = process.versions.node,
   env = process.env,
   run = runCommand,
+  authRun = spawnSync,
   fetchHealth = globalThis.fetch,
   log = console.log,
 } = {}) {
-  const supported = new Set(["--check", "--skip-screenpipe", "--desktop", "--help"]);
+  const supported = new Set(["--check", "--skip-screenpipe", "--desktop", "--auth-only", "--help"]);
   if (args.some((arg) => !supported.has(arg))) {
     log("[error] Unknown option. Run node install.mjs --help.");
     return 1;
@@ -139,6 +149,10 @@ export async function install({
   if (args.includes("--help")) {
     log(HELP);
     return 0;
+  }
+  if (args.includes("--auth-only") && args.includes("--skip-screenpipe")) {
+    log("[error] --auth-only cannot be combined with --skip-screenpipe.");
+    return 1;
   }
 
   try {
@@ -159,6 +173,7 @@ export async function install({
     log("[ok] npm is available.");
 
     const check = args.includes("--check");
+    const authOnly = args.includes("--auth-only");
     const skipScreenpipe = args.includes("--skip-screenpipe");
     const config = await prepareConfig(rootDir, check, log);
     let complete = config !== null;
@@ -166,10 +181,14 @@ export async function install({
     const origin = skipScreenpipe
       ? null
       : screenpipeOrigin(
-          env.SCREENPIPE_API_URL ?? config?.SCREENPIPE_API_URL ?? "http://127.0.0.1:3030",
+          (env.SCREENPIPE_URL ?? config?.SCREENPIPE_URL) ||
+            (env.SCREENPIPE_API_URL ?? config?.SCREENPIPE_API_URL) ||
+            "http://127.0.0.1:3030",
         );
 
-    if (check) {
+    if (authOnly) {
+      log("[skipped] Dependency installation and dependency checks (--auth-only).");
+    } else if (check) {
       if (await exists(join(rootDir, "node_modules", ".package-lock.json"))) {
         log(
           "[ok] npm dependencies found. This does not verify their integrity or lockfile agreement.",
@@ -212,6 +231,8 @@ export async function install({
     if (skipScreenpipe) {
       log("[skipped] Screenpipe readiness. This run prepares local app development only.");
     } else {
+      const auth = await prepareScreenpipeAuth({ rootDir, check, env, run: authRun, log });
+      if (!auth.configured) complete = false;
       const healthy = await checkScreenpipe(origin, fetchHealth, log);
       if (!healthy) {
         complete = false;
@@ -228,14 +249,21 @@ export async function install({
         : "Environment preparation is partial. Resolve the pending checks and rerun.",
     );
     log(
-      "Screenpipe workflows, TimeKeeper MCP tools, and tag synchronization remain unimplemented.",
+      "[info] MCP tools and the Screenpipe session link require separate configuration and verification: integrations/screenpipe/README.md.",
     );
+    log(
+      "[info] npm run mcp:serve enables the session link, which can start and end TimeKeeper sessions.",
+    );
+    log(
+      "[info] Protected Screenpipe focus and activity reads are implemented but not checked here.",
+    );
+    log("[pending] Screenpipe tag writes remain unimplemented; this does not affect setup checks.");
     log("Start the local app with npm run dev. See docs/SETUP.md for desktop development.");
     return complete ? 0 : 2;
   } catch {
     // Raw filesystem, config, and network errors can contain local secrets.
     log(
-      "[error] Setup could not read or prepare its configuration. Check .nvmrc, .env.example, .env permissions, and SCREENPIPE_API_URL.",
+      "[error] Setup could not read or prepare its configuration. Check .nvmrc, .env.example, .env permissions, SCREENPIPE_URL, and SCREENPIPE_API_URL.",
     );
     return 1;
   }

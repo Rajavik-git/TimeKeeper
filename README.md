@@ -1,393 +1,217 @@
 # TimeKeeper
 
-**Your screen already knows which case you worked on. TimeKeeper turns it into billable time.**
+TimeKeeper helps lawyers review working time by client and case, correct work periods, validate time, and prepare invoices. It uses [Screenpipe](https://screenpi.pe) recordings to suggest the case associated with the current window.
 
 <p align="center">
-  <img src="docs/images/pill-switch.gif" alt="Open the Lumen bylaws: the pill proposes Articles of association, one click switches the case. Open the Bennett notes: it proposes Divorce and switches again." width="720">
+  <img src="docs/images/pill-switch.gif" alt="The desk pill proposes a case after the user switches documents." width="720">
   <br>
-  <em>Open another client's document and the desk pill switches case for you, in seconds, from what Screenpipe sees. Real recording, fictional data.</em>
+  <em>Illustration with fictional clients and cases. Normal setup starts with an empty workspace.</em>
 </p>
 
-TimeKeeper is a local desktop assistant for lawyers. It sits on top of [Screenpipe](https://screenpi.pe), which records what happens on your screen, and turns that recording into work periods assigned to the right client and case, ready to review, validate and invoice. Nothing leaves your machine.
+Built during an École 42 and Screenpipe hackathon, TimeKeeper uses React, TypeScript, a local Node API, SQLite, and a Tauri desktop host.
 
-It is an École 42 × Screenpipe hackathon project: a Tauri desktop app with a React interface, a local Node API and a SQLite database.
+## What it does
 
-## How it works in 30 seconds
+1. Screenpipe records window context while you work.
+2. During an active session, the desk pill suggests a case from the recorded application name and window title.
+3. In **My day**, you review assignments, correct durations, and validate time. **Billing** prepares invoice drafts from eligible periods.
 
-| 1. Work as usual                                                                                                                         | 2. TimeKeeper proposes the case                                                                  | 3. Review and bill                                                                         |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| Open your documents, emails and files. [Screenpipe](https://screenpi.pe) records your screen locally; TimeKeeper reads what it recorded. | The desk pill sees `2025-031 Opposition Brief v3.docx` and asks _"Dawson v Martin?"_. One click. | My day lists every period. Validate the time, then Billing turns it into an invoice draft. |
-| ![Activity timeline built from Screenpipe recordings](docs/images/activity.png)                                                          | ![Pill notice](docs/images/pill-file-switch.png)                                                 | ![My day](docs/images/my-day.png)                                                          |
+Case detection and billing review exist, but automatic duration reconstruction remains incomplete. Closing a period or ending a session does not calculate its worked duration. Time validation, source review, and billing status remain separate actions.
 
-## Why lawyers want it
-
-Lawyers lose billable time every day: a short call, a quick look at a brief, a reply to opposing counsel. Rebuilding the day from memory on Friday evening is slow, inaccurate, and every missed minute is lost revenue.
-
-- **It notices.** When you switch to `2025-031 Opposition Brief v3.docx`, Screenpipe records it and TimeKeeper recognises case **2025-031 · Dawson v Martin** from the reference in the title.
-- **It asks, it does not guess.** A small notice proposes the case. One click confirms it, **Undo** reverts it for five seconds, and an unknown document becomes a question for you instead of a wrong entry.
-- **It keeps proof.** Every work period links back to what Screenpipe recorded. Hover the timeline and you see the actual screen capture of that moment.
-- **It stays local.** Screen text never leaves Screenpipe and your computer. TimeKeeper keeps references and window titles, not your documents.
+MCP, JEV, and Screenpipe skills are implemented with validation pending. JEV source integration into this checkout is also pending. The [feature backlog and validation tracker](docs/FEATURES.md) records implementation locations, missing features, and acceptance work.
 
 ## The desk pill
 
-The pill is a small always-on-top bar, centred at the top of the screen. It is the only part of TimeKeeper you see while you work.
+The desktop pill is a floating bar that shows the current case and opens a panel with period details and review actions.
 
 <p align="center">
-  <img src="docs/images/pill-file-switch.png" alt="Pill notice: Switched to 2026-004 Hearing preparation notes, Divorce?, Confirm 20 s" width="340">
+  <img src="docs/images/pill-file-switch.png" alt="Desk pill with a suggested case and confirmation countdown." width="340">
   &nbsp;&nbsp;
-  <img src="docs/images/pill-panel.png" alt="Pill panel: current case, this period, amount, today, periods to validate" width="340">
+  <img src="docs/images/pill-panel.png" alt="Expanded desk pill with current period details and validation actions." width="340">
 </p>
 
-**The bar**, left to right:
+A window must appear in two consecutive focus reads before the pill reacts. TimeKeeper ignores its own windows. A single high-confidence match applies automatically after a 20-second countdown. Other suggestions wait for your answer.
 
-| Element        | Meaning                                                                                                      |
-| -------------- | ------------------------------------------------------------------------------------------------------------ |
-| Status dot     | Red: TimeKeeper is watching Screenpipe for document switches. Grey: paused. Amber: Screenpipe not connected. |
-| Case           | The case of the current work period (or _Which case?_ when it is still unknown).                             |
-| Amount or time | Fees accruing for the current period, its duration, or nothing (choose in Settings → Desk pill).             |
-| Badge          | Periods of today still to validate.                                                                          |
-| ⏸ / ▶          | Pause or resume document detection. Screenpipe keeps recording; only the pill stops reacting.                |
-| ⌄              | Opens the panel. Drag the logo to move the pill; double-click it to put it back.                             |
+| Action                      | Result                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| **Confirm**                 | Starts a work period on the proposed case.                                          |
+| **Choose a case…**          | Starts a period on another case.                                                    |
+| **Not client work**         | Starts a period excluded from billing.                                              |
+| **Later**, close, or Escape | Dismisses the notice without creating a period or a question.                       |
+| **Undo**                    | Reverts the last pill decision within five seconds, if no later change prevents it. |
+| Pause                       | Stops pill detection. Screenpipe recording and the TimeKeeper session continue.     |
 
-**When you open a document of another case**, a notice appears under the bar:
+An unrecognized document can produce a **Which case?** notice. Dismissing that notice does not save an unresolved period. Existing unresolved periods and their questions remain available for review.
 
-| Action              | What happens                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Confirm** · 20 s  | Starts a new work period on the proposed case. With a single strong match, the countdown confirms it for you. |
-| **Choose a case…**  | Starts the period on another case.                                                                            |
-| **Not client work** | Starts a period excluded from billing.                                                                        |
-| **Later** / ✕ / Esc | Closes the notice without changing anything.                                                                  |
-| **Undo**            | Appears on the bar for five seconds after any choice and reverts it.                                          |
-
-A document TimeKeeper cannot place (no reference, no marker) asks _"Which case was this?"_ instead of guessing. **The panel** shows the current case, this period's time and amount, today's total, the periods to validate (with **Validate** once a period has a case and a duration), and buttons to pause, change the case or open TimeKeeper.
+In the desktop app, closing the main window hides it. Tray **Quit** exits the app. Neither action ends the stored session.
 
 ## The screens
 
-| My day                                                                   | Activity                                                                                                                   |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| ![My day](docs/images/my-day.png)                                        | ![Activity](docs/images/activity.png)                                                                                      |
-| Today's periods, questions to answer and one-click time validation.      | Timeline of every period (green validated, amber to validate). Hover a period: the nearest **Screenpipe capture** appears. |
-| **Cases**                                                                | **Billing**                                                                                                                |
-| ![Cases](docs/images/cases.png)                                          | ![Billing](docs/images/billing.png)                                                                                        |
-| Each case with time recorded, fees to bill, budget used and its markers. | What goes on the invoice, client rules (for example research caps), expenses and the invoice draft.                        |
+The images below show illustrative fictional records, not startup data or acceptance results.
 
-**Settings** holds clients, case rates (sortable), task types, client rules, capture preferences and the pill options.
+| My day                                                                            | Activity                                                                                                           |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| ![My day](docs/images/my-day.png)                                                 | ![Activity](docs/images/activity.png)                                                                              |
+| Review periods, case assignments, questions, source review, and time corrections. | Inspect period history and audit records. Hover a period to request a nearby Screenpipe screenshot when available. |
+| **Cases**                                                                         | **Billing**                                                                                                        |
+| ![Cases](docs/images/cases.png)                                                   | ![Billing](docs/images/billing.png)                                                                                |
+| Manage cases, references, recognition markers, rates, flat fees, and budgets.     | Prepare invoices, expenses, disbursements, and CSV exports. Issued invoices retain their saved amounts.            |
 
-## How TimeKeeper works with Screenpipe
+**Settings** manages clients, workspace options, and the desk pill. Capture exclusions and retention controls are not yet active.
 
-Screenpipe records the screen; TimeKeeper never records anything itself. TimeKeeper reads Screenpipe's local API, and Screenpipe can call TimeKeeper back through MCP.
+## How to run it
+
+Use Node `24.22.0`, as specified in [`.nvmrc`](.nvmrc), and npm. Install [Screenpipe](docs/SETUP.md#connect-screenpipe) and keep its local service running for recording and evidence reads. Its visible application window does not need to stay open.
+
+From this checkout's repository root, with nvm installed:
+
+```sh
+nvm install
+nvm use
+node install.mjs
+npm run dev
+```
+
+Open [TimeKeeper](http://127.0.0.1:5173). The API runs at `http://127.0.0.1:8787`. Browser development does not require Rust or the desktop build tools.
+
+Setup creates a missing root `.env` from [`.env.example`](.env.example) and installs dependencies. It preserves business data, existing nonblank credentials, and other configuration. Repeating full setup replaces `node_modules`.
+
+### Connect the Screenpipe API key
+
+Setup tries to retrieve a missing key through the installed Screenpipe CLI and saves it to `.env` without printing it. It does not start recording. To retry only key setup, run:
+
+```sh
+npm run setup:auth
+```
+
+If automatic discovery cannot find the CLI, set `SCREENPIPE_CLI` to its absolute executable path and retry. You can also run `screenpipe auth token` with the installed CLI, then save its token as `SCREENPIPE_API_KEY` in the root `.env`. Keep the key private. The [setup guide](docs/SETUP.md#connect-screenpipe) covers token files and connection recovery.
+
+Run `npm run setup:check` to check prerequisites, credential configuration, and public health. That check does not establish protected API access or recent capture. For interface development before connecting Screenpipe, use `node install.mjs --skip-screenpipe`.
+
+### Try the workflow from source
+
+1. Start TimeKeeper with `npm run dev`.
+2. Add a client in **Settings**, then add cases in **Cases**. Give each case a distinct reference. Add recognition markers where needed.
+3. In a second terminal at the repository root, start a session with the explicit TimeKeeper command:
+
+   ```sh
+   node --env-file-if-exists=.env --import tsx src/mcp/start-session.ts
+   ```
+
+4. Open the [browser pill](http://127.0.0.1:5173/pill.html). Open a document whose window title contains one of your case references.
+5. Wait for Screenpipe to make the window context searchable. Confirm the proposed case, or choose another case. A strong match can apply after the countdown.
+6. Switch to a document for another case. Use **Later** to dismiss its notice, or confirm it to change the active period.
+7. End the session with the explicit command:
+
+   ```sh
+   node --env-file-if-exists=.env --import tsx src/mcp/end-session.ts
+   ```
+
+8. Open **My day** to review the periods and correct their durations before time validation. Ending the session does not derive durations.
+9. Open **Activity** to inspect period history and available screenshot previews. Review eligible time in **Billing**.
+
+The browser pill is a preview. Its simulator does not create clients, cases, or sessions. For repeatable checks with fictional records, use the [isolated browser acceptance procedure](tests/acceptance/README.md).
+
+### Run or build the Windows desktop app
+
+Follow [desktop setup](docs/SETUP.md#prepare-desktop-development) for Rust, Windows build tools, and sidecar prerequisites. Run `npm run dev:server` in one terminal, then `npm run desktop:dev` in another. Tauri starts the interface.
+
+Build the installer on Windows with `npm run desktop:build`, or use the [Windows installer workflow](.github/workflows/desktop-windows.yml) for the revision being tested. Native release acceptance remains pending. The current sidecar build does not support macOS.
+
+The installed app uses its application-data directory for SQLite and does not load the source checkout's `.env`. Configure its environment separately, or save the Screenpipe token in its application-data `screenpipe-api-key` file. The package includes the local API, but Screenpipe and the MCP process run separately. Run the installed app and the source API one at a time because both use port `8787` by default.
+
+## How Screenpipe is used
+
+Screenpipe owns recording. TimeKeeper reads its local HTTP API for recent window context and activity screenshots. It does not open Screenpipe's database, create another recorder, or write Screenpipe memories. Evidence searches use `include_cloud=false`.
 
 ```mermaid
 flowchart LR
-  subgraph Screenpipe["Screenpipe (localhost:3030)"]
-    Rec[Screen recording<br/>focus events, accessibility, OCR]
-    Frames[Captured frames]
-    Chat[Screenpipe chat + pipes]
-  end
-  subgraph TimeKeeper["TimeKeeper (on your machine)"]
-    API[Local API<br/>127.0.0.1:8787]
-    DB[(SQLite)]
-    Pill[Desk pill]
-    UI[Desktop app<br/>My day · Activity · Cases · Billing]
-    MCP[MCP server<br/>127.0.0.1:3032]
-  end
-  Rec -- "GET /search (window metadata only)" --> API
-  Frames -- "GET /frames/{id} (image, on hover)" --> API
+  Screenpipe["Screenpipe local API<br/>localhost:3030"]
+  API["TimeKeeper API<br/>127.0.0.1:8787"]
+  DB[(SQLite)]
+  UI["Desk pill and main interface"]
+  Chat["Screenpipe chat and manual pipes"]
+  MCP["TimeKeeper MCP<br/>127.0.0.1:3032"]
+  API -- "Read window context and screenshots" --> Screenpipe
+  UI -- "Review and commands" --> API
   API <--> DB
-  Pill -- "GET /api/screenpipe/focus every 2 s" --> API
-  UI -- "GET /api/screenpipe/frames" --> API
-  Chat -- "MCP tools (bearer token)" --> MCP
+  Chat -- "Authenticated tools" --> MCP
   MCP -- "TimeKeeper HTTP API" --> API
-  MCP -. "GET /health (session follows recording)" .-> Screenpipe
+  MCP -. "Optional recording health link" .-> Screenpipe
 ```
 
-### 1. Detecting the document you work on
+The pill polls recent window context while a session is active and detection is enabled. The backend returns normalized application, title, URL, and timestamp fields. The current matcher uses the application name and window title.
 
-```mermaid
-sequenceDiagram
-  actor Lawyer
-  participant Word
-  participant SP as Screenpipe
-  participant API as TimeKeeper API
-  participant Pill as Desk pill
-  Lawyer->>Word: opens "2025-031 Opposition Brief v3.docx"
-  SP->>SP: records a window_focus event and a capture
-  loop every 2 s
-    Pill->>API: GET /api/screenpipe/focus
-    API->>SP: GET /search?content_type=input|accessibility|ocr (last 2 min)
-    SP-->>API: newest app name, window title, time
-    API-->>Pill: { appName, windowTitle, recordedAt }
-  end
-  Pill->>API: POST /api/recognize (title)
-  API-->>Pill: Dawson v Martin · reference 2025-031 · high confidence
-  Pill->>Lawyer: "Switched to … Dawson v Martin?" Confirm · 20 s
-  Lawyer->>Pill: Confirm (or Later / another case / Not client work)
-  Pill->>API: POST /api/pill/decision → new work period, Undo for 5 s
-```
+Activity requests frame metadata for a period and proxies a nearby screenshot through the API. The Screenpipe key stays in the backend. These previews do not import stored evidence into periods or calculate duration. Screenshots prove observations, not continuous work.
 
-- **Source of truth:** Screenpipe. The pill reads the newest focused window from Screenpipe's focus events (`window_focus`, `app_switch`), accessibility and OCR captures, read one after another because Screenpipe answers concurrent searches with "search is busy" (TimeKeeper retries those).
-- **Stability:** a window must be seen on two consecutive reads before it triggers a notice, so windows you only pass through are ignored. TimeKeeper's own windows are ignored too.
-- **Recognition:** case references (`2025-031`), case numbers, opposing parties, client names and the markers you add to each case in Cases. A single strong match counts down and confirms itself; anything ambiguous waits for you.
-- **Timing:** a notice appears once Screenpipe has made the focus searchable, usually within a few seconds and up to about 20 seconds.
+TimeKeeper stores its workspace locally. Screenpipe chat and future hosted JEV inference have separate data flows and provider settings. Hosted JEV inference is not local processing. See [Screenpipe behavior and limits](docs/SCREENPIPE_INTEGRATION.md).
 
-### 2. Showing the evidence
+### Connect Screenpipe chat
 
-Activity asks `GET /api/screenpipe/frames?start=…&end=…` for the captures of the hovered period, then loads the nearest one through `GET /api/screenpipe/frames/{id}/image`. TimeKeeper fetches the image from Screenpipe with the API key on the server side, so the browser view never sees the key.
+The MCP server exposes eight tools through the TimeKeeper API:
 
-### 3. Letting Screenpipe drive the session
+| Tool                     | Purpose                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| `timekeeper_status`      | Reports API availability and the active session and period.                                      |
+| `start_session`          | Starts a session, or returns the active session.                                                 |
+| `end_session`            | Ends the active session.                                                                         |
+| `list_cases`             | Lists active cases and their clients.                                                            |
+| `list_work_periods`      | Lists a session's periods with case, boundaries, assignment revision, and time-validation state. |
+| `list_questions`         | Lists unresolved-case questions.                                                                 |
+| `answer_question`        | Answers a question for its target period and assignment revision.                                |
+| `screenpipe_link_status` | Reports the optional recording-session link's state.                                             |
 
-The MCP server (`npm run mcp:serve`) gives Screenpipe chat and pipes a scoped set of tools on top of the TimeKeeper API:
+Follow [integration setup](integrations/screenpipe/README.md#set-up) for the separate `TIMEKEEPER_MCP_TOKEN`, Screenpipe connection, chat skill, and manual Start/End pipes. These integrations still need installed-workflow validation.
 
-| Tool                     | What it does                                                 |
-| ------------------------ | ------------------------------------------------------------ |
-| `timekeeper_status`      | Is TimeKeeper running, which session and period are active.  |
-| `start_session`          | Starts a session (idempotent) through `/api/commands/start`. |
-| `end_session`            | Ends the active session through `/api/commands/end`.         |
-| `list_cases`             | Active cases with their client.                              |
-| `list_work_periods`      | Periods of a session, with case, duration and status.        |
-| `list_questions`         | Periods waiting for "which case was this?".                  |
-| `answer_question`        | Answers one, bound to the period's assignment revision.      |
-| `screenpipe_link_status` | State of the Screenpipe session link.                        |
+`npm run mcp:serve` starts the HTTP MCP server **with the recording-session link enabled**. It can start a session immediately when Screenpipe reports recording. It can end the session after Screenpipe stops or becomes unreachable for the configured grace period. The link uses observed health times, not exact recorder event boundaries.
 
-With `--screenpipe-link`, the TimeKeeper session follows Screenpipe's recording: when Screenpipe starts recording a session starts, and when it stops for longer than the grace period the session ends at the last moment it was recording. **Start** and **End** pipes give you explicit buttons in Screenpipe.
-
-### Privacy by design
-
-- TimeKeeper only returns window **metadata** (application, title, URL, time). Screen text and typed input stay inside Screenpipe.
-- Searches are local only (`include_cloud=false`). TimeKeeper never reads Screenpipe's database and never writes Screenpipe memories.
-- The Screenpipe API key stays in TimeKeeper's API process. The MCP server listens on `127.0.0.1` only and requires its own bearer token.
-- Captures appear only when you hover a period; nothing is copied into TimeKeeper's database.
-
-## Test TimeKeeper yourself
-
-There are two ways to try it. **Path A** is the quickest: fictional clients and an open working session are ready, so the pill reacts within minutes. **Path B** installs the Windows app on your own data.
-
-### Before you start (both paths)
-
-1. **Windows 10 or 11.** macOS is not tested yet.
-2. **Install Screenpipe** from [screenpi.pe](https://screenpi.pe), start it and allow screen recording. Check that it answers: open `http://127.0.0.1:3030/health` in a browser, you should see `"status"`.
-3. **Get Screenpipe's local API token.** Screenpipe protects its API; TimeKeeper needs this token to read what it recorded. In a terminal:
-
-   ```sh
-   npx --yes screenpipe@latest auth token
-   ```
-
-   It prints a short token. Keep it for the next steps and never commit it.
-
-### Path A: demo from source (about 10 minutes)
-
-1. **Install the tools:** [Git](https://git-scm.com), [Node.js 24](https://nodejs.org) (the version in [`.nvmrc`](.nvmrc)). For the desktop window you also need [Rust](https://rustup.rs) and the Visual Studio C++ Build Tools; the browser version works without them.
-2. **Get the code:**
-
-   ```sh
-   git clone -b thejoyfulist/screenpipe https://github.com/Rajavik-git/TimeKeeper.git
-   cd TimeKeeper
-   npm ci
-   ```
-
-3. **Connect Screenpipe:** create a file named `.env` in the `TimeKeeper` folder (it is ignored by git) with:
-
-   ```dotenv
-   SCREENPIPE_URL=http://127.0.0.1:3030
-   SCREENPIPE_API_KEY=<the token from step 3 above>
-   ```
-
-4. **Create the demo database** (fictional clients, cases and an open session):
-
-   ```powershell
-   # PowerShell
-   $env:TIMEKEEPER_DB = "data/demo.db"
-   node --import tsx tests/fixtures/create-database.ts
-   ```
-
-   In Git Bash, macOS or Linux: `TIMEKEEPER_DB=data/demo.db node --import tsx tests/fixtures/create-database.ts`.
-
-5. **Start TimeKeeper**, in the same terminal (`TIMEKEEPER_DB` still set):
-
-   ```sh
-   npm run dev
-   ```
-
-   - The app: `http://127.0.0.1:5173`
-   - The pill, in a browser tab: `http://127.0.0.1:5173/pill.html`
-   - Or the real desktop window: keep `npm run dev:server` running in one terminal and run `npx tauri dev` in a second one (`TIMEKEEPER_DB` set in both).
-
-6. **Create test documents.** Any file whose name contains a case reference is recognised; Word, PDF or a plain `.txt` in Notepad all work:
-
-   | File name to create                 | Case proposed                       |
-   | ----------------------------------- | ----------------------------------- |
-   | `2025-031 Opposition Brief.docx`    | Dawson v Martin (Paul Dawson)       |
-   | `2026-009 Letter to landlord.docx`  | Commercial lease (Paul Dawson)      |
-   | `2026-012 Bylaws draft.docx`        | Articles of association (Lumen Inc) |
-   | `2026-004 Hearing notes.docx`       | Divorce (Sarah Bennett)             |
-   | `Meeting notes.docx` (no reference) | none: the pill asks _Which case?_   |
-
-7. **Walk through it.**
-   1. Open `2026-012 Bylaws draft.docx` and keep it in front. Within a few seconds the pill shows _Switched to … · Articles of association?_ with a 20-second countdown.
-   2. Click **Confirm**: the bar switches to the new case and shows **Undo** for five seconds.
-   3. Open `2026-004 Hearing notes.docx`: the pill proposes _Divorce?_. Try **Choose a case…**, **Not client work**, **Later** or ✕.
-   4. Click the chevron ⌄ on the pill: current case, amount, today's total and the periods to validate.
-   5. In the app, open **My day**: the periods you just created are there. Validate their time once they have a duration.
-   6. Open **Activity** and hover today's row on the timeline: the preview shows Screenpipe's capture of that moment. Click a period for its sources and audit trail.
-   7. Open **Cases** and **Billing** to see recorded time, fees to bill and the invoice draft.
-
-### Path B: install the Windows app
-
-1. **Download the installer.** On GitHub, open **Actions → Windows desktop installer**, pick the latest successful run for `thejoyfulist/screenpipe`, download the artifact **timekeeper-windows-installer** and unzip it. With the GitHub CLI:
-
-   ```sh
-   gh run list -R Rajavik-git/TimeKeeper -w "Windows desktop installer" -b thejoyfulist/screenpipe -L 1
-   gh run download <run id> -R Rajavik-git/TimeKeeper
-   ```
-
-2. **Install.** Double-click `TimeKeeper_0.1.0_x64-setup.exe`. The installer is not signed yet: if Windows SmartScreen appears, click **More info → Run anyway**. It installs for your user only, without administrator rights.
-3. **Connect Screenpipe.** Save the token in the app's data folder (PowerShell):
-
-   ```powershell
-   New-Item -ItemType Directory -Force "$env:APPDATA\com.timekeeper.desktop" | Out-Null
-   npx --yes screenpipe@latest auth token | Set-Content -NoNewline "$env:APPDATA\com.timekeeper.desktop\screenpipe-api-key"
-   ```
-
-4. **Open TimeKeeper** from the Start menu. The pill appears at the top of the screen; the tray icon offers **Open TimeKeeper**, **Show/Hide pill** and **Quit**. Closing the main window keeps TimeKeeper running.
-5. **Add your clients and cases.** The app starts empty. In **Settings → Clients**, use **Add client**; in **Cases**, use **New case** and give each case a reference such as `2026-100-ACME`. Add **markers** (opposing party, keywords) to a case to recognise documents without the reference.
-6. **Start a working session.** Work periods only exist inside a session, which Screenpipe starts. Until then the pill shows _No active session_. To start one by hand (PowerShell):
-
-   ```powershell
-   $body = @{ producerId = "manual"; commandId = [guid]::NewGuid().ToString(); sessionId = [guid]::NewGuid().ToString(); occurredAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ") } | ConvertTo-Json
-   Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8787/api/commands/start -ContentType "application/json" -Body $body
-   ```
-
-   To let Screenpipe start and end sessions on its own, run the MCP server from a source checkout (see [Connect Screenpipe chat](#connect-screenpipe-chat-optional)).
-
-7. **Open a document** whose name contains one of your references: the pill proposes the case, as in Path A.
-
-Good to know: data lives in `%APPDATA%\com.timekeeper.desktop\timekeeper.db`, the API log in `%LOCALAPPDATA%\com.timekeeper.desktop\logs\api.log`. Uninstall from Windows **Settings → Apps**. The installed app and a source checkout both use port 8787: run one at a time.
-
-### If something does not work
-
-| Symptom                                        | Fix                                                                                                    |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Pill shows _No active session_                 | Start a session (Path B step 6). The demo database already has one.                                    |
-| Pill dot is amber, _Screenpipe not connected_  | Screenpipe is stopped or the token is missing or wrong; redo the token step and restart TimeKeeper.    |
-| Pill dot is grey, _Paused_                     | Click ▶ on the pill.                                                                                   |
-| No notice after a minute                       | Keep the document in front: Screenpipe must record it first. Check the file name contains a reference. |
-| A pill button does not react                   | The first click focuses the pill; click again.                                                         |
-| _TimeKeeper could not start its local service_ | Another TimeKeeper (or `npm run dev`) already uses port 8787; close it.                                |
-
-## Checks and automated tests
-
-### Without Screenpipe: the pill simulator
-
-Run the demo (Path A) and open `http://127.0.0.1:5173/pill.html` in a browser. Pick a document in **Simulate file switch**: the notice appears at once, without waiting for Screenpipe. Try **Confirm** then **Undo**, **Later**, **Not client work**, and _Program Manager_ (a Windows shell window, ignored).
-
-### With Screenpipe: check the connection
-
-With the API running and `SCREENPIPE_API_KEY` set:
+To expose tools without that automatic link, use the manual-only command after configuring the MCP token:
 
 ```sh
-curl http://127.0.0.1:8787/api/screenpipe/focus
-# {"status":"ok","focus":{"appName":"WINWORD.EXE","windowTitle":"2025-031 Opposition Brief v3 - Word",...}}
+node --env-file-if-exists=.env --import tsx src/mcp/server.ts --http 3032
 ```
 
-`"unauthorized"` means the key is missing or wrong; `"unavailable"` means Screenpipe is not running. To list the captures of the last 10 minutes (metadata only):
+## Resolve common problems
 
-```sh
-curl "http://127.0.0.1:8787/api/screenpipe/frames?start=$(date -u -d '-10 min' +%FT%TZ)&end=$(date -u +%FT%TZ)"
-```
+| Symptom                                            | Check                                                                                                                       |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| The pill shows no active session.                  | Start a session through the explicit command or the configured Screenpipe integration.                                      |
+| Screenpipe is unavailable or protected reads fail. | Check its service, recording permissions, URL, and API key. Follow [connection recovery](docs/SETUP.md#connect-screenpipe). |
+| No case is proposed.                               | Check the active session, pause state, case references, window title, and whether Screenpipe has indexed recent context.    |
+| A closed period has no duration.                   | Enter or correct its duration in My day. Automatic reconstruction is incomplete.                                            |
+| Activity has no screenshot.                        | Check capture availability for that period. A missing preview does not create evidence or duration.                         |
+| The API cannot bind port `8787`.                   | Check for another source API or installed TimeKeeper instance.                                                              |
 
-### The MCP server
-
-```sh
-TIMEKEEPER_MCP_TOKEN=change-me npm run mcp:serve
-curl -X POST http://127.0.0.1:3032/mcp \
-  -H "Authorization: Bearer change-me" -H "content-type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"timekeeper_status","arguments":{}}}'
-```
-
-The answer shows whether TimeKeeper runs, the active session and the open period. Without the token the server answers `401`.
-
-### Automated tests
-
-```sh
-npm test                      # the whole suite
-npx vitest run tests/integration/screenpipe-*.test.ts tests/integration/mcp-*.test.ts \
-  tests/integration/pill-routes.test.ts tests/unit/pill-desk.test.tsx tests/unit/activity-frames.test.tsx
-(cd src-tauri && cargo check) # desktop host
-```
-
-The Screenpipe, MCP and pill tests run against a fake Screenpipe and the real TimeKeeper API on a fixture database: no network and no recording needed. On Windows, `tests/integration/setup.test.mjs` needs an LF checkout (`git config core.autocrlf false`), and `tests/unit/comparison-samples.test.ts` can time out when the whole suite runs at once; both pass on their own.
-
-## Connect Screenpipe chat (optional)
-
-1. Add `TIMEKEEPER_MCP_TOKEN=<random token>` to `.env`, then run `npm run mcp:serve` next to TimeKeeper.
-2. In Screenpipe, add a custom MCP connection named `timekeeper`: URL `http://127.0.0.1:3032/mcp`, header `Authorization: Bearer <token>`.
-3. Copy [`integrations/screenpipe/timekeeper/SKILL.md`](integrations/screenpipe/timekeeper/SKILL.md) to `~/.screenpipe/skills/timekeeper/SKILL.md`, and the Start/End pipes to Screenpipe's pipes folder.
-
-Then ask Screenpipe chat _"Start TimeKeeper"_, _"What did I work on this morning?"_ or _"Which periods still need a case?"_. Details and every variable: [Screenpipe integration](integrations/screenpipe/README.md).
-
-## Configuration
-
-| Variable                  | Default                 | Use                                                    |
-| ------------------------- | ----------------------- | ------------------------------------------------------ |
-| `TIMEKEEPER_DB`           | `data/timekeeper.db`    | SQLite database.                                       |
-| `TIMEKEEPER_PORT`         | `8787`                  | Local API port.                                        |
-| `UI_PORT`                 | `5173`                  | Development interface port.                            |
-| `SCREENPIPE_URL`          | `http://127.0.0.1:3030` | Screenpipe API (`SCREENPIPE_API_URL` is accepted too). |
-| `SCREENPIPE_API_KEY`      | none                    | Screenpipe token for `/search` and `/frames`.          |
-| `SCREENPIPE_API_KEY_FILE` | none                    | File holding the token; set by the desktop app.        |
-| `TIMEKEEPER_MCP_TOKEN`    | none                    | Bearer token required by the MCP HTTP server.          |
-
-## What we built
-
-Starting from the canonical data layer and the five screens, this branch adds:
-
-- **Desk pill on the canonical API.** Recognition (`POST /api/recognize`), confirmed document switches (`POST /api/periods/switch`), one-click decisions with a five-second Undo (`POST /api/pill/decision`, `/api/pill/undo`), all written through the same use cases and revision guards as the review screens, documented in the OpenAPI contract and covered by tests.
-- **Screenpipe-only detection.** The native Windows window watcher is gone; the pill reads `GET /api/screenpipe/focus` (focus events, accessibility and OCR, metadata only), tolerates Screenpipe's "search is busy" replies, and shows when Screenpipe is not connected.
-- **Evidence in Activity.** `GET /api/screenpipe/frames` and `/frames/{id}/image` bring Screenpipe's captures into the timeline preview, with the key kept server-side.
-- **Screenpipe MCP server, session link, Start/End pipes and skill**, ported from the team's `mcp-and-api-merge` work onto the canonical API, with a mandatory bearer token and strict JSON-RPC validation.
-- **Desktop packaging.** The Node API ships as a Tauri sidecar that starts and stops with the app; the `Windows desktop installer` workflow builds the NSIS installer; Screenpipe's key reaches the installed app through `screenpipe-api-key`.
-- **Interface polish.** A full-width Activity timeline that opens on 8 h–20 h with 2-hour ticks and a sticky hour axis, green/amber status colours, compact summary tiles and card headers, a Cases sort limited to To bill, Name and Last activity, and a bento Rates page with sortable case rates.
-
-## Status and limits
-
-This is hackathon software. What works today on this branch:
-
-- Window detection through Screenpipe, case recognition, one-click decisions with Undo, and the Screenpipe capture preview in Activity, verified against a running Screenpipe on Windows.
-- The MCP server, session link and Start/End pipes, covered by automated tests against the real API; the connection from Screenpipe chat is not yet verified end to end.
-- A Windows installer built by the `Windows desktop installer` workflow.
-
-Not yet:
-
-- JEV, the AI assessment of ambiguous case switches, is not ported (it needs a TypeSafe key and an approved selection of recorded fields).
-- Durations come from period boundaries and corrections; automatic duration reconstruction from Screenpipe evidence is still an open design question.
-- macOS packaging and native acceptance tests.
+Configuration variables and recovery details belong in [setup](docs/SETUP.md#configure-local-settings).
 
 ## Development
 
-Run `npm run format:check`, `npm run lint`, `npm test`, `npm run typecheck` and `npm run build`. Use `npm run format` or `npm run lint:fix` for available fixes, and `npm run contract:gen` after changing `src/contracts/openapi.yaml`.
-
-Prettier and ESLint exclude generated output and local data; they do not check Rust or SQL. Run [browser acceptance](tests/acceptance/README.md) separately with an isolated database. `npm run db:reset` deletes the selected database: use it only for disposable data.
-
-### Sample comparisons
+Run the project checks after dependency installation:
 
 ```sh
-npm run db:samples -- --database data/comparison-preview.db
-TIMEKEEPER_DB=data/comparison-preview.db TIMEKEEPER_PORT=8788 UI_PORT=5174 npm run dev
+npm run format:check
+npm run lint
+npm test
+npm run typecheck
+npm run build
 ```
 
-Open `http://127.0.0.1:5174/` and select Cases: two labelled sample companies with a 2:1 monthly time comparison. The importer requires `--database PATH`, preserves existing records and human edits on rerun, backs up compatible databases, and accepts `--dry-run`. Setup and startup never import samples.
+`npm run contract:gen` regenerates shared contracts. Browser, native, and real Screenpipe acceptance run separately from unit tests. See the [browser smoke workflow](tests/acceptance/README.md) and the [integration validation tracker](docs/FEATURES.md).
+
+`npm run db:reset` deletes the selected database. Optional [comparison samples](docs/SETUP.md#comparison-sample-tooling) require an explicitly selected database and never load during normal startup.
 
 ## Documentation
 
-| Topic                                      | Document                                                    |
-| ------------------------------------------ | ----------------------------------------------------------- |
-| Installation and desktop builds            | [Setup](docs/SETUP.md)                                      |
-| Screenpipe MCP, pipes and skill            | [Screenpipe integration](integrations/screenpipe/README.md) |
-| Provider API and event research            | [Screenpipe research](docs/SCREENPIPE_INTEGRATION.md)       |
-| Business rules and open decisions          | [Requirements](docs/REQUIREMENTS.md)                        |
-| System, modules, and implementation limits | [Architecture](docs/ARCHITECTURE.md)                        |
-| Schema, migrations, and fixtures           | [Database](docs/DATABASE.md)                                |
-| Visual standards and screen behavior       | [Design](design.md)                                         |
-| Historical French schema                   | [Original database](docs/reference/ORIGINAL_DATABASE.md)    |
-| Browser checks                             | [Acceptance](tests/acceptance/README.md)                    |
-| Contributor rules                          | [AGENTS.md](AGENTS.md)                                      |
+| Topic                                                     | Guide                                                    |
+| --------------------------------------------------------- | -------------------------------------------------------- |
+| Installation, configuration, desktop builds, and recovery | [Setup](docs/SETUP.md)                                   |
+| Business rules, acceptance examples, and open decisions   | [Requirements](docs/REQUIREMENTS.md)                     |
+| Features to complete and integration validation           | [Feature backlog](docs/FEATURES.md)                      |
+| Modules, lifecycle, and implementation limits             | [Architecture](docs/ARCHITECTURE.md)                     |
+| HTTP and MCP integration contracts                        | [API](docs/API.md)                                       |
+| Screenpipe reads, session link, and provider research     | [Screenpipe integration](docs/SCREENPIPE_INTEGRATION.md) |
+| MCP connection, chat skill, and manual pipes              | [Integration setup](integrations/screenpipe/README.md)   |
+| Schema, migrations, and fixtures                          | [Database](docs/DATABASE.md)                             |
+| Visual standards and screen behavior                      | [Design](design.md)                                      |
+| Contributor rules                                         | [AGENTS.md](AGENTS.md)                                   |
+| Preserved French schema                                   | [Original database](docs/reference/ORIGINAL_DATABASE.md) |

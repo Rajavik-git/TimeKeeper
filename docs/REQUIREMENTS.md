@@ -1,6 +1,6 @@
 # TimeKeeper requirements
 
-This document owns business rules, use cases, and open product decisions. The user's latest explicit decisions take precedence. The local session, work-period, review, and billing core is implemented. Screenpipe workflows and native process management and acceptance remain incomplete.
+This document owns business rules, use cases, and open product decisions. The local session, work-period, review, and billing core is implemented. Screenpipe focus reads, MCP commands, an optional recording-session link, and Windows API sidecar management exist. Provider and native acceptance remain incomplete.
 
 Normal startup creates an empty workspace. Fictional records require explicit test fixtures or authorized, opt-in comparison previews. The [setup guide](SETUP.md) covers environment checks and sample tooling.
 
@@ -12,18 +12,26 @@ TimeKeeper helps lawyers review working time by client and case using Screenpipe
 
 The MVP includes client and case configuration, work periods, source review, time correction and validation, billed/unbilled status, and interface summaries. Inactivity detection and idle-time subtraction are excluded.
 
-The 2026-10-17 team decision retains pre-invoices, numbered deposit and final invoices with frozen lines, expenses, disbursements, VAT, client rates, flat fees, budgets with an 85% alert, and client rules. These extensions do not define capture, duration reconstruction, or additional billing rules. Monetary rounding and historical-rate snapshots remain proposals where identified below.
+Billing includes pre-invoices, numbered deposit and final invoices with frozen lines, expenses, disbursements, VAT, client rates, flat fees, budgets with an 85% alert, and client rules. These extensions do not define capture, duration reconstruction, or additional billing rules. Monetary rounding and historical-rate snapshots remain proposals where identified below.
 
 Reusable folder learning, chat-calculated summaries, and advanced currency behavior are deferred. Chat retrieves application details only.
+
+## Current implementation limits
+
+MCP, JEV, and Screenpipe skills are implemented with validation pending. The [feature backlog](FEATURES.md) records source availability, branch integration, and validation separately from new features.
+
+The source implements a subset of the rules below. The recording-session link uses public-health observations, not exact recorder events. The pill uses deterministic app/title matching, can apply high-confidence suggestions after 20 seconds, and currently uses the interface observation time for transitions. Folder identification and automatic duration derivation remain unresolved. Activity media previews do not persist evidence or recover missed periods.
+
+Windows release source manages its API sidecar; main-window close hides the window, while tray Quit stops the owned API. Debug Node remains separate. General stopped-app delivery and recorded-history catch-up are not implemented. These limits do not redefine the required recovery guarantees.
 
 ## Agreed business rules
 
 ### Sessions and desktop lifecycle
 
-- The lawyer starts and ends sessions through explicit Screenpipe commands. Their syntax and transport remain unimplemented.
+- Screenpipe recording boundaries and explicit Screenpipe commands start and end sessions. MCP implements explicit commands; the optional health-polling link approximates recording boundaries and still needs provider acceptance.
 - Start launches or activates TimeKeeper and waits for service readiness. Only one session may be active per workspace. Repeated or distinct starts return its ID without resetting its start boundary.
 - Closing TimeKeeper stops the desktop application and Node backend but leaves the session and active period open. Closing or reopening establishes no work-time boundary.
-- Only the explicit end command ends a session and closes its active period at the effective end timestamp. Screenpipe recording continues.
+- An explicit end command or a Screenpipe recording end closes the session and its active period at the effective end timestamp. An explicit TimeKeeper end does not stop Screenpipe recording.
 - End identifies its target session. Repeated ends preserve the first applied boundary. A missing or unknown target returns a visible no-active-session or not-found result without creating records.
 - If end arrives before its known pending start, retain it as pending until start applies. Do not acknowledge completion before applying the prerequisite.
 - During recovery, apply known causal prerequisites first. A new start after a pending end creates a separate session. If order is unknown, report pending or conflicting state instead of guessing from arrival order.
@@ -166,4 +174,4 @@ The folder-identification, duration-derivation, and closed-app delivery mechanis
 | Trigger producer, bridge, and assignment acknowledgement on both platforms               | Automatic workflow and Screenpipe synchronization. |
 | JEV execution contract and allowed data, local access, retention, and deletion           | Model integration and persisted data handling.     |
 
-Manifests and `src/backend/adapters/sqlite/migrate.ts` record dependency versions and local migrations. Screenpipe release selection, packaged Node lifecycle, installed database location, platform migration acceptance, and application-wide backup recovery remain open. Sample-import backups do not define that recovery policy.
+Manifests and `src/backend/adapters/sqlite/migrate.ts` record dependency versions and local migrations. Screenpipe release selection, both-platform native lifecycle acceptance, macOS packaging, platform migration acceptance, and application-wide backup recovery remain open. Windows release source uses application-data SQLite storage and an owned API sidecar. Sample-import backups do not define that recovery policy.

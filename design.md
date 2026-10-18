@@ -15,7 +15,7 @@ The main navigation contains My day, Cases, Billing, Activity, and Settings. The
 | My day   | Calendar, coverage, questions, period review, filters, and CSV. Manual entry remains disabled.                                                                  |
 | Cases    | Client and case editors, figures, markers, and budgets. Balances, counts, attention figures, billing bars, and the recorded-time comparison are workspace-wide. |
 | Billing  | Draft invoices, expenses, VAT, validation blockers, and issued snapshots. Payments and invoice delivery are unavailable.                                        |
-| Activity | Stored timeline, keyboard-readable period list, sources, audit, review, and source packs. No live media retrieval or recording control.                         |
+| Activity | Stored timeline, keyboard-readable period list, sources, audit, review, and source packs. On-demand Screenpipe screenshot previews; no recording control.       |
 | Settings | Clients, rates, work categories, rules, invoices, and pill preferences. Capture exclusions and retention controls remain disabled.                              |
 
 My day retains date, month, filters, and sort across navigation. Cases retains client, case, and tab. Source review restores its originating screen and period-action focus. Settings drafts survive section switches only, not leaving Settings or reloading.
@@ -89,9 +89,9 @@ Generated states map to labels in `src/frontend/shared/presentation/`; preserve 
 
 ## Pill
 
-The native document and Settings' Desk preview share `WorkPill` and `pillView`, with a 50 px bar and expanded panel. Display choices are Estimated fees, Time, and Case. Themes synchronize between documents; the native background remains transparent. Case changes use canonical assignment or guarded question-answer commands. Pause and Close period remain disabled.
+The native window loads `pill.html`, which renders `features/desk/pill/Pill.tsx`. Settings' Desk preview embeds that page in an iframe. Display choices are Estimated fees, Time, and Case. Themes synchronize between documents; the native background remains transparent. Case changes use canonical assignment or guarded question-answer commands. Pause stops pill detection without stopping Screenpipe recording or ending the session.
 
-Open My day focuses the main window and emits `timekeeper:open-my-day`; its listener selects My day without reloading and cleans up on unmount. Native execution remains unverified. Notice suppression matches period-label words and does not prove call detection. The pill reads the TimeKeeper API; the setup-only Screenpipe origin does not configure it. [Setup](docs/SETUP.md#prepare-desktop-development) covers window lifecycle and packaging.
+Open My day focuses the main window and emits `timekeeper:open-my-day`; its listener selects My day without reloading and cleans up on unmount. Native execution remains unverified. Notice suppression matches period-label words and does not prove call detection. The pill reads recorded focus through the TimeKeeper API, which uses the configured Screenpipe origin and protected-read token. High-confidence deterministic case suggestions apply after a 20-second countdown; lower-confidence suggestions need lawyer action. Provider failures remain visible. [Setup](docs/SETUP.md#prepare-desktop-development) covers window lifecycle and packaging.
 
 ## Implementation
 

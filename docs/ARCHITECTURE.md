@@ -2,66 +2,53 @@
 
 ## Scope and ownership
 
-TimeKeeper implements React, a local Hono API, application services, and SQLite persistence for the [requirements](REQUIREMENTS.md). Tauri hosts the desktop windows. Node runs separately. Process management and bundling its runtime remain release requirements. Node uses [`.nvmrc`](../.nvmrc). Package and Cargo lockfiles record dependency versions.
+TimeKeeper implements React, a local Hono API, application services, and SQLite persistence for the [requirements](REQUIREMENTS.md). Tauri hosts the desktop windows. Debug development uses a separately running Node API. Windows release packaging includes a Node API sidecar with readiness and parent-process safeguards. The current sidecar builder has no macOS target. Node uses [`.nvmrc`](../.nvmrc). Package and Cargo lockfiles record dependency versions.
 
 Screenpipe owns recording and triggered workflows. Node validates commands and writes records. React calculates summaries. The [setup guide](SETUP.md) owns environment preparation. Its public-health check does not wire integrations. The Screenpipe release and native release acceptance remain open.
 
 ## Components and flows
 
-The diagram includes planned connections. The launcher, MCP, trigger bridge, provider reads, tag adapter, and JEV workflow are unimplemented. The pending-command box is an unresolved contract. See [implemented modules](#implemented-modules) for the current call path and [AGENTS.md](../AGENTS.md) for dependency rules.
+The diagram shows connections present in this source tree. The [feature tracker](FEATURES.md) records integration and validation gaps. Durable evidence ingestion, event-trigger bridges, and tag synchronization are not connected in this checkout. See [implemented modules](#implemented-modules) for ownership and [AGENTS.md](../AGENTS.md) for dependency rules.
 
 ```mermaid
 flowchart LR
     Lawyer[Lawyer]
     subgraph SP[Screenpipe]
-        Commands[Explicit start and end commands]
-        Bridge[Context-change trigger bridge]
-        Workflow[Pipe workflow using TimeKeeper skill]
-        Memory[Recorded memory API]
-        Tags[Case tags on source frames]
-        Chat[Read-only chat queries]
-        Commands --> Workflow
-        Bridge -.->|Release verification required| Workflow
-        Workflow -->|Retrieve evidence| Memory
+        Recorder[Recorder and local HTTP API]
+        Chat[Chat and manual pipes]
     end
-    Workflow -->|Start and wait for readiness| Launcher[External desktop launcher]
-    Workflow -->|Ambiguous context| JEV[JEV]
-    subgraph TK[TimeKeeper desktop]
-        Host[Tauri host]
-        UI[React review and summary calculations]
+    subgraph TK[TimeKeeper]
+        Host[Tauri release host]
+        UI[React review and desk pill]
         MCP[MCP tools]
-        API[Node API and application services]
+        Link[Optional recording-session link]
+        API[Hono API and application services]
         DB[(SQLite)]
-        Adapter[Source-tag adapter]
-        Host -.->|Process management pending| API
-        UI <--> API
-        MCP --> API
+        Host -->|Start and supervise packaged API| API
+        UI <-->|Typed HTTP requests| API
+        MCP -->|Commands and detail reads| API
+        Link -->|Session commands| API
         API <--> DB
-        API --> Adapter
     end
-    Launcher --> Host
-    Workflow -->|When available: scoped commands| MCP
-    Chat <-->|When available: read tools| MCP
-    API -->|Retrieve review sources| Memory
-    Adapter -.->|Reconcile and verify tags| Tags
-    Workflow -.->|When app is stopped| Pending[Durable command handling: design open]
-    Pending -.->|Reconcile after readiness| MCP
-    Lawyer --> Commands
-    Lawyer --> Chat
     Lawyer --> UI
+    Lawyer --> Chat
+    Chat <-->|Authenticated loopback HTTP| MCP
+    API -->|Read focus and screenshots| Recorder
+    Link -->|Poll public health| Recorder
 ```
 
-| Component                      | Responsibility                                                                                     |
-| ------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Screenpipe recorder and API    | Capture activity and expose observations and sources.                                              |
-| Screenpipe bridge and workflow | Receive signals, retrieve evidence, resolve cases, ask about unknown folders, and submit commands. |
-| JEV                            | Judge ambiguous context using known candidates. Never create case IDs or validate time.            |
-| External launcher              | Start or activate Tauri before waiting for API readiness.                                          |
-| MCP server                     | Translate scoped commands and read queries into API requests. Never access SQLite directly.        |
-| Node application services      | Validate commands and preserve revisions and corrections through one write path.                   |
-| Source-tag adapter             | Deliver committed assignments and verify tags.                                                     |
-| React interface                | Review, correct, validate, manage billing status, and calculate summaries.                         |
-| SQLite                         | Store details, recovery state, and frozen issued invoices.                                         |
+| Component                        | Responsibility                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
+| Screenpipe recorder and API      | Capture activity and expose recorded observations.                                       |
+| Screenpipe chat and manual pipes | Call TimeKeeper tools for explicit session commands and question answers.                |
+| MCP server                       | Translate tools into application API requests. Never open the business database.         |
+| Optional session link            | Observe public health and deliver linked session boundaries through the API.             |
+| Screenpipe HTTP adapter          | Read recent focus, frame metadata, and screenshot images. Keep credentials server-side.  |
+| Pill recognition                 | Match recorded application and window metadata against active cases and configured cues. |
+| Node application services        | Validate commands and preserve revisions and corrections through shared write paths.     |
+| React interface                  | Review, correct, validate, manage billing status, and calculate summaries.               |
+| Tauri release host               | Start the packaged API, wait for readiness, and stop its owned sidecar on Quit.          |
+| SQLite                           | Store detailed records, recovery state, and frozen issued invoices.                      |
 
 ## Implemented modules
 
@@ -112,37 +99,37 @@ Generated contracts, declarative mappings, and ordered migrations have distinct 
 
 ## Session lifecycle and application lifecycle
 
-Session state is independent of process state. The current Rust host hides the main window on close. Tray **Quit** exits Tauri. Neither action stops the separately launched API. Stopping the API closes SQLite without ending the stored session. Coordinated lifecycle remains unimplemented.
+Session state is independent of process state. Main-window close hides the window. Tray **Quit** exits Tauri and stops its owned release API. A debug API started in another terminal stays running. Stopping the API closes SQLite without ending the stored session.
 
-| Action                             | Required effect                                                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Start command in Screenpipe        | Launch or activate TimeKeeper, wait for readiness, and create a session or return the existing active session unchanged. |
-| Close TimeKeeper                   | Exit Tauri and Node while preserving the open session and period.                                                        |
-| Reopen TimeKeeper                  | Resume and reconcile history without duplicate periods or lost corrections.                                              |
-| End command in Screenpipe          | End the targeted session and its active period. Repeated ends retain the original boundary. Screenpipe keeps recording.  |
-| Receive evidence after session end | Reconcile observations within the session boundaries without reopening or extending it.                                  |
+MCP runs as a separate process. `npm run mcp:serve` enables the optional recording-session link; a direct HTTP invocation without `--screenpipe-link` serves manual commands only. [Integration setup](../integrations/screenpipe/README.md) owns those commands.
+
+| Action                        | Current behavior and limits                                                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Explicit Start in Screenpipe  | Returns the active session, or optionally launches TimeKeeper, waits for readiness, and requests a new session.                             |
+| Explicit End in Screenpipe    | Ends the active session through the API. It does not stop Screenpipe recording.                                                             |
+| Recording-session link        | Polls health every ten seconds; starts while recording and ends after the configured stop grace period. Boundaries use health observations. |
+| Close main window             | Hides the window and preserves session state.                                                                                               |
+| Tray Quit                     | Stops Tauri and its owned release API. Does not explicitly end a stored session.                                                            |
+| Reopen                        | Opens the same database. Automatic recorded-history catch-up is not implemented.                                                            |
+| Commands while API is stopped | Start may use the configured launch command. General durable command delivery remains unresolved.                                           |
+
+The intended exact recording boundaries and recovery guarantees in [requirements](REQUIREMENTS.md#sessions-and-desktop-lifecycle) are broader than this health-polling implementation. A connection loss can resemble stopped recording. Do not infer worked duration from either session uptime or process uptime.
 
 Commands need stable IDs, the authoritative session ID returned by start, effective timestamps, and revision guards. Receipt time cannot replace effective time. Retries have no additional effect.
 
 Recovery applies known prerequisites before dependents. An end waiting for its start stays pending. An end without a valid target cannot create a session. A new start dependent on a pending end waits instead of collapsing into the old session. Unresolved order remains pending or conflicting. A later end timestamp cannot revise an applied boundary.
 
-When the app is stopped, its API, MCP, and SQLite writer cannot receive session commands, assignments, or lawyer answers. Durable storage outside the process or controlled relaunch remains to be chosen and tested. A local queue and recordings alone cannot preserve those decisions.
+When the API is stopped, it cannot receive session commands, assignments, or lawyer answers. The separate MCP process can report unavailability and may use its configured launch command on Start. Its session link persists its own delivery state, but there is no general external command inbox. Durable delivery of arbitrary stopped-app commands remains to be chosen and tested.
 
 ## Case assignment and evidence flow
 
-Folder detection and effective boundaries remain undefined. Ordinary application switches preserve the active case. Unknown-folder questions use the [requirements guards](REQUIREMENTS.md#state-transitions), including a target period and expected assignment revision.
+The current path is `Screenpipe /search -> TimeKeeper focus API -> desk pill -> recognition API -> canonical period command`. The reader searches recent input, accessibility, and OCR observations. The pill uses application name and window title after two matching observations. It does not use full recorded text or audio to classify a case.
 
-1. A verified Screenpipe signal wakes its workflow.
-2. The workflow retrieves persisted observations through Screenpipe's API and candidate cases through MCP.
-3. The workflow selects an existing case, uses JEV when needed, or asks the lawyer.
-4. A scoped MCP command submits the assignment and evidence.
-5. Node checks the session boundary, case identity, expected revision, and manual corrections.
-6. One transaction saves the assignment and pending tag-delivery intent.
-7. The adapter reconciles tags and records verification or retryable failure.
+`application/window-recognition.ts` maps active canonical cases and configured cues into the pure domain matcher. High-confidence suggestions apply after a 20-second countdown; lower-confidence and unknown-case states require lawyer action. The transition currently uses the interface's observation time. It is not an exact capture boundary or a complete folder-identification rule.
 
-This provider flow is planned. Delayed answers resolve only their original period. Closure and evidence imports preserve the assignment guard. A newer assignment, superseded question, or replaced period causes a conflict. Answers do not teach reusable folder rules.
+Delayed answers resolve only their original period. Closure and evidence imports preserve the assignment guard. A newer assignment, superseded question, or replaced period causes a conflict. Answers do not teach reusable folder rules.
 
-Recovery rereads overlapping windows, deduplicates source identities, and advances retrieval progress only with committed records. A signal may precede searchable evidence. An empty query does not prove inactivity. [Screenpipe research](SCREENPIPE_INTEGRATION.md) covers transport and producer verification.
+Activity preview reads are transient. They do not import `sources`, attach them to periods, or advance durable retrieval progress. Overlap recovery and post-interruption catch-up remain incomplete. Integration of the existing JEV workflow is pending; see the [feature tracker](FEATURES.md). [Screenpipe integration](SCREENPIPE_INTEGRATION.md) separates those proposals from current polling.
 
 Late evidence cannot automatically split corrected or validated periods. Preserve the record, sources, and override. Store a reconstruction proposal separately without adding counted time. The resolution action remains undefined.
 
@@ -177,11 +164,11 @@ Aliases must agree on ownership and desired case. Conflicting aliases block sync
 
 ## MCP and JEV boundaries
 
-Chat reads follow `Screenpipe chat -> MCP -> application API -> SQLite`. Workflow writes use separate scoped commands. Desktop controls own corrections and validation. Tool schemas, transport compatibility, and local access controls remain unimplemented.
+Chat reads follow `Screenpipe chat -> MCP -> application API -> SQLite`. Eight implemented tools cover status, sessions, cases, periods, questions, answers, and link status. HTTP uses loopback bearer authentication; stdio serves one local client. [API contracts](API.md#mcp-tools) own tool names and outcomes.
 
-Screenpipe workflows own JEV calls and candidate selection. Node validates their chosen existing case without repeating inference. [Integration research](SCREENPIPE_INTEGRATION.md) records HTTP MCP, skill import, and JEV evidence. Skills are instructions. They neither register MCP connections nor listen for events. Hosted inference requires a decision about permitted source data.
+The skill and manual pipes exist but require separate installation. Skills are instructions, not event listeners or connection registration. Installed Screenpipe transport compatibility remains unverified.
 
-Chat reports application details unavailable when the API is stopped. Read-only detail queries remain in scope when services are available. Chat-calculated summaries are deferred.
+JEV is implemented with validation pending. The [integration tracker](FEATURES.md#implemented-integrations-awaiting-validation) records source availability and integration work. The intended boundary remains Screenpipe-owned inference followed by Node validation of an existing case and revision. Confirm permitted hosted fields before running that workflow. Chat-calculated summaries remain deferred. A stopped API cannot satisfy detail reads.
 
 ## Storage and implementation gates
 
@@ -189,7 +176,7 @@ Chat reports application details unavailable when the API is stopped. Read-only 
 
 `src/backend/adapters/sqlite/migrate.ts` alone owns schema upgrades, constraints, indexes, and triggers. Drizzle mappings do not generate migrations. Do not run schema push against existing workspaces.
 
-`tag_targets` and `assignment_deliveries` exist, but assignments do not yet create delivery intent. No provider worker runs. The Screenpipe adapter contains types only. Atomic delivery persistence, provider reconciliation, and verification remain required.
+`tag_targets` and `assignment_deliveries` exist, but assignments do not yet create delivery intent. No provider worker runs. The Screenpipe HTTP reader serves focus and media previews only; it does not synchronize tags or advance persistent retrieval progress. Atomic delivery persistence, provider reconciliation, and verification remain required.
 
 [Requirements](REQUIREMENTS.md) tracks dependent decisions and acceptance examples. Native acceptance must run separately on macOS and Windows.
 
@@ -205,7 +192,7 @@ The period editor separates corrections, time validation, evidence review, and b
 
 ## Compatibility recognition
 
-Imported mockup recognition is deterministic. Canonical assignments and guarded answers neither run it nor learn cues. It is not the agreed folder-identification rule. Normal startup has no capture blocks, and recognition makes no Screenpipe, JEV, or model calls.
+The pure recognition algorithm is deterministic. The current pill uses it through `application/window-recognition.ts` with recorded app and window metadata and the canonical catalogue. The compatibility block route also retains it. Guarded question answers do not learn cues. This heuristic is not the agreed folder-identification rule, and the matcher itself makes no Screenpipe, JEV, or model calls.
 
 `recognize(signals, catalog)` in `src/backend/domain/recognition.ts` is pure. It accepts app, window title, optional browser URL, OCR, transcripts, speakers, and previous-block context, plus clients, matters, and markers. The SQLite compatibility adapter supplies neither browser URLs nor previous-block continuity.
 

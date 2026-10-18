@@ -11,11 +11,14 @@ smoke_dir=$(mktemp -d "${TMPDIR:-/tmp}/timekeeper-mcp.XXXXXX")
 export TIMEKEEPER_DB="$smoke_dir/timekeeper.db"
 export TIMEKEEPER_PORT=8788
 export UI_PORT=5174
+export SCREENPIPE_URL=http://127.0.0.1:1
+export SCREENPIPE_API_KEY=
+export SCREENPIPE_API_KEY_FILE=
 node --import tsx tests/fixtures/create-database.ts
 npm run dev
 ```
 
-The fixture requires an explicit, unused database path. Exported values override `.env`. Use free ports and match them in the browser URL. Never reset the working database or substitute the comparison importer. This procedure does not test Tauri's fixed development URL.
+The fixture requires an explicit, unused database path. Exported values override `.env`. The Screenpipe overrides disable live provider access and token-file reads for this fixture. Use free ports and match them in the browser URL. Never reset the working database or substitute the comparison importer. This procedure does not test Tauri's fixed development URL.
 
 ## Run the MCP check
 

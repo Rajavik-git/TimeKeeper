@@ -18,7 +18,7 @@ Update the owning document when a decision changes. Link to it instead of repeat
 ## Product constraints
 
 - Screenpipe owns recording and workflow execution. Read evidence through its API, never its database. Do not add another recorder.
-- Explicit Screenpipe commands start and end sessions. Allow one active session per workspace. Repeated starts return it; repeated ends preserve its original end boundary. Application exit does not end it.
+- Screenpipe recording boundaries and explicit Screenpipe commands start and end sessions. Allow one active session per workspace. Repeated starts return it; repeated ends preserve its original end boundary. Application exit does not end it.
 - A work period owns case assignment, correction, time validation, and billing status. Derive its client from its case.
 - Unknown folders require an unresolved period and a lawyer answer guarded by target period and assignment revision. Closure or evidence import must not invalidate the guard. A delayed answer must not change a newer active case. Folder identification remains undefined.
 - Preserve manual corrections through replay. Reconcile ended sessions only inside their recorded boundaries. Do not automatically split corrected or validated periods; flag a reconstruction proposal without counting extra time.
@@ -31,7 +31,7 @@ Update the owning document when a decision changes. Link to it instead of repeat
 
 Use the [implemented modules](docs/ARCHITECTURE.md#implemented-modules) for ownership. Frontend screen entries stay at feature roots; child components use named folders, hooks use `hooks/`, and helpers use `lib/`.
 
-Tauri does not manage or package Node. Screenpipe adapters contain types only; workers, MCP tools, skills, pipes, and launcher integrations remain planned. Do not present placeholders or setup checks as working integrations.
+Windows release Tauri manages a packaged Node API sidecar; debug development uses a separate API. Screenpipe HTTP reads, MCP tools, the optional recording-session link, skill, and manual pipes exist. JEV is implemented with source integration and validation pending; see the [feature tracker](docs/FEATURES.md). Durable evidence ingestion, tag workers, and both-platform acceptance remain incomplete. The current sidecar builder has no macOS target. Do not present setup checks as integration acceptance.
 
 ### Dependency rules
 
