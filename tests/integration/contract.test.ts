@@ -18,6 +18,7 @@ const spec = JSON.parse(readFileSync("src/contracts/openapi.yaml", "utf8")) as {
 };
 const cases: Record<string, { path?: string; body?: unknown; status?: number }> = {
   "GET /api/catalog": {},
+  "GET /api/workspace": {},
   "GET /api/audit-events": {},
   "PATCH /api/catalog/clients/{id}": {
     path: "/api/catalog/clients/1",

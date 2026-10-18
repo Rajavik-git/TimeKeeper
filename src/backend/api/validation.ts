@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import type { FormatsPlugin } from "ajv-formats";
 import type { MiddlewareHandler } from "hono";
 import { requestContract } from "../../contracts/request-contract.generated.js";
-import { AppError } from "../application/service.js";
+import { AppError } from "../application/errors.js";
 
 const addFormats = createRequire(import.meta.url)("ajv-formats") as FormatsPlugin;
 

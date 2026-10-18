@@ -1,7 +1,7 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    LogicalSize, Manager, PhysicalPosition,
+    Emitter, LogicalSize, Manager, PhysicalPosition,
 };
 
 const PILL_WIDTH: u32 = 340;
@@ -49,7 +49,10 @@ fn open_my_day(app: tauri::AppHandle) -> Result<(), String> {
         .get_webview_window("main")
         .ok_or("Main window unavailable")?;
     window.show().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())
+    window.unminimize().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
+    app.emit_to("main", "timekeeper:open-my-day", ())
+        .map_err(|error| error.to_string())
 }
 
 fn main() {

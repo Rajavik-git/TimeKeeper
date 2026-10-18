@@ -1,3 +1,15 @@
+import type {
+  AssignmentOrigin,
+  NonbillableReason,
+  BillingStatus,
+  QuestionStatus,
+  CommandKind,
+  CommandStatus,
+  ValidationStatus,
+  AvailabilityStatus,
+  CoverageGapStatus,
+  ReconstructionStatus,
+} from "../domain/states.js";
 import type { PeriodState } from "../domain/rules.js";
 
 export interface SessionRecord {
@@ -12,8 +24,8 @@ export interface PeriodRecord extends PeriodState {
   startedAt: string;
   endedAt: string | null;
   initialCaseId: string | null;
-  initialOrigin: "unresolved" | "automatic" | "lawyer";
-  billingStatus: "unbilled" | "billed";
+  initialOrigin: AssignmentOrigin;
+  billingStatus: BillingStatus;
   billedAt: string | null;
   revision: number;
   appliedHourlyRateCents?: number | null;
@@ -21,7 +33,7 @@ export interface PeriodRecord extends PeriodState {
   taskTypeId?: number | null;
   label?: string;
   billable?: boolean;
-  nonbillableReason?: string | null;
+  nonbillableReason?: NonbillableReason | null;
   excluded?: boolean;
   demoApp?: string | null;
   demoWindowTitle?: string | null;
@@ -33,17 +45,17 @@ export interface QuestionRecord {
   sessionId: string;
   periodId: string;
   expectedAssignmentRevision: number;
-  status: "pending" | "answered" | "superseded";
+  status: QuestionStatus;
   responseCommandId: string | null;
   responseResultJson: string | null;
 }
 export interface CommandRecord {
   producerId: string;
   commandId: string;
-  kind: "start" | "end";
+  kind: CommandKind;
   payloadFingerprint: string;
   sessionId: string;
-  status: "pending" | "applied" | "rejected";
+  status: CommandStatus;
   prerequisiteId: string | null;
   payloadJson: string;
   resultJson: string | null;
@@ -58,9 +70,9 @@ export interface SourceRecord {
   externalId: string;
   recordedAt: string;
   ingestedAt: string;
-  validationStatus: "unvalidated" | "validated";
+  validationStatus: ValidationStatus;
   validatedAt: string | null;
-  availabilityStatus: "unknown" | "available" | "unavailable";
+  availabilityStatus: AvailabilityStatus;
   availabilityCheckedAt: string | null;
 }
 export interface CoverageGap {
@@ -68,7 +80,7 @@ export interface CoverageGap {
   sessionId: string;
   startedAt: string;
   endedAt: string;
-  status: "pending" | "failed";
+  status: CoverageGapStatus;
 }
 export interface ReconstructionConflict {
   id: string;
@@ -78,9 +90,21 @@ export interface ReconstructionConflict {
   proposedStartedAt: string;
   proposedEndedAt: string | null;
   sourceReferences: string[];
-  status: "pending" | "resolved";
+  status: ReconstructionStatus;
+}
+/** Half-open instant boundaries, resolved from calendar filters by the application. */
+export interface PeriodQuery {
+  startedFrom?: string;
+  startedBefore?: string;
+  sessionId?: string;
+  caseId?: string;
+  clientId?: string;
+}
+export interface QueriedPeriod extends PeriodRecord {
+  clientId: string | null;
 }
 export interface Repository {
+  queryPeriods(query: PeriodQuery): QueriedPeriod[];
   reconstructionConflicts(): ReconstructionConflict[];
   transaction<T>(work: () => T): T;
   activeSession(): SessionRecord | null;
@@ -92,6 +116,11 @@ export interface Repository {
   saveCommand(command: CommandRecord, now: string): void;
   pendingDependents(producerId: string, prerequisiteId: string): CommandRecord[];
   period(id: string): PeriodRecord | null;
+  /** Reads a final, explicitly requested reason while strictly decoding all other stored fields. */
+  periodForNonbillableReasonRepair(
+    id: string,
+    reason: NonbillableReason | null,
+  ): PeriodRecord | null;
   activePeriod(sessionId: string): PeriodRecord | null;
   periodAt(sessionId: string, at: string): PeriodRecord | null;
   nextPeriodAfter(sessionId: string, at: string): PeriodRecord | null;

@@ -21,7 +21,7 @@ export function activityPeriods(
         label: period.label,
         caseId: period.caseId,
         billable: period.billable,
-        reviewStatus: period.timeValidated ? "approved" : "pending",
+        timeValidated: period.timeValidated,
         period,
       };
     });

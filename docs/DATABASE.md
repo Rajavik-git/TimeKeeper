@@ -1,14 +1,28 @@
 # SQLite data model
 
-TimeKeeper has a local SQLite database, separate from Screenpipe storage. This document distinguishes the agreed logical design from the implemented MVP core schema. An initial migration now exists at `src/backend/adapters/sqlite/migrate.ts`; integration-dependent behavior remains proposed. The [requirements](REQUIREMENTS.md) define business behavior; the [architecture](ARCHITECTURE.md) defines component ownership.
+This reference distinguishes the agreed logical model from implemented SQLite storage. [Requirements](REQUIREMENTS.md) owns business behavior; [architecture](ARCHITECTURE.md) owns component boundaries. The [original schema](reference/ORIGINAL_DATABASE.md) preserves the earlier task/subtask design and French identifiers.
 
-The agreed logical model replaces the original task/subtask hierarchy with work periods. English entity names below identify the current design. The [original schema](reference/ORIGINAL_DATABASE.md) preserves the supplied identifiers and earlier review notes.
+`src/backend/adapters/sqlite/migrate.ts` owns ten versioned migrations, including constraints and triggers. Drizzle mappings in `src/backend/adapters/sqlite/tables.ts` describe runtime queries over `node:sqlite`. They do not migrate storage. [Storage ownership](ARCHITECTURE.md#storage-and-implementation-gates) defines retained SQL and transactions.
 
-Runtime queries use Drizzle table mappings in `src/backend/adapters/sqlite/tables.ts` over `node:sqlite`. Existing migrations remain the sole schema authority, including their constraints and triggers. The mapping-parity and upgrade tests check that the query model matches migrated databases. See [storage ownership](ARCHITECTURE.md#storage-and-implementation-gates) for the retained SQL and transaction boundaries.
+API startup initializes or upgrades `TIMEKEEPER_DB`, defaulting to `data/timekeeper.db` relative to the process directory. It creates neutral preferences and ten task types without business records. [Setup](SETUP.md) never opens the database.
+
+## Migrations
+
+| Migration | Scope                                                                                                            |
+| --------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1         | Sessions, periods, evidence, and recovery.                                                                       |
+| 2, 3      | Retained mockup fields and billing extensions.                                                                   |
+| 4         | `demo_block_periods`, the explicit imported block-to-period link.                                                |
+| 5         | Pill preferences under the migration ledger.                                                                     |
+| 6         | Compatibility entry IDs and source relocation history for replay.                                                |
+| 7         | Invoice currency, backfilled only when historical period snapshots establish it.                                 |
+| 8         | Immutable canonical case references.                                                                             |
+| 9         | Extension-field guards and foreign-key indexes.                                                                  |
+| 10        | Nonempty identities, safe integer money, durations and revisions, currency codes, and versioned export receipts. |
+
+Historical migrations remain frozen. New migrations preserve existing rows. Mapping, state-parity, upgrade, constraint, and chronological recovery tests cover local storage behavior, not provider integration.
 
 ## How to read the schema
-
-Start with the work period. It records one piece of work, belongs to one session, and can be assigned to one case. The case supplies its client. A source is an observation linked to that work; it does not establish continuous worked time.
 
 | Table                       | What one row means                                            | Main relationships                                          |
 | --------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -20,19 +34,17 @@ Start with the work period. It records one piece of work, belongs to one session
 | `task_types`                | An editable category such as drafting or document review      | A period can reference it through `task_type_id`.           |
 | `invoices`, `invoice_lines` | An issued invoice and its frozen lines                        | Link billed work and expenses to the invoice.               |
 
-The client is not copied onto a work period as a second assignment. Source validation, time validation, and billing status are independent. `NULL` means unknown or unset, not zero.
+A period derives its client from its case. Source review, time validation, availability, and billing are independent. `NULL` means unknown or unset. Zero is a known value. Sources establish observations, not continuous duration.
 
 ### Why some IDs are strings
 
-The main business and workflow identities use SQLite `TEXT` and JSON strings. New clients, cases, and manual periods normally receive UUIDs. Workflow commands can supply other stable opaque strings for sessions, periods, and sources. An opaque ID identifies a record; applications must not parse it to obtain its client, date, or display name. The case's human-readable `reference` is separate from its ID.
+Business and workflow IDs use SQLite `TEXT` and JSON strings. New clients, cases, and manual periods normally use UUIDs. Producers can supply stable opaque session, period, and source IDs before insertion. Those IDs survive delivery retries and replay. They encode no client, date, or display name. A case's readable `reference` is separate.
 
-String IDs let a producer identify a record before a database insert and reuse the same identity during delayed delivery, replay, and retries. An integer sequence is more compact, but would require another mapping for externally assigned identities. Changing existing IDs to integers would affect foreign keys, saved commands, evidence references, exports, and API callers without resolving a current business problem.
-
-Local categories, invoices, expenses, audit rows, and export receipts use integer IDs where a local database sequence is sufficient. These are valid different choices for different identities. Historical numeric aliases belong only to the deprecated API.
+Local categories, invoices, expenses, audit rows, and export receipts use integer sequences. Numeric period aliases belong only to the deprecated API.
 
 ### Why fixed states are text
 
-SQLite has no native `ENUM` column type. A fixed state uses a readable text value and a database constraint limiting the allowed values. For example, `billing_status` permits `unbilled` and `billed`; it does not accept an arbitrary string. Drizzle's enum configuration also narrows TypeScript types, but does not replace database checks.
+SQLite fixed states use constrained text. Drizzle narrows TypeScript values but does not replace SQL checks. Editable catalogues such as `task_types` use separate tables.
 
 | Column                                | Allowed states                        | Meaning                                                     |
 | ------------------------------------- | ------------------------------------- | ----------------------------------------------------------- |
@@ -43,40 +55,51 @@ SQLite has no native `ENUM` column type. A fixed state uses a readable text valu
 | `sources.validation_status`           | `unvalidated`, `validated`            | Whether the observation has been reviewed.                  |
 | `sources.availability_status`         | `unknown`, `available`, `unavailable` | Whether the referenced evidence is retrievable.             |
 
-Do not turn every fixed state into a lookup table. Separate tables are useful for editable catalogues such as `task_types`, where users can change labels and settings. Integer status codes would still need an allowed-value constraint and a translation to readable labels.
+`src/backend/domain/states/` owns runtime members and derived types, exposed and registered through `states.ts`. `BillingStatus.Billed` stores and transmits `"billed"`. Domain records, row readers, validators, and mappings reuse this vocabulary. Feature-local tabs and sort options remain feature-owned.
 
-### Which schema file owns which responsibility
+`scripts/sync-state-contract.ts` generates named OpenAPI state schemas and `src/contracts/states.generated.ts`. The frontend imports generated members instead of backend code. `npm run contract:gen` then regenerates API types and validators. Generated files are not edited directly. Persisted state changes require a new migration and transition rules. Historical SQL literals stay frozen.
 
-| File                                          | Responsibility                                                                                                                                   |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/backend/adapters/sqlite/migrate.ts`      | Creates and upgrades the physical SQLite schema, constraints, indexes, and triggers.                                                             |
-| `src/backend/adapters/sqlite/tables.ts`       | Maps SQLite columns to typed Drizzle queries. It does not apply migrations.                                                                      |
-| `src/contracts/openapi.yaml`                  | Defines HTTP routes, JSON fields, allowed values, and request/response contracts. It is not an OpenAI configuration file or the database schema. |
-| `src/contracts/generated.ts`                  | Generated TypeScript API types. Do not edit directly.                                                                                            |
-| `src/contracts/request-contract.generated.ts` | Generated request schemas used by API validation. Do not edit directly.                                                                          |
-| `src/backend/adapters/sqlite/schema.sql`      | Historical imported schema retained for initialization, upgrades, and fixture compatibility. It does not define the canonical period model.      |
+`SystemTaskCode` owns the ten built-in task codes. These codes are reserved and immutable because invoice rules identify research and travel by code. Labels remain editable. Custom tasks can use other codes and rename them. Both current and deprecated API writes enforce these restrictions. Previously renamed built-in tasks require explicit repair because their identity cannot safely be inferred from a label.
 
-The project file is `openapi.yaml`, not `openai.yml`. It currently contains JSON syntax, which is valid YAML. `npm run contract:gen` regenerates the two contract files after an OpenAPI change. SQL column names use `snake_case`; JSON attributes use `camelCase`.
+Unsupported stored states produce integrity conflicts rather than defaults. Client, case, and settings updates can repair affected fields by validating the result and rolling back incomplete repairs. Raw preimages remain available for audit and removal of invalid markers or client rules. Invalid historical nonbillable reasons require an explicit valid replacement or `null`. Unrelated operations stay strict. An uninvoiced expense can be removed without decoding its invalid category. Revision guards, billing locks, and invoice ownership still apply.
 
-The physical database retains old singular tables such as `client`, `matter`, and `time_entry` alongside canonical tables such as `clients`, `cases`, and `work_periods`. Current screens use the canonical model. Retention supports older installations and fixtures; it is not a second authoritative client/case model. Fresh initialization still creates the historical tables. Separating that bootstrap from upgrade handling requires a preservation migration and remains distinct from changing IDs or enum storage.
+### Schema and contract file ownership
+
+| File                                          | Responsibility                                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `src/backend/adapters/sqlite/migrate.ts`      | Creates and upgrades the physical SQLite schema, constraints, indexes, and triggers.             |
+| `src/backend/adapters/sqlite/tables.ts`       | Maps SQLite columns to typed Drizzle queries. It does not apply migrations.                      |
+| `src/backend/domain/states/` and `states.ts`  | Own runtime state values, types, and the generation registry.                                    |
+| `scripts/sync-state-contract.ts`              | Generates named OpenAPI state components and frontend runtime values from the domain vocabulary. |
+| `src/contracts/openapi.yaml`                  | Defines HTTP routes, JSON fields, and request/response contracts.                                |
+| `src/contracts/states.generated.ts`           | Generated runtime state members and types for frontend use. Do not edit directly.                |
+| `src/contracts/generated.ts`                  | Generated TypeScript API types. Do not edit directly.                                            |
+| `src/contracts/request-contract.generated.ts` | Generated request schemas used by API validation. Do not edit directly.                          |
+| `src/backend/adapters/sqlite/schema.sql`      | Historical schema for explicit fixtures. Upgrades preserve existing tables.                      |
+
+`openapi.yaml` uses JSON syntax, which is valid YAML. `npm run contract:gen` regenerates state values, API types, and validators. SQL columns use `snake_case`. Current JSON fields use `camelCase`.
+
+Fresh initialization omits historical singular tables such as `client`, `matter`, and `time_entry`. Upgrades preserve existing ones, and explicit fixtures can create them. Compatibility projections use canonical records. Missing optional historical capture collections return empty collections. Unsupported historical writes return controlled errors. Missing canonical storage remains an error.
 
 ### Units and defaults
 
-Durations are integer milliseconds. Monetary amounts and rates are integer minor units with a separate currency. A research-cap rule's `value` uses tenths of an hour: `5` means 30 minutes. A `nonbillable_travel` row enables the travel rule; its value is not a duration. User-visible rule descriptions must follow the saved value.
+Durations are integer milliseconds. Monetary amounts and rates are integer minor units with a separate currency. Research-cap `value` uses tenths of an hour: `5` means 30 minutes. A `nonbillable_travel` row enables the rule. Its value is not a duration.
 
-New-workspace USD currency, zero base rate, zero tax, the singleton settings row, unit-conversion factors, and viewport dimensions are explicit defaults or constants. They do not stand in for recorded client data, elapsed work, configured rates, provider capabilities, or the current date. Tests may fix a date or use sample IDs; normal startup does not load those records.
+`src/shared/client-rule-policy.ts` owns the existing 30-minute research-cap default and the six-minute conversion for each stored unit. The API and Settings reuse this policy without changing stored values.
 
-Migration 10 strengthens new writes without renumbering records or rebuilding tables. It rejects null or blank text identities, fractional or unsafe integer amounts and durations, and invalid currency codes. Inserts check all guarded fields. Updates check changed fields so an unrelated edit can preserve a historical value that predates the guards. The Drizzle mappings also narrow fixed states to their allowed TypeScript values; SQL remains responsible for runtime enforcement.
+New-workspace USD, zero base rate and tax, singleton settings, conversion factors, and viewport dimensions are explicit defaults or constants, not captured business data.
+
+Migration 10 rejects null or blank text identities, fractional or unsafe integer amounts and durations, and invalid currency codes. Inserts check all guarded fields. Updates check changed fields, preserving untouched historical values. It does not renumber records or rebuild tables.
 
 ### Reviewed revisions in API requests
 
-An edit must identify the version that the user reviewed. The canonical API requires `expectedRevision` for period details, duration corrections, and billing status; `expectedEffectiveRevision` for time validation; and `expectedAssignmentRevision` for case assignment. Missing guards produce an invalid request. A stale guard produces a conflict instead of approving or overwriting newer data. The interface preserves drafts and requires an explicit reload before submitting a changed period again.
+Period details, duration, and billing require `expectedRevision`. Time validation requires `expectedEffectiveRevision`. Assignment requires `expectedAssignmentRevision`. Missing guards are invalid requests. Stale guards produce conflicts. The interface retains drafts and requires an explicit reload before resubmission.
 
 ## Data formats in the application
 
-SQLite stores the application records. The local HTTP API sends JSON objects to React. Drizzle maps SQL columns to TypeScript values on the backend. The OpenAPI contract in `src/contracts/openapi.yaml` defines the JSON fields and generates the client types and request validators.
+The local API sends JSON to React. Drizzle maps SQL columns. OpenAPI defines payloads and generates types and request validators.
 
-The current interface reads `/api/catalog` for settings, clients, cases, work categories, explicit markers, and client rules. It reads canonical session, work-period, source, audit, and billing endpoints for activity. `CatalogService` and its typed SQLite port read canonical tables directly. Screens do not consume the old `matter`, `block`, or `time_entry` payloads.
+`/api/catalog` independently loads catalogue data. `/api/workspace` reads catalogue and core records in one transaction with optional calendar, client, and case filters. Audit and reconstruction reads expose separate availability. Their failure cannot block Settings. Current screens use canonical tables rather than historical `matter`, `block`, or `time_entry` payloads.
 
 | Meaning              | SQLite column              | Current JSON field                                   |
 | -------------------- | -------------------------- | ---------------------------------------------------- |
@@ -90,31 +113,31 @@ The current interface reads `/api/catalog` for settings, clients, cases, work ca
 | Global hourly rate   | `global_hourly_rate_cents` | `settings.globalHourlyRateCents`, integer cents      |
 | Unknown opening date | `opened_on IS NULL`        | `openedOn: null`, displayed as unknown               |
 
-IDs identify records and have no numeric meaning. A work period derives its client through its case. Source identities and period identities remain separate. Audit events link through `periodId`. SQLite represents flags with `0` and `1`; JSON responses use `false` and `true`.
-
-An effective duration of 900000 milliseconds is 15 minutes. React calculates totals from precise milliseconds, then rounds the combined total upward to whole minutes. `null` means unknown or unset; zero is a known value. Money uses integer cents and a separate currency. Issued invoices retain their own currency, calendar timezone, and frozen monetary snapshot. Unknown historical values are not invented.
+IDs carry no numeric meaning. Audit links use `periodId`. Source and period identities stay separate. SQLite flags use `0` and `1`. JSON uses booleans. An effective duration of 900000 milliseconds is 15 minutes. Issued invoices retain their currency, timezone, and monetary snapshots. Unknown historical values stay unknown.
 
 ### Calendar dates and timestamps
 
-`src/shared/dates.ts` uses pinned `date-fns` 4.1.0 and `@date-fns/tz` 1.4.1. Date-only values such as `2026-03-31` retain their calendar meaning. Timestamps such as `2026-03-30T22:30:00Z` identify instants. Month subtraction clamps to the last valid day, including leap years. Impossible dates are rejected.
+`src/shared/dates.ts` uses `date-fns` 4.1.0 and `@date-fns/tz` 1.4.1. Date-only values such as `2026-03-31` preserve calendar meaning. Timestamps such as `2026-03-30T22:30:00Z` identify instants. Impossible dates fail validation. Month subtraction clamps to the last valid day.
 
-The interface uses the desktop's system timezone and sends it explicitly for date-filtered reads, invoices, and source exports. The backend uses the same shared conversion helpers. A period belongs to the day containing its start in that timezone for the current views and export selection. The implementation preserves the whole period and its duration; it does not split or clip midnight crossings. Cross-midnight billing rules remain an open product decision in the [design review](DESIGN_REVIEW.md).
+The interface sends the desktop system timezone explicitly for filtered reads, invoices, and exports. Current views select whole periods by their start day without clipping or midnight splitting. Those product rules remain open in [requirements](REQUIREMENTS.md).
 
-Local midnight boundaries account for daylight saving changes. A calendar day can span 23 or 25 elapsed hours. Activity positions use elapsed time since local midnight, with actual local clock labels, so repeated or skipped hours do not change recorded durations. Previously issued invoices and saved exports keep their original snapshots.
+Day boundaries account for daylight saving: a day can span 23 or 25 elapsed hours. Activity uses elapsed time since local midnight with actual clock labels. Skipped or repeated hours do not change durations. Issued invoices and saved exports preserve original snapshots.
 
 ### Retained compatibility API
 
-`CompatibilityApiService` and `api/compatibility-routes.ts` retain deprecated contracts for older callers. They preserve existing numeric entry aliases and historical table names. Current screens and canonical exports do not allocate or join through these aliases. The old `tenths_of_hour` projection remains only in that compatibility API; one tenth is six minutes, and the projection does not round individual periods.
+`CompatibilityApiService` and `api/compatibility-routes.ts` preserve deprecated response shapes, numeric entry aliases, and upgrade support. Current screens and exports use canonical IDs. The old `tenths_of_hour` projection represents six-minute units without rounding individual periods. Removing historical tables requires a separate migration. Fixture fields such as `demoApp`, `demoWindowTitle`, and `demoConfidence` remain distinct from provider evidence.
 
-The compatibility tables remain for existing records and upgrade support. Their removal requires a separate data migration. Explicit fixture metadata such as `demoApp`, `demoWindowTitle`, and `demoConfidence` remains distinguishable from verified provider evidence. Normal startup creates no sample business records.
+Deprecated writes translate explicit fields into canonical `CatalogService` or `PeriodReviewService` commands within the application transaction. They cannot update arbitrary mapped columns. Approval requires `expected_effective_revision`, or `expected_effective_revisions` keyed by canonical period ID for bulk approval. Missing guards fail validation. Stale guards conflict.
 
-Deprecated catalogue writes translate their older field names and call the same `CatalogService` use cases as canonical writes. They cannot use mapped database columns as an unrestricted update API. Valid legacy response shapes remain available. Approval calls now require the revision that the caller reviewed: `expected_effective_revision` for one compatibility entry and `expected_effective_revisions` keyed by canonical period ID for bulk approval. Missing guards are invalid requests; stale guards report a conflict.
+New `source_exports.format_version = 2` receipts store canonical IDs and options as JSON arrays. Historical mixed-format receipts remain version 1 without inference or rewriting. Receipt storage version and exported payload version are independent. Deprecated exporters share the receipt writer and hash exact bytes while retaining their payload shape.
 
-New source-export receipts use JSON arrays for canonical period IDs and options, with `source_exports.format_version = 2`. This receipt storage version is independent of the exported payload version. Existing mixed-format receipts remain version 1 and are not guessed or rewritten. Deprecated exporters retain their payload shape while sharing the canonical receipt writer and hashing the exact exported bytes.
+Canonical version 2 source packs include string IDs, exact durations, timezone, and a SHA-256 receipt. Redaction affects descriptive text while preserving IDs, timestamps, and links. Metadata exports neither fetch nor blur media.
 
-Canonical source packs use version 2 JSON with string period and source IDs, exact durations, the selected timezone, and a receipt containing the exact SHA-256 payload hash. Client-name redaction applies to descriptive text while IDs, timestamps, and links remain intact. No media is fetched or blurred by this metadata export.
+`src/backend/domain/states/source-export.ts` owns canonical source-pack scopes and options. Contract generation supplies the same values to API validation and React. Shared presentation maps own labels and dialog defaults. Deprecated export formats retain their separate wire values.
 
-## Agreed structure
+## Logical structure and implemented core fields
+
+Canonical tables implement these relationships. Provider mapping and duration derivation remain open.
 
 ```mermaid
 erDiagram
@@ -128,22 +151,20 @@ erDiagram
     tag_targets ||--o{ assignment_deliveries : synchronizes
 ```
 
-A case belongs to one client. A work period belongs to one session and has zero or one assigned case. An unknown folder creates an unresolved period while the lawyer decides. The client is derived from the assigned case; work periods do not store a second client assignment. Returning to an existing case creates another period for that case.
-
-Assignment, time correction, time validation, and billed/unbilled status belong to the work period. Each source belongs to at most one period in the MVP; unmatched evidence can remain unlinked. Different source records can identify the same provider tag target. That target has one authoritative owner, and all its source aliases must agree with that ownership. Source validation and source availability are separate from time validation and billing.
+Each source belongs to at most one period. Unmatched evidence can remain unlinked. Multiple records can alias one provider target, whose authoritative owner applies to every alias.
 
 ## Proposed fields and constraints
 
-The fields below make the agreed model concrete for implementation review. The initial SQL migration creates the listed tables, foreign keys, uniqueness rules, nonnegative duration and rate checks, session and period bounds, and restricted deletion. The service layer owns revision transitions and question-answer guards. Source-tag delivery, stopped-app command receipt, provider-dependent mapping, and unresolved product transitions remain proposals. Use stable opaque IDs, explicit foreign keys, and a consistent timestamp representation with UTC meaning and unrounded precision. Store event time separately from ingestion time. Integer milliseconds are proposed for duration storage; the interface expresses working time in minutes.
+Field tables use implemented physical names. Migration 1 enforces foreign keys, uniqueness, nonnegative values, session and period bounds, and restricted deletion. Application services own revision transitions and answer guards. Provider mapping, tag delivery, stopped-app receipt, and unresolved transitions remain proposed. UTC event and ingestion times stay separate and retain unrounded precision.
 
 ### `clients`
 
-| Field                      | Purpose or constraint                       |
-| -------------------------- | ------------------------------------------- |
-| `id`                       | Primary key.                                |
-| `name`                     | Required display name; not an identity key. |
-| `active`                   | Boolean catalogue status.                   |
-| `created_at`, `updated_at` | Record timestamps.                          |
+| Field                      | Purpose or constraint                           |
+| -------------------------- | ----------------------------------------------- |
+| `id`                       | Primary key.                                    |
+| `name`                     | Required display name. Not an identity key.     |
+| `active`                   | Boolean catalogue status, stored as `0` or `1`. |
+| `created_at`, `updated_at` | Record timestamps.                              |
 
 ### `cases`
 
@@ -151,12 +172,12 @@ The fields below make the agreed model concrete for implementation review. The i
 | -------------------------- | ------------------------------------------------------------------------------------------- |
 | `id`                       | Primary key.                                                                                |
 | `client_id`                | Required foreign key to `clients`.                                                          |
-| `reference`, `title`       | Case catalogue information; folder-matching rules remain undefined.                         |
-| `hourly_rate`              | Optional nonnegative case rate; `NULL` falls back to the client rate, then the global rate. |
-| `status`                   | Case catalogue status; allowed values to define.                                            |
+| `reference`, `title`       | Case catalogue information. Folder-matching rules remain undefined.                         |
+| `hourly_rate_cents`        | Optional nonnegative case rate; `NULL` falls back to the client rate, then the global rate. |
+| `status`                   | Case catalogue status, either `active` or `archived`.                                       |
 | `created_at`, `updated_at` | Record timestamps.                                                                          |
 
-The current database enforces unique, immutable case references. The broader requirements decision about reference scope and folder aliases remains open; the implementation does not establish a folder-matching rule. Do not use a client name, case title, or file path as the case primary key. Client rates and fixed fees are retained extensions under the [requirements](REQUIREMENTS.md#purpose-and-scope).
+References are currently unique and immutable. Reference scope and folder aliases remain open in the requirements. Client names, titles, and paths are not primary keys. No folder-matching rule follows from these fields. Client rates and fixed fees are [retained extensions](REQUIREMENTS.md#purpose-and-scope).
 
 ### `sessions`
 
@@ -164,43 +185,41 @@ The current database enforces unique, immutable case references. The broader req
 | -------------------------- | ----------------------------------------------------------------------- |
 | `id`                       | Stable session identity carried by workflow commands.                   |
 | `started_at`               | Explicit Screenpipe start boundary.                                     |
-| `ended_at`                 | Nullable explicit Screenpipe end boundary; cannot precede `started_at`. |
+| `ended_at`                 | Nullable explicit Screenpipe end boundary. Cannot precede `started_at`. |
 | `revision`                 | Monotonic version for stale-command checks.                             |
 | `created_at`, `updated_at` | Local persistence timestamps, distinct from boundaries.                 |
 
-Allow at most one session with no end boundary per local workspace. Enforce this in storage and application services. After known causal prerequisites are applied, a start received while a session is active returns that session; it does not reset its start or create another one. A new start that depends on a pending end waits for that end instead of being collapsed into the earlier session. Application exit does not set `ended_at`. Reopening resumes the active session.
+Storage and services permit one active session per workspace. A repeated start returns it unchanged. A start dependent on a pending end waits. Process exit never sets `ended_at`.
 
-The first applied end fixes the boundary. Repeated ends return the existing outcome without moving it. Reconciliation can still import observations recorded within the session without reopening or extending it. Keep the end boundary independent of retrieval completeness. An end delivered before its known prerequisite start remains pending until that start is applied; record the effective end time without claiming the end has succeeded.
+The first applied end fixes the boundary. Repeated ends retain it. An end waiting for its known start remains pending with its effective timestamp. Later evidence can fill the recorded boundary without reopening or extending it. Retrieval completeness does not change the end.
 
 ### `work_periods`
 
-| Field                                     | Purpose or constraint                                                                                        |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `id`, `session_id`                        | Primary key and required session foreign key.                                                                |
-| `case_id`                                 | Nullable case foreign key; `NULL` represents an unresolved assignment.                                       |
-| `initial_case_id`, `initial_origin`       | Implemented immutable opening intent used to deduplicate a replay after later assignment corrections.        |
-| `started_at`, `ended_at`                  | Recorded boundaries, with nullable end while a period is open.                                               |
-| `detected_duration_ms`                    | Nullable unrounded derived duration; derivation is not defined yet.                                          |
-| `duration_override_ms`                    | Nullable lawyer correction, converted from minutes; zero differs from no correction.                         |
-| `assignment_origin`                       | Distinguish automatic assignment from lawyer assignment.                                                     |
-| `time_validation_status`                  | Review state, independent of source validation and billing.                                                  |
-| `effective_revision`                      | Version of the effective case and duration; increments only when either effective value changes.             |
-| `validated_effective_revision`            | Nullable version explicitly validated by the lawyer.                                                         |
-| `time_validated_at`                       | Optional timestamp of the current validation.                                                                |
-| `billing_status`, `billed_at`             | Period-level billed/unbilled status and associated timestamp.                                                |
-| `applied_hourly_rate`, `applied_currency` | Nullable rate snapshot; capture timing and currency policy remain open.                                      |
-| `revision`, `assignment_revision`         | Versions protecting record edits and period assignments; provider delivery also has its own target revision. |
-| `created_at`, `updated_at`                | Record timestamps.                                                                                           |
+| Field                                           | Purpose or constraint                                                                                        |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `id`, `session_id`                              | Primary key and required session foreign key.                                                                |
+| `case_id`                                       | Nullable case foreign key; `NULL` represents an unresolved assignment.                                       |
+| `initial_case_id`, `initial_origin`             | Implemented immutable opening intent used to deduplicate a replay after later assignment corrections.        |
+| `started_at`, `ended_at`                        | Recorded boundaries, with nullable end while a period is open.                                               |
+| `detected_duration_ms`                          | Nullable unrounded derived duration. Derivation is not defined yet.                                          |
+| `duration_override_ms`                          | Nullable lawyer correction, converted from minutes. Zero differs from no correction.                         |
+| `assignment_origin`                             | Distinguish automatic assignment from lawyer assignment.                                                     |
+| `time_validation_status`                        | Review state, independent of source validation and billing.                                                  |
+| `effective_revision`                            | Version of the effective case and duration. Increments only when either effective value changes.             |
+| `validated_effective_revision`                  | Nullable version explicitly validated by the lawyer.                                                         |
+| `time_validated_at`                             | Optional timestamp of the current validation.                                                                |
+| `billing_status`, `billed_at`                   | Period-level billed/unbilled status and associated timestamp.                                                |
+| `applied_hourly_rate_cents`, `applied_currency` | Nullable rate snapshot. The final product policy for capture timing and currency remains open.               |
+| `revision`, `assignment_revision`               | Versions protecting record edits and period assignments. Provider delivery also has its own target revision. |
+| `created_at`, `updated_at`                      | Record timestamps.                                                                                           |
 
-Require nonnegative durations. Known boundaries must fall within the session. An end boundary cannot precede its start. Do not replace missing duration with zero. A newly opened period has no accumulated time; lack of evidence later must remain distinguishable from a confirmed zero duration.
+Durations are nonnegative. Known boundaries fall within the session, and end cannot precede start. Unknown duration differs from zero.
 
-Preserve recorded boundaries and detected duration when the lawyer enters a duration override. Reprocessing evidence must preserve the override and manual assignment. The effective duration is the override when present, otherwise the detected duration. An actual change to the effective case or duration increments `effective_revision` and requires time validation again, whether the change is manual or automatic. Validation applies only when `validated_effective_revision` equals the current `effective_revision`.
+An override preserves observed boundaries, detected duration, and manual assignment during replay. Effective duration uses the override, including zero, or otherwise detected duration. A changed effective case or duration increments `effective_revision` and invalidates time validation. Validation requires `validated_effective_revision` to match. Identical replay and detected changes masked by an unchanged override preserve validation. Billed-period edit policy remains incomplete.
 
-Identical replay does not increment `effective_revision` or invalidate time. A detected-duration change hidden by an unchanged override also preserves validation. A zero override is an effective value, not a missing value. Source review states remain separate. Effects of edits to already billed periods remain a decision before implementation.
+Reconstruction cannot automatically split, merge, or replace corrected or validated periods. Store proposed boundaries in `reconstruction_conflicts`, outside counted time. Resolution must atomically preserve or replace counted records without double counting.
 
-Do not automatically split, merge, or replace a lawyer-corrected or validated period during reconstruction. Preserve it and store the proposed conflicting boundaries in a separate `reconstruction_conflicts` record. A conflict proposal is not a work period and contributes no time. Resolving it must atomically preserve or replace the affected counted records so both versions cannot appear in totals.
-
-Reassigning one period must not move other periods or their sources. A historical correction must not change the current active case. Do not store computed client totals, case totals, or monetary totals here.
+A period reassignment preserves other periods and sources. Historical corrections cannot change the active case. Periods store no computed client, case, or monetary totals.
 
 ### `sources`
 
@@ -216,98 +235,97 @@ Reassigning one period must not move other periods or their sources. A historica
 | `validation_status`, `validated_at`              | Lawyer source-review state and timestamp.                                            |
 | `availability_status`, `availability_checked_at` | Retrieval availability and last check.                                               |
 
-Use a unique key on `(screenpipe_instance_id, content_type, external_id)` to prevent duplicate imports. IDs from separate Screenpipe stores must not collide. The instance identity format remains part of the adapter contract. Source references are external identifiers, not foreign keys into Screenpipe's database.
+`(screenpipe_instance_id, content_type, external_id)` is unique across imports. Instance identity must distinguish recording stores. Its format remains an adapter contract. External references are not foreign keys into Screenpipe storage.
 
-The source record key is not necessarily the provider's tag-operation key. Resolve that mapping before a tag write. Several records, including different content types, can refer to one target. When `tag_target_id` is present, source ownership must agree with the target's authoritative `work_period_id`; a source cannot independently select a different period or case. An unresolved mapping must remain visibly unsynchronized.
+Record and tag-target identities can differ. Verified `tag_target_id` mappings bind every alias to the target's authoritative owner. Unresolved mapping stays unsynchronized.
 
-Fetch recordings through the Screenpipe API. An unavailable or deleted recording does not delete reviewed time or erase the source's review history. Keep the reference and availability state. Do not assume every failed fetch proves deletion. Multiple screenshots attached to one period must not multiply its duration.
+Recordings are fetched through Screenpipe's API. Unavailable evidence retains its reference and review history without deleting time. A failed fetch alone does not establish deletion, and multiple screenshots cannot multiply duration.
 
 ### `tag_targets`
 
-This small proposed table separates imported record identity from the actual provider object that receives tags.
+This table exists. Live target mapping and synchronization remain unimplemented.
 
 | Field                                                | Purpose or constraint                                                      |
 | ---------------------------------------------------- | -------------------------------------------------------------------------- |
 | `id`                                                 | Local primary key.                                                         |
 | `screenpipe_instance_id`, `target_type`, `target_id` | Unique canonical identity used by the provider tag API.                    |
-| `work_period_id`                                     | Nullable authoritative owner; derive the desired case through this period. |
+| `work_period_id`                                     | Nullable authoritative owner. Derive the desired case through this period. |
 | `target_revision`                                    | Monotonic version of target ownership and desired TimeKeeper tags.         |
 
-All aliases of a target must agree with its owner. Changing the owner or its desired case increments `target_revision`. Do not compare revisions from two different periods as if they were one sequence. A move supersedes previous delivery intents and reconciles this single target to the new desired tags. The exact provider target mapping remains an adapter verification requirement.
+Ownership or desired-case changes increment `target_revision`. Revisions from different periods are not one sequence. An ownership move supersedes former delivery intents and reconciles the same target to its new tags. All source aliases must agree with its owner.
 
 ### `settings`
 
-| Field                | Purpose or constraint                                           |
-| -------------------- | --------------------------------------------------------------- |
-| `id`                 | Single local settings record; constrain to a fixed identity.    |
-| `global_hourly_rate` | Nonnegative fallback rate.                                      |
-| `currency`           | Currency configuration; change policy remains open.             |
-| `workspace_id`       | Stable local identity used in TimeKeeper-owned Screenpipe tags. |
-| `updated_at`         | Record timestamp.                                               |
+| Field                      | Purpose or constraint                                           |
+| -------------------------- | --------------------------------------------------------------- |
+| `id`                       | Single local settings record, constrained to `1`.               |
+| `global_hourly_rate_cents` | Nonnegative fallback rate in integer cents.                     |
+| `currency`                 | Currency configuration. Change policy remains open.             |
+| `workspace_id`             | Stable local identity used in TimeKeeper-owned Screenpipe tags. |
+| `updated_at`               | Record timestamp.                                               |
 
-Implemented storage proposal: `hourly_rate_cents`, `global_hourly_rate_cents`, and `applied_hourly_rate_cents` are nonnegative SQLite `INTEGER` values in minor currency units. This avoids floating-point rate storage; currency policy and monetary rounding remain open decisions. A case rate of zero is valid and must not trigger the fallback. The corresponding implemented columns are `cases.hourly_rate_cents`, `settings.global_hourly_rate_cents`, and `work_periods.applied_hourly_rate_cents`. The retained demo freezes the applied rate when a period becomes billed; this implementation does not settle the full billed-period edit policy.
+Rates are nonnegative integer minor units. Zero is valid and does not trigger fallback. The local application freezes effective rate and currency when a period becomes billed, clearing them when an uninvoiced period becomes unbilled. Final snapshot timing, currency policy, monetary rounding, and billed-edit rules remain open.
 
 ### Implemented billing and compatibility extensions
 
-Migrations 2 and 3 add the mockup features separately agreed on 2026-10-17: client code and hourly rate; case category, court number, opposing party, hourly or flat-fee mode, flat fee and budget; weighted markers and client rules; task types, per-period billability and exclusion; expenses, invoices and frozen invoice lines; audit events, source exports and Jev reviews. Migration 4 adds `demo_block_periods`, the compatibility link from an imported block to its work period, so recovery does not infer identity from colliding numeric IDs. `work_periods` keeps precise duration and revisions without a calculated amount. `invoices` stores the supplied issued snapshot and totals, and `invoice_lines` stores billed minutes, the applied rate, amount and selected period IDs. Canonical tables own business writes. Legacy tables remain as migration inputs and fictional capture metadata; [schema implementation](implementation/schema.md) distinguishes those records from the canonical model. This extension records implementation and does not redefine the agreed core rules or decide the open provider behavior.
+The 2026-10-17 decision retains client rates, case budgets and flat fees, markers, task types, expenses, issued invoices, and audit/export/review records. Invoices and lines store frozen amounts, billed minutes, applied rates, and selected period IDs. Work periods store precise duration and revisions.
 
-Migrations 5–8 consolidate preferences, compatibility entry identities, source relocation history, invoice currency, and immutable case references. See [schema implementation](implementation/schema.md) for their scope. Startup uses the same migration ledger; it does not run a separate set of schema alterations.
+Client rules currently enforce nonbillable travel and a daily research cap during invoice validation. Broader client-rule policy remains undefined. For one case on an invoice, proposed billed minutes equal `ceil(sum(selected effective_duration_ms) / 60000)`. Hourly work fees equal `round(billed_minutes * hourly_rate_cents / 60)`. The invoice service checks proposed values against authoritative periods, rates, expenses, tax, and reviewed revisions before freezing them. Issued invoice membership blocks ordinary unbilling. Final billed-edit and reversal rules remain open.
 
-Migration 9 adds validation guards and foreign-key indexes for the retained extensions. It preserves historical rows and rejects future invalid writes to guarded fields. Period queries order timestamps chronologically, including existing values with different fractional-second precision.
+Canonical tables own writes. Compatibility projections list contract fields explicitly and keep numeric aliases separate from canonical string IDs. Historical tables remain upgrade inputs and explicit fixture capture metadata. These extensions do not define provider behavior or replace the core requirements.
+
+Deprecated block recovery clears only the linked canonical period's exclusion flag. It preserves saved assignment, task, label, exact duration, non-billable reason, validation, and billing fields. Alias restoration and the audit event share the transaction. Recovery neither creates a replacement entry nor rewrites historical capture metadata.
+
+`markers` and `client_rules` store configured recognition cues. `audit_events`, `source_exports`, and `jev_reviews` store audit, export, and review records. Their presence does not imply a live recognition or JEV workflow. [Compatibility recognition](ARCHITECTURE.md#compatibility-recognition) defines the imported algorithm.
 
 ## Technical persistence
 
-Keep these small records in the same local database. They support recovery and do not imply a separate service or general queue framework.
+These local records support recovery. They do not imply a separate queue service.
 
-| Record                     | Minimum proposed contents                                                                                                           | Integrity requirement                                                                                                                                                                           |
+| Record                     | Implemented storage                                                                                                                 | Required integrity                                                                                                                                                                              |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `processed_commands`       | Producer identity, command ID, payload fingerprint, session ID, command kind, status, prerequisite ID, terminal result, timestamps. | Unique producer/command pair. Distinguish pending from applied or rejected. Only terminal outcomes are final replay results. A changed payload under the same ID is rejected.                   |
-| `pending_questions`        | `question_id`, `session_id`, `work_period_id`, `expected_assignment_revision`, status, response command ID and result.              | Unique question ID and session/period/assignment-revision tuple. An answer targets this period and revision only. Duplicate answers reuse the result; stale answers produce a visible conflict. |
-| `reconstruction_conflicts` | Conflict ID, protected period ID, expected revision, proposed boundaries and source references, status.                             | Store a proposal separately from counted periods; never include it in totals before explicit resolution.                                                                                        |
+| `pending_questions`        | `question_id`, `session_id`, `work_period_id`, `expected_assignment_revision`, status, response command ID and result.              | Unique question ID and session/period/assignment-revision tuple. An answer targets this period and revision only. Duplicate answers reuse the result. Stale answers produce a visible conflict. |
+| `reconstruction_conflicts` | Conflict ID, protected period ID, expected revision, proposed boundaries and source references, status.                             | Store a proposal separately from counted periods. Never include it in totals before explicit resolution.                                                                                        |
 | `retrieval_progress`       | Session ID, Screenpipe instance, requested interval, pagination cursor/checkpoint, last completed range, retrieval status.          | Advance progress with committed detail records. A partial or failed read must not claim complete coverage.                                                                                      |
 | `assignment_deliveries`    | Canonical tag target ID, target revision, intended TimeKeeper tags, status, attempts, next retry, acknowledgement.                  | Unique target/revision delivery. Deduplicate and serialize by the canonical target, not a source alias or period ID.                                                                            |
 
-Commands, domain changes, and delivery intent must commit atomically where they form one local operation. Pending commands wait for known prerequisites and are reconsidered when those prerequisites arrive. Pending status is not a successful transition and must not be cached as an applied result. Unknown or conflicting session references must not create or reopen a session implicitly.
+Commands, domain changes, and delivery intent must commit atomically when they form one operation. Pending commands wait for prerequisites and cannot be cached as successful transitions. Unknown or conflicting references cannot create or reopen sessions.
 
-A pending question retains its original session, period, and expected assignment revision. A delayed answer cannot target the currently active period by default. Apply a valid answer to its original period only. Period closure and evidence imports can change the record revision without changing this assignment guard. A new assignment, superseded question, or replacement of the period invalidates the answer. Record a conflict and request a fresh decision without overwriting newer work. Deduplicate question creation and response commands so retries do not repeat prompts or writes.
+Question guards bind the original session, period, and assignment revision. Closure or evidence import may change record revision without invalidating that guard. New assignments, superseded questions, or replaced periods conflict. Creation and answers are deduplicated. A delayed answer cannot default to the active period.
 
-Before each tag mutation, verify current target ownership, revision, and desired tags. Serialize ownership changes and provider operations per canonical target, including every source alias. Prevent an old owner from completing writes after a committed move; defer the move until any prior target operation is resolved, then reconcile the new revision. Remove only obsolete TimeKeeper-owned tags. Verify the same target and revision before acknowledging synchronization; a stale acknowledgement cannot mark the new owner synchronized.
+Tag mutations and ownership moves serialize per canonical target across all aliases. Check owner, desired tags, and revision before writing. Resolve prior target operations before committing a move, then reconcile its new revision. Remove only obsolete TimeKeeper-owned tags. Acknowledge only verified tags for the same revision. Stale acknowledgements cannot synchronize a new owner.
 
-These records cannot receive commands while the Node backend is stopped. The mechanism that preserves an explicit Screenpipe end command during that interval remains unresolved. Do not imply that a local command table alone solves delivery outside the running application.
+These tables exist, but assignment writes create no delivery intent and no worker sends or verifies tags. No Screenpipe read loop advances retrieval progress. A stopped Node process cannot receive commands. Off-app delivery remains unresolved.
+
+Local reconstruction protects corrected or validated periods. Source aliases spanning a split boundary or a canonical target with committed delivery produce a conflict instead of an unsafe source move.
 
 ## Duration, rounding, and consolidation
 
-A screenshot proves an observation at a time. It does not prove continuous work until the next screenshot. Source count and application uptime are not duration measurements. The method for deriving work intervals from reviewed Screenpipe memory remains undefined. Do not silently count gaps, subtract inactivity, or invent a sampling interval.
+SQLite preserves observations, detected durations, and overrides. Interval reconstruction remains undefined. Source counts and app uptime cannot measure duration. Inactivity subtraction stays excluded.
 
-The lawyer can correct time. An override takes precedence over a detected duration. Preserve unrounded observation times, boundaries, and any detected duration. The interface calculates effective minutes and summaries from the complete detail set, using reviewed memory and retained corrections. SQLite and the backend do not supply calculated dashboard summaries. Before issuing an invoice, the backend verifies its submitted amounts against authoritative records with shared arithmetic; this validation does not create stored running totals on periods.
+React calculates each selected total from complete precise records using `ceil(sum(effective_duration_ms) / 60000)`. Two 20-second periods total one minute. Each group uses underlying periods rather than rounded subtotals. Unknown duration or incomplete coverage cannot produce a complete total.
 
-Round upward only after combining the relevant effective durations. For the proposed millisecond representation, the interface uses `ceil(sum(effective_duration_ms) / 60000)`. An exact whole-minute total stays unchanged. A positive remainder rounds the total up. Do not round individual periods or persist rounded totals in place of precise detail records.
-
-Two periods of 20 seconds total 40 seconds and display as 1 minute, not 2. Compute case, client, and overall totals independently from their underlying periods; do not add already-rounded subtotals. Unknown duration remains unknown, and an incomplete input set must not appear as a complete total. The effect of rounded minutes on monetary calculations remains to be defined.
+Backend invoice checks use shared arithmetic against authoritative records, without storing running period totals. Monetary rounding policy remains open.
 
 ## Integrity and recovery examples
 
-1. Start a session, close TimeKeeper, and reopen it: retain the same active session and existing corrections.
-2. End at 12:00 while the backend is stopped: after command recovery, accept later imports recorded before 12:00 within the session; reject attempts to extend its end.
-3. Start while a session is active: return the active session. Retry its end after it has ended: retain the original end boundary. A known end that arrives before its start stays pending and is applied only after that start.
-4. Open an unknown folder: preserve an unresolved period, ask the lawyer, and assign only after resolution.
-5. Leave and return to a case: create two periods that reference the same case.
-6. Correct the effective case or duration: invalidate its former time validation. Validate the correction, then replay identical evidence or update a detected duration hidden by the override: preserve that validation.
-7. Lose access to a source: keep the period and its validation history while showing source unavailability.
-8. Change the case rate: preserve any captured rate snapshots; the snapshot capture rule must be resolved first.
-9. Receive reconstruction that would split a corrected or validated period: preserve it and create a conflict proposal that adds no time to totals.
-10. Answer an old unknown-folder question after moving to another period: update only the original target if its question is current and expected assignment revision still matches. Ordinary closure or new evidence must not reject this answer. Otherwise report a conflict. Repeating the answer must not write again.
-11. Import two source records that share a provider tag target: store their distinct source identities, but keep one authoritative owner and one target delivery sequence. An old owner's retry or acknowledgement cannot supersede the new owner.
+[Requirements](REQUIREMENTS.md) owns acceptance examples for session ordering, delayed answers, replay, protected reconstruction, unavailable sources, and provider-alias scenarios. The fields and persistence constraints above support those cases. They do not establish live integration acceptance.
 
 ## Decisions still required for dependent behavior
 
-- Folder identification, case-reference uniqueness, and unmatched-evidence association.
-- Duration derivation and overlap handling.
-- Time/source review states, validation prerequisites, manual entries without sources, and the treatment of edits to billed periods.
-- Rate snapshot timing, monetary rounding, and which states contribute to each displayed total. Exact integer-cent rate storage is implemented as a proposal. Advanced currency behavior is deferred.
-- Off-app command durability, command contracts, and concrete retrieval checkpoints.
-- Final SQL constraints, supported deletion/archive behavior, audit-history requirements, and indexes.
+[Requirements](REQUIREMENTS.md) tracks folder identification, duration reconstruction, review prerequisites, billed edits, rate snapshots, rounding, summary selection, and off-app delivery. Storage decisions still include unmatched-evidence association, retrieval checkpoints, retention, audit requirements, and provider-specific constraints.
 
-Do not cascade-delete sessions, periods, or evidence when a client or case is removed. Prefer archival for referenced catalogue records; finalize deletion and retention rules before implementation. Validate revisions and relationships in application services as well as database constraints.
+Referenced clients and cases cannot cascade-delete sessions, periods, or evidence. Prefer archival until deletion and retention rules are agreed. Services validate revisions and relationships in addition to database constraints.
 
-Return to the [requirements](REQUIREMENTS.md), [architecture](ARCHITECTURE.md), or [README](../README.md).
+## Historical test fixture
+
+`tests/fixtures/database.ts` loads the historical schema and `tests/fixtures/seed.sql`, converts records through `tests/fixtures/demo-core.ts`, and refreshes fictional recognition. The fixture uses USD and zero sales tax. Period 14 keeps a detected 2 hours 32 minutes and a separate 1 hour 48 minute override. Its failed retrieval interval remains incomplete coverage without inferred time. Invoice `F-2026-0041` is issued; the next number is `F-2026-0042`.
+
+Fixtures run only in explicit test setup. `npm run db:reset` recreates an empty workspace and is limited to disposable data. [Browser acceptance](../tests/acceptance/README.md) uses an isolated database. No live capture or interval inference occurs.
+
+## Comparison-sample importer
+
+`npm run db:samples` invokes `scripts/load-comparison-samples.ts`, with planning and loading in `scripts/comparison-samples/`. It creates labelled fictional clients, cases, closed sessions, and periods with duration overrides for the current and previous months in the selected calendar timezone. It makes no Screenpipe calls.
+
+The importer requires explicit `--database PATH`. Blank or missing paths fail before opening storage. It has no `TIMEKEEPER_DB` or default fallback. `--dry-run` prints the plan without opening a database. Authorized previews use a disposable target. Working-database writes require separate authorization. Existing targets receive a backup; existing sample periods and later edits remain. Setup and startup never call the importer.

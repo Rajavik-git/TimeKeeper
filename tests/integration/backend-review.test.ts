@@ -132,7 +132,7 @@ it("exports a canonical-only issued invoice and snapshots the configured currenc
 });
 
 it("projects canonical-only UUID periods through stable compatibility identifiers", () => {
-  const { db, core } = fixture();
+  const { db, core, demo } = fixture();
   const period = core.createManualPeriod({
     sessionId: "demo-2026-10-16",
     caseId: "2",
@@ -145,7 +145,10 @@ it("projects canonical-only UUID periods through stable compatibility identifier
   expect(Number.isInteger(entry.id)).toBe(true);
   expect(one(db, "time_entry", Number(entry.id))?.tenths_of_hour).toBe(20000 / 360000);
   expect(createCompatibilityPort(db).canonicalPeriodForEntry(Number(entry.id))?.id).toBe(period.id);
-  update(db, "time_entry", Number(entry.id), { label: "Corrected canonical label" });
+  expect(() => update(db, "time_entry", Number(entry.id), { label: "Adapter bypass" })).toThrow(
+    "application use case",
+  );
+  demo.updateEntry(Number(entry.id), { label: "Corrected canonical label" });
   expect(core.getPeriod(period.id).label).toBe("Corrected canonical label");
 });
 

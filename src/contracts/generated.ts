@@ -2181,6 +2181,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspace": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a coherent workspace snapshot in one transaction */
+        get: {
+            parameters: {
+                query?: {
+                    date?: string;
+                    from?: string;
+                    to?: string;
+                    clientId?: string;
+                    caseId?: string;
+                    timeZone?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Catalogue and selected workspace records from one read transaction */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkspaceSnapshot"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2192,8 +2235,7 @@ export interface components {
             address: string;
             vat_number: string;
             base_rate_cents: number;
-            /** @enum {string} */
-            base_unit: "hour" | "intervention";
+            base_unit: components["schemas"]["BaseUnit"];
             vat_rate: number;
             currency?: string;
         };
@@ -2208,8 +2250,7 @@ export interface components {
             invoice_prefix: string;
             next_number: number;
             pill_always_on_top: boolean;
-            /** @enum {string} */
-            pill_display: "fees" | "time" | "case";
+            pill_display: components["schemas"]["PillDisplay"];
             pill_withhold_calls: boolean;
         };
         /** @description Work category */
@@ -2225,10 +2266,8 @@ export interface components {
         client: {
             id: number | string;
             name: string;
-            /** @enum {string} */
-            type: "individual" | "company";
-            /** @enum {string} */
-            mode: "hourly" | "subscription";
+            type: components["schemas"]["ClientType"];
+            mode: components["schemas"]["ClientBillingMode"];
             rate_cents: number | null;
             vat_applicable: boolean;
             billing_address: string;
@@ -2242,8 +2281,7 @@ export interface components {
             category: string;
             case_number: string;
             opposing_party: string;
-            /** @enum {string} */
-            mode: "hourly" | "flat_fee";
+            mode: components["schemas"]["CaseBillingMode"];
             own_rate_cents: number | null;
             flat_fee_cents: number | null;
             hour_cap: number | null;
@@ -2258,8 +2296,7 @@ export interface components {
         marker: {
             id: number;
             matter_id: number | string;
-            /** @enum {string} */
-            type: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
+            type: components["schemas"]["MarkerType"];
             value: string;
             learned: boolean;
             weight: number;
@@ -2270,8 +2307,7 @@ export interface components {
         client_rule: {
             id: number;
             client_id: number | string;
-            /** @enum {string} */
-            type: "daily_research_cap" | "nonbillable_travel";
+            type: components["schemas"]["ClientRuleType"];
             value: number;
             label: string;
         };
@@ -2328,13 +2364,11 @@ export interface components {
             matter_id: number | string;
             number: string;
             date: string;
-            /** @enum {string} */
-            type: "deposit" | "final";
+            type: components["schemas"]["InvoiceType"];
             subtotal_cents: number;
             vat_cents: number;
             disbursements_cents: number;
-            /** @enum {string} */
-            status: "sent" | "issued";
+            status: components["schemas"]["InvoiceStatus"];
         };
         /** @description Tracked time and billing state */
         time_entry: {
@@ -2351,7 +2385,7 @@ export interface components {
             /** @enum {string} */
             rate_origin: "" | "base" | "client" | "matter" | "flat_fee";
             billable: boolean;
-            reason: ("offered" | "internal" | "admin") | null;
+            reason: components["schemas"]["NonbillableReason"] | null;
             /** @enum {string} */
             review_status: "to_review" | "approved";
             /** @enum {string} */
@@ -2366,8 +2400,7 @@ export interface components {
             matter_id: number | string;
             date: string;
             label: string;
-            /** @enum {string} */
-            type: "expense" | "disbursement";
+            type: components["schemas"]["ExpenseType"];
             amount_cents: number;
             invoice_id: number | null;
         };
@@ -2441,8 +2474,7 @@ export interface components {
         };
         PriceDetail: {
             rate_cents: number;
-            /** @enum {unknown} */
-            origin: "base" | "client" | "matter" | "flat_fee";
+            origin: components["schemas"]["RateOrigin"];
             value_cents: number;
             amount_cents: number;
             flat_fee: boolean;
@@ -2456,8 +2488,7 @@ export interface components {
             pending_entries: number;
             flat_fee_due: boolean;
             rate_cents: number;
-            /** @enum {unknown} */
-            rate_origin: "base" | "client" | "matter" | "flat_fee";
+            rate_origin: components["schemas"]["RateOrigin"];
         };
         Recognition: {
             block_id: number;
@@ -2473,11 +2504,9 @@ export interface components {
                 score: number;
                 continuity: boolean;
                 found: {
-                    /** @enum {unknown} */
-                    type: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
+                    type: components["schemas"]["MarkerType"];
                     value: string;
-                    /** @enum {unknown} */
-                    where: "app" | "window_title" | "browser_url" | "ocr" | "audio" | "speaker";
+                    where: components["schemas"]["SignalPlace"];
                     weight: number;
                     marker_id: number | null;
                 }[];
@@ -2503,14 +2532,13 @@ export interface components {
             validatedEffectiveRevision: number | null;
             timeValidated: boolean;
             timeValidatedAt: string | null;
-            /** @enum {string} */
-            billingStatus: "unbilled" | "billed";
+            billingStatus: components["schemas"]["BillingStatus"];
             appliedHourlyRateCents?: number | null;
             appliedCurrency?: string | null;
             taskTypeId?: number | null;
             label: string;
             billable: boolean;
-            nonbillableReason?: string | null;
+            nonbillableReason?: components["schemas"]["NonbillableReason"] | null;
             excluded: boolean;
             demoApp?: string | null;
             demoWindowTitle?: string | null;
@@ -2526,11 +2554,9 @@ export interface components {
             externalId: string;
             recordedAt: string;
             ingestedAt: string;
-            /** @enum {string} */
-            validationStatus: "unvalidated" | "validated";
+            validationStatus: components["schemas"]["ValidationStatus"];
             validatedAt?: string | null;
-            /** @enum {string} */
-            availabilityStatus: "unknown" | "available" | "unavailable";
+            availabilityStatus: components["schemas"]["AvailabilityStatus"];
             availabilityCheckedAt?: string | null;
             /** @description Stored observation text, if available. Treat as untrusted source content. */
             excerpt?: string | null;
@@ -2541,8 +2567,7 @@ export interface components {
             sessionId: string;
             periodId: string;
             expectedAssignmentRevision: number;
-            /** @enum {string} */
-            status: "pending" | "answered" | "superseded";
+            status: components["schemas"]["QuestionStatus"];
             responseCommandId?: string | null;
             responseResultJson?: string | null;
         };
@@ -2560,16 +2585,14 @@ export interface components {
         };
         InvoiceSnapshot: {
             caseId: number | string;
-            /** @enum {string} */
-            type: "deposit" | "final";
+            type: components["schemas"]["InvoiceType"];
             periodIds: string[];
             revisions: {
                 [key: string]: number;
             };
             billedMinutes: number;
             rateCents: number;
-            /** @enum {string} */
-            rateOrigin: "matter" | "client" | "base" | "flat_fee";
+            rateOrigin: components["schemas"]["RateOrigin"];
             feesCents: number;
             subtotalCents: number;
             expensesCents: number;
@@ -2577,8 +2600,7 @@ export interface components {
             vatCents: number;
             totalCents: number;
             lines: {
-                /** @enum {string} */
-                origin: "work_period" | "expense" | "flat_fee";
+                origin: components["schemas"]["InvoiceLineOrigin"];
                 originId: string;
                 label: string;
                 billedMinutes: number;
@@ -2594,8 +2616,8 @@ export interface components {
             caseId: string;
             number: string;
             date: string;
-            type: string;
-            status: string;
+            type: components["schemas"]["InvoiceType"];
+            status: components["schemas"]["InvoiceStatus"];
             subtotalCents: number;
             vatCents: number;
             disbursementsCents: number;
@@ -2632,8 +2654,7 @@ export interface components {
             sessionId: string;
             startedAt: string;
             endedAt: string;
-            /** @enum {string} */
-            status: "pending" | "failed";
+            status: components["schemas"]["CoverageGapStatus"];
         };
         AppliedOutcome: {
             /** @enum {string} */
@@ -2649,10 +2670,8 @@ export interface components {
             caseId: string | null;
             /** Format: date-time */
             startedAt: string;
-            /** @enum {unknown} */
-            origin: "lawyer" | "automatic" | "unresolved";
-            /** @enum {unknown} */
-            mode: "current" | "recovery";
+            origin: components["schemas"]["AssignmentOrigin"];
+            mode: components["schemas"]["PeriodOpenMode"];
         };
         importSourceRequest: {
             id: string;
@@ -2694,7 +2713,7 @@ export interface components {
             matter_id?: number | string | null;
             expected_assignment_revision?: number;
             billable?: boolean;
-            reason?: ("offered" | "internal" | "admin") | null;
+            reason?: components["schemas"]["NonbillableReason"] | null;
             label?: string;
             /** @enum {string} */
             review_status?: "approved";
@@ -2731,8 +2750,7 @@ export interface components {
             /** Format: date */
             date: string;
             label: string;
-            /** @enum {unknown} */
-            type: "expense" | "disbursement";
+            type: components["schemas"]["ExpenseType"];
             amount_cents: number;
         };
         sources_id_export_postRequest: {
@@ -2755,8 +2773,7 @@ export interface components {
             address?: string;
             vat_number?: string;
             base_rate_cents?: number;
-            /** @enum {string} */
-            base_unit?: "hour" | "intervention";
+            base_unit?: components["schemas"]["BaseUnit"];
             vat_rate?: number;
         };
         setting_id_patchRequest: {
@@ -2768,16 +2785,13 @@ export interface components {
             invoice_prefix?: string;
             next_number?: number;
             pill_always_on_top?: boolean;
-            /** @enum {unknown} */
-            pill_display?: "fees" | "time" | "case";
+            pill_display?: components["schemas"]["PillDisplay"];
             pill_withhold_calls?: boolean;
         };
         client_id_patchRequest: {
             name?: string;
-            /** @enum {string} */
-            type?: "individual" | "company";
-            /** @enum {string} */
-            mode?: "hourly" | "subscription";
+            type?: components["schemas"]["ClientType"];
+            mode?: components["schemas"]["ClientBillingMode"];
             rate_cents?: number | null;
             vat_applicable?: boolean;
             billing_address?: string;
@@ -2788,8 +2802,7 @@ export interface components {
             category?: string;
             case_number?: string;
             opposing_party?: string;
-            /** @enum {string} */
-            mode?: "hourly" | "flat_fee";
+            mode?: components["schemas"]["CaseBillingMode"];
             own_rate_cents?: number | null;
             flat_fee_cents?: number | null;
             hour_cap?: number | null;
@@ -2818,8 +2831,7 @@ export interface components {
         };
         client_rules_postRequest: {
             client_id: number | string;
-            /** @enum {unknown} */
-            type: "daily_research_cap" | "nonbillable_travel";
+            type: components["schemas"]["ClientRuleType"];
         };
         createQuestionRequest: {
             questionId: string;
@@ -2860,8 +2872,7 @@ export interface components {
             expectedEffectiveRevision: number;
         };
         PostWorkPeriodsIdBillingStatusRequest: {
-            /** @enum {string} */
-            status: "billed" | "unbilled";
+            status: components["schemas"]["BillingStatus"];
             expectedRevision: number;
         };
         PostQuestionsAnswerRequest: {
@@ -2885,7 +2896,7 @@ export interface components {
         PatchWorkPeriodsIdDetailsRequest: {
             label?: string;
             billable?: boolean;
-            nonbillableReason?: string | null;
+            nonbillableReason?: components["schemas"]["NonbillableReason"] | null;
             excluded?: boolean;
             expectedRevision: number;
         };
@@ -2898,8 +2909,7 @@ export interface components {
             /** Format: date */
             date: string;
             label: string;
-            /** @enum {string} */
-            type: "expense" | "disbursement";
+            type: components["schemas"]["ExpenseType"];
             amountCents: number;
         };
         PostCasesIdSourcePackRequest: {
@@ -2926,10 +2936,8 @@ export interface components {
         CatalogClient: {
             id: string;
             name: string;
-            /** @enum {string} */
-            type: "individual" | "company";
-            /** @enum {string} */
-            mode: "hourly" | "subscription";
+            type: components["schemas"]["ClientType"];
+            mode: components["schemas"]["ClientBillingMode"];
             hourlyRateCents: number | null;
             vatApplicable: boolean;
             billingAddress: string;
@@ -2943,15 +2951,13 @@ export interface components {
             category: string;
             caseNumber: string;
             opposingParty: string;
-            /** @enum {string} */
-            mode: "hourly" | "flat_fee";
+            mode: components["schemas"]["CaseBillingMode"];
             hourlyRateCents: number | null;
             flatFeeCents: number | null;
             hourCap: number | null;
             successFeePercent: number | null;
             budgetCents: number | null;
-            /** @enum {string} */
-            status: "active" | "archived";
+            status: components["schemas"]["CaseStatus"];
             openedOn: string | null;
             reference: string;
         };
@@ -2961,8 +2967,7 @@ export interface components {
             address: string;
             vatNumber: string;
             globalHourlyRateCents: number;
-            /** @enum {string} */
-            baseUnit: "hour" | "intervention";
+            baseUnit: components["schemas"]["BaseUnit"];
             vatRate: number;
             currency: string;
             confidenceThreshold: number;
@@ -2973,8 +2978,7 @@ export interface components {
             invoicePrefix: string;
             nextNumber: number;
             pillAlwaysOnTop: boolean;
-            /** @enum {string} */
-            pillDisplay: "fees" | "time" | "case";
+            pillDisplay: components["schemas"]["PillDisplay"];
             pillWithholdCalls: boolean;
             workspaceId: string;
         };
@@ -2989,8 +2993,7 @@ export interface components {
         CatalogMarker: {
             id: number;
             caseId: string;
-            /** @enum {string} */
-            type: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
+            type: components["schemas"]["MarkerType"];
             value: string;
             learned: boolean;
             weight: number;
@@ -3000,8 +3003,7 @@ export interface components {
         CatalogClientRule: {
             id: number;
             clientId: string;
-            /** @enum {string} */
-            type: "daily_research_cap" | "nonbillable_travel";
+            type: components["schemas"]["ClientRuleType"];
             value: number;
             label: string;
         };
@@ -3025,10 +3027,8 @@ export interface components {
         CreateCatalogClientRequest: {
             id?: string;
             name: string;
-            /** @enum {string} */
-            type?: "individual" | "company";
-            /** @enum {string} */
-            mode?: "hourly" | "subscription";
+            type?: components["schemas"]["ClientType"];
+            mode?: components["schemas"]["ClientBillingMode"];
             hourlyRateCents?: number | null;
             vatApplicable?: boolean;
             billingAddress?: string;
@@ -3037,10 +3037,8 @@ export interface components {
         };
         PatchCatalogClientRequest: {
             name?: string;
-            /** @enum {string} */
-            type?: "individual" | "company";
-            /** @enum {string} */
-            mode?: "hourly" | "subscription";
+            type?: components["schemas"]["ClientType"];
+            mode?: components["schemas"]["ClientBillingMode"];
             hourlyRateCents?: number | null;
             vatApplicable?: boolean;
             billingAddress?: string;
@@ -3054,15 +3052,13 @@ export interface components {
             category?: string;
             caseNumber?: string;
             opposingParty?: string;
-            /** @enum {string} */
-            mode?: "hourly" | "flat_fee";
+            mode?: components["schemas"]["CaseBillingMode"];
             hourlyRateCents?: number | null;
             flatFeeCents?: number | null;
             hourCap?: number | null;
             successFeePercent?: number | null;
             budgetCents?: number | null;
-            /** @enum {string} */
-            status?: "active" | "archived";
+            status?: components["schemas"]["CaseStatus"];
             openedOn?: string | null;
             reference?: string;
         };
@@ -3071,23 +3067,20 @@ export interface components {
             category?: string;
             caseNumber?: string;
             opposingParty?: string;
-            /** @enum {string} */
-            mode?: "hourly" | "flat_fee";
+            mode?: components["schemas"]["CaseBillingMode"];
             hourlyRateCents?: number | null;
             flatFeeCents?: number | null;
             hourCap?: number | null;
             successFeePercent?: number | null;
             budgetCents?: number | null;
-            /** @enum {string} */
-            status?: "active" | "archived";
+            status?: components["schemas"]["CaseStatus"];
         };
         PatchCatalogSettingsRequest: {
             lawyerName?: string;
             address?: string;
             vatNumber?: string;
             globalHourlyRateCents?: number;
-            /** @enum {string} */
-            baseUnit?: "hour" | "intervention";
+            baseUnit?: components["schemas"]["BaseUnit"];
             vatRate?: number;
             currency?: string;
             confidenceThreshold?: number;
@@ -3098,8 +3091,7 @@ export interface components {
             invoicePrefix?: string;
             nextNumber?: number;
             pillAlwaysOnTop?: boolean;
-            /** @enum {string} */
-            pillDisplay?: "fees" | "time" | "case";
+            pillDisplay?: components["schemas"]["PillDisplay"];
             pillWithholdCalls?: boolean;
         };
         CreateCatalogTaskTypeRequest: {
@@ -3118,21 +3110,18 @@ export interface components {
         };
         CreateCatalogMarkerRequest: {
             caseId: string;
-            /** @enum {string} */
-            type: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
+            type: components["schemas"]["MarkerType"];
             value: string;
             weight?: number;
         };
         CreateCatalogClientRuleRequest: {
             clientId: string;
-            /** @enum {string} */
-            type: "daily_research_cap" | "nonbillable_travel";
+            type: components["schemas"]["ClientRuleType"];
             value?: number;
         };
         CanonicalSourcePackRequest: {
-            /** @enum {string} */
-            scope: "invoice" | "case" | "dateRange" | "selectedPeriods";
-            options: ("blur" | "personal" | "audio" | "audit")[];
+            scope: components["schemas"]["SourcePackScope"];
+            options: components["schemas"]["SourcePackOption"][];
             invoiceId?: number;
             /** Format: date */
             from?: string;
@@ -3161,9 +3150,171 @@ export interface components {
             proposedStartedAt: string;
             proposedEndedAt: string | null;
             sourceReferences: string[];
-            /** @enum {string} */
-            status: "pending" | "resolved";
+            status: components["schemas"]["ReconstructionStatus"];
         };
+        WorkspaceState: {
+            activeSession: components["schemas"]["Session"] | null;
+            sessions: components["schemas"]["Session"][];
+            periods: components["schemas"]["WorkPeriod"][];
+            sources: components["schemas"]["PeriodSource"][];
+            questions: components["schemas"]["PendingQuestion"][];
+            coverageGaps: components["schemas"]["CoverageGap"][];
+            billing: components["schemas"]["BillingState"];
+        };
+        WorkspaceSnapshot: {
+            catalogState: components["schemas"]["Catalog"];
+            workspaceState: components["schemas"]["WorkspaceState"];
+        };
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        AssignmentOrigin: "unresolved" | "automatic" | "lawyer";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        BillingStatus: "unbilled" | "billed";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        ValidationStatus: "unvalidated" | "validated";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        AvailabilityStatus: "unknown" | "available" | "unavailable";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        QuestionStatus: "pending" | "answered" | "superseded";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        CommandKind: "start" | "end";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        CommandStatus: "pending" | "applied" | "rejected";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        CoverageGapStatus: "pending" | "failed";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        ReconstructionStatus: "pending" | "resolved";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        DeliveryStatus: "pending" | "verified" | "failed" | "blocked";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        RetrievalStatus: "pending" | "complete" | "failed";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        CaseStatus: "active" | "archived";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        ClientType: "individual" | "company";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        ClientBillingMode: "hourly" | "subscription";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        CaseBillingMode: "hourly" | "flat_fee";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        ExpenseType: "expense" | "disbursement";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        InvoiceType: "deposit" | "final";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        InvoiceStatus: "sent" | "issued";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        InvoiceLineOrigin: "work_period" | "flat_fee" | "expense";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        BaseUnit: "hour" | "intervention";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        PillDisplay: "fees" | "time" | "case";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        ClientRuleType: "daily_research_cap" | "nonbillable_travel";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        NonbillableReason: "offered" | "internal" | "admin";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        MarkerType: "reference" | "case_number" | "opposing_party" | "client_name" | "file" | "email" | "domain" | "keyword";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        PeriodOpenMode: "current" | "recovery";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        RateOrigin: "base" | "client" | "matter" | "flat_fee";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        SignalPlace: "app" | "window_title" | "browser_url" | "ocr" | "audio" | "speaker";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        SystemTaskCode: "REDAC" | "ANALY" | "RECH" | "MAIL" | "RDV" | "APPEL" | "AUD" | "ADMIN" | "ORGA" | "DEPL";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        SourcePackScope: "invoice" | "case" | "dateRange" | "selectedPeriods";
+        /**
+         * @description Generated from backend/domain/states.ts. Run npm run contract:gen.
+         * @enum {string}
+         */
+        SourcePackOption: "blur" | "personal" | "audio" | "audit";
     };
     responses: never;
     parameters: never;

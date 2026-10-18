@@ -1,3 +1,16 @@
+import { enumValue } from "./enum-value.js";
+import {
+  caseBillingModes,
+  billingStatuses,
+  expenseTypes,
+  invoiceTypes,
+  invoiceStatuses,
+  invoiceLineOrigins,
+  BillingStatus,
+  InvoiceLineOrigin,
+  InvoiceStatus,
+  InvoiceType,
+} from "../../domain/states.js";
 import { calendarDay } from "../../../shared/dates.js";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { orm } from "./orm.js";
@@ -36,7 +49,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
       return row
         ? {
             id: String(row.id),
-            mode: row.mode as InvoiceCase["mode"],
+            mode: enumValue(row.mode, caseBillingModes),
             flatFeeCents: row.flat_fee_cents as number | null,
             caseRateCents: row.case_rate as number | null,
             clientRateCents: row.client_rate as number | null,
@@ -60,12 +73,20 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
             caseId: row.case_id as string | null,
             effectiveRevision: Number(row.effective_revision),
             validatedEffectiveRevision: row.validated_effective_revision as number | null,
-            billingStatus: row.billing_status as InvoicePeriod["billingStatus"],
+            billingStatus: enumValue(row.billing_status, billingStatuses),
             billable: Boolean(row.billable),
             excluded: Boolean(row.excluded),
             invoiceId: row.invoice_id as number | null,
           }
         : null;
+    },
+    getExpenseForRemoval(id) {
+      const row = orm(db)
+        .select({ id: tables.expenses.id, invoiceId: tables.expenses.invoice_id })
+        .from(tables.expenses)
+        .where(eq(tables.expenses.id, id))
+        .get();
+      return row ?? null;
     },
     getExpense(id): InvoiceExpense | null {
       const row = orm(db).select().from(tables.expenses).where(eq(tables.expenses.id, id)).get() as
@@ -76,7 +97,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
             caseId: String(row.case_id),
             invoiceId: row.invoice_id as number | null,
             amountCents: Number(row.amount_cents),
-            type: row.type as InvoiceExpense["type"],
+            type: enumValue(row.type, expenseTypes),
           }
         : null;
     },
@@ -100,7 +121,9 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
           )
           .all(caseId) as Row[]
       )
-        .filter((row) => row.billing_status === "billed" || selected.has(String(row.id)))
+        .filter(
+          (row) => row.billing_status === BillingStatus.Billed || selected.has(String(row.id)),
+        )
         .map((row) => ({
           id: String(row.id),
           startedAt: String(row.started_at),
@@ -114,7 +137,9 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
         orm(db)
           .select({ id: tables.invoices.id })
           .from(tables.invoices)
-          .where(and(eq(tables.invoices.case_id, caseId), eq(tables.invoices.type, "final")))
+          .where(
+            and(eq(tables.invoices.case_id, caseId), eq(tables.invoices.type, InvoiceType.Final)),
+          )
           .limit(1)
           .get(),
       );
@@ -142,7 +167,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
           number,
           date: calendarDay(at, snapshot.timeZone),
           type: snapshot.type,
-          status: "issued",
+          status: InvoiceStatus.Issued,
           subtotal_cents: snapshot.subtotalCents,
           vat_cents: snapshot.vatCents,
           disbursements_cents: snapshot.disbursementsCents,
@@ -165,7 +190,9 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
             amount_cents: line.amountCents,
             vat: line.vat ? 1 : 0,
             period_ids_json:
-              line.origin === "work_period" ? JSON.stringify(snapshot.periodIds) : null,
+              line.origin === InvoiceLineOrigin.WorkPeriod
+                ? JSON.stringify(snapshot.periodIds)
+                : null,
           })
           .run();
       }
@@ -175,7 +202,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
       orm(db)
         .update(tables.work_periods)
         .set({
-          billing_status: "billed",
+          billing_status: BillingStatus.Billed,
           billed_at: at,
           applied_hourly_rate_cents: rateCents,
           applied_currency: sql`(SELECT currency FROM settings WHERE id=1)`,
@@ -211,8 +238,8 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
           caseId: String(row.case_id),
           number: String(row.number),
           date: String(row.date),
-          type: row.type as "deposit" | "final",
-          status: String(row.status),
+          type: enumValue(row.type, invoiceTypes),
+          status: enumValue(row.status, invoiceStatuses),
           subtotalCents: Number(row.subtotal_cents ?? 0),
           vatCents: Number(row.vat_cents ?? 0),
           disbursementsCents: Number(row.disbursements_cents ?? 0),
@@ -229,7 +256,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
         .map((row) => ({
           id: Number(row.id),
           invoiceId: Number(row.invoice_id),
-          origin: String(row.origin),
+          origin: enumValue(row.origin, invoiceLineOrigins),
           originId: String(row.origin_id),
           label: String(row.label),
           billedMinutes: Number(row.billed_minutes),
@@ -249,7 +276,7 @@ export function invoicePort(db: DatabaseSync): InvoicePort {
           caseId: String(row.case_id),
           date: String(row.date),
           label: String(row.label),
-          type: row.type as "expense" | "disbursement",
+          type: enumValue(row.type, expenseTypes),
           amountCents: Number(row.amount_cents),
           invoiceId: row.invoice_id as number | null,
         }));

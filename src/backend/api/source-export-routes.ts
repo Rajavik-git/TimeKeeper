@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { Hono } from "hono";
 import { SourceExportService } from "../application/source-export.js";
 import { sourceExportPort } from "../adapters/sqlite/source-export.js";
-import { AppError } from "../application/service.js";
+import { AppError } from "../application/errors.js";
 import type { SourceExportRequest } from "../ports/source-export.js";
 import { apiError } from "./errors.js";
 

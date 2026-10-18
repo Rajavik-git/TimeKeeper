@@ -752,12 +752,7 @@ export const requestContract = {
           "reason": {
             "anyOf": [
               {
-                "type": "string",
-                "enum": [
-                  "offered",
-                  "internal",
-                  "admin"
-                ]
+                "$ref": "#/components/schemas/NonbillableReason"
               },
               {
                 "type": "null"
@@ -798,6 +793,15 @@ export const requestContract = {
             }
           }
         ]
+      },
+      "NonbillableReason": {
+        "type": "string",
+        "enum": [
+          "offered",
+          "internal",
+          "admin"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "day_approve_postRequest": {
         "type": "object",
@@ -990,10 +994,7 @@ export const requestContract = {
             "type": "string"
           },
           "type": {
-            "enum": [
-              "expense",
-              "disbursement"
-            ]
+            "$ref": "#/components/schemas/ExpenseType"
           },
           "amount_cents": {
             "type": "integer",
@@ -1008,6 +1009,14 @@ export const requestContract = {
           "type",
           "amount_cents"
         ]
+      },
+      "ExpenseType": {
+        "type": "string",
+        "enum": [
+          "expense",
+          "disbursement"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "InvoiceSnapshot": {
         "type": "object",
@@ -1045,11 +1054,7 @@ export const requestContract = {
             ]
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "deposit",
-              "final"
-            ]
+            "$ref": "#/components/schemas/InvoiceType"
           },
           "periodIds": {
             "type": "array",
@@ -1076,13 +1081,7 @@ export const requestContract = {
             "maximum": 9007199254740991
           },
           "rateOrigin": {
-            "type": "string",
-            "enum": [
-              "matter",
-              "client",
-              "base",
-              "flat_fee"
-            ]
+            "$ref": "#/components/schemas/RateOrigin"
           },
           "feesCents": {
             "type": "integer",
@@ -1130,12 +1129,7 @@ export const requestContract = {
               ],
               "properties": {
                 "origin": {
-                  "type": "string",
-                  "enum": [
-                    "work_period",
-                    "expense",
-                    "flat_fee"
-                  ]
+                  "$ref": "#/components/schemas/InvoiceLineOrigin"
                 },
                 "originId": {
                   "type": "string",
@@ -1170,6 +1164,33 @@ export const requestContract = {
             "description": "IANA timezone for calendar dates. Stored with the new snapshot or export."
           }
         }
+      },
+      "InvoiceType": {
+        "type": "string",
+        "enum": [
+          "deposit",
+          "final"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "RateOrigin": {
+        "type": "string",
+        "enum": [
+          "base",
+          "client",
+          "matter",
+          "flat_fee"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "InvoiceLineOrigin": {
+        "type": "string",
+        "enum": [
+          "work_period",
+          "flat_fee",
+          "expense"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "sources_id_export_postRequest": {
         "type": "object",
@@ -1251,17 +1272,21 @@ export const requestContract = {
             "maximum": 9007199254740991
           },
           "base_unit": {
-            "type": "string",
-            "enum": [
-              "hour",
-              "intervention"
-            ]
+            "$ref": "#/components/schemas/BaseUnit"
           },
           "vat_rate": {
             "type": "number"
           }
         },
         "required": []
+      },
+      "BaseUnit": {
+        "type": "string",
+        "enum": [
+          "hour",
+          "intervention"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "setting_id_patchRequest": {
         "type": "object",
@@ -1294,17 +1319,22 @@ export const requestContract = {
             "type": "boolean"
           },
           "pill_display": {
-            "enum": [
-              "fees",
-              "time",
-              "case"
-            ]
+            "$ref": "#/components/schemas/PillDisplay"
           },
           "pill_withhold_calls": {
             "type": "boolean"
           }
         },
         "required": []
+      },
+      "PillDisplay": {
+        "type": "string",
+        "enum": [
+          "fees",
+          "time",
+          "case"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "client_id_patchRequest": {
         "type": "object",
@@ -1314,18 +1344,10 @@ export const requestContract = {
             "type": "string"
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "individual",
-              "company"
-            ]
+            "$ref": "#/components/schemas/ClientType"
           },
           "mode": {
-            "type": "string",
-            "enum": [
-              "hourly",
-              "subscription"
-            ]
+            "$ref": "#/components/schemas/ClientBillingMode"
           },
           "rate_cents": {
             "type": [
@@ -1343,6 +1365,22 @@ export const requestContract = {
           }
         },
         "required": []
+      },
+      "ClientType": {
+        "type": "string",
+        "enum": [
+          "individual",
+          "company"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "ClientBillingMode": {
+        "type": "string",
+        "enum": [
+          "hourly",
+          "subscription"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "matter_id_patchRequest": {
         "type": "object",
@@ -1376,11 +1414,7 @@ export const requestContract = {
             "type": "string"
           },
           "mode": {
-            "type": "string",
-            "enum": [
-              "hourly",
-              "flat_fee"
-            ]
+            "$ref": "#/components/schemas/CaseBillingMode"
           },
           "own_rate_cents": {
             "anyOf": [
@@ -1451,6 +1485,14 @@ export const requestContract = {
           }
         },
         "required": []
+      },
+      "CaseBillingMode": {
+        "type": "string",
+        "enum": [
+          "hourly",
+          "flat_fee"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "task_id_patchRequest": {
         "type": "object",
@@ -1535,16 +1577,21 @@ export const requestContract = {
             ]
           },
           "type": {
-            "enum": [
-              "daily_research_cap",
-              "nonbillable_travel"
-            ]
+            "$ref": "#/components/schemas/ClientRuleType"
           }
         },
         "required": [
           "client_id",
           "type"
         ]
+      },
+      "ClientRuleType": {
+        "type": "string",
+        "enum": [
+          "daily_research_cap",
+          "nonbillable_travel"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "openPeriodRequest": {
         "type": "object",
@@ -1577,17 +1624,10 @@ export const requestContract = {
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
           },
           "origin": {
-            "enum": [
-              "lawyer",
-              "automatic",
-              "unresolved"
-            ]
+            "$ref": "#/components/schemas/AssignmentOrigin"
           },
           "mode": {
-            "enum": [
-              "current",
-              "recovery"
-            ]
+            "$ref": "#/components/schemas/PeriodOpenMode"
           }
         },
         "required": [
@@ -1598,6 +1638,23 @@ export const requestContract = {
           "origin",
           "mode"
         ]
+      },
+      "AssignmentOrigin": {
+        "type": "string",
+        "enum": [
+          "unresolved",
+          "automatic",
+          "lawyer"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "PeriodOpenMode": {
+        "type": "string",
+        "enum": [
+          "current",
+          "recovery"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "createQuestionRequest": {
         "type": "object",
@@ -1806,17 +1863,21 @@ export const requestContract = {
         ],
         "properties": {
           "status": {
-            "type": "string",
-            "enum": [
-              "billed",
-              "unbilled"
-            ]
+            "$ref": "#/components/schemas/BillingStatus"
           },
           "expectedRevision": {
             "type": "integer",
             "minimum": 0
           }
         }
+      },
+      "BillingStatus": {
+        "type": "string",
+        "enum": [
+          "unbilled",
+          "billed"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "PostQuestionsAnswerRequest": {
         "type": "object",
@@ -1931,9 +1992,13 @@ export const requestContract = {
             "type": "boolean"
           },
           "nonbillableReason": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonbillableReason"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "excluded": {
@@ -1986,11 +2051,7 @@ export const requestContract = {
             "type": "string"
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "expense",
-              "disbursement"
-            ]
+            "$ref": "#/components/schemas/ExpenseType"
           },
           "amountCents": {
             "type": "integer",
@@ -2197,18 +2258,10 @@ export const requestContract = {
             "type": "string"
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "individual",
-              "company"
-            ]
+            "$ref": "#/components/schemas/ClientType"
           },
           "mode": {
-            "type": "string",
-            "enum": [
-              "hourly",
-              "subscription"
-            ]
+            "$ref": "#/components/schemas/ClientBillingMode"
           },
           "hourlyRateCents": {
             "type": [
@@ -2262,11 +2315,7 @@ export const requestContract = {
             "type": "string"
           },
           "mode": {
-            "type": "string",
-            "enum": [
-              "hourly",
-              "flat_fee"
-            ]
+            "$ref": "#/components/schemas/CaseBillingMode"
           },
           "hourlyRateCents": {
             "anyOf": [
@@ -2319,11 +2368,7 @@ export const requestContract = {
             ]
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "archived"
-            ]
+            "$ref": "#/components/schemas/CaseStatus"
           },
           "openedOn": {
             "type": [
@@ -2336,6 +2381,14 @@ export const requestContract = {
           }
         }
       },
+      "CaseStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "archived"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
       "PatchCatalogClientRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -2345,18 +2398,10 @@ export const requestContract = {
             "type": "string"
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "individual",
-              "company"
-            ]
+            "$ref": "#/components/schemas/ClientType"
           },
           "mode": {
-            "type": "string",
-            "enum": [
-              "hourly",
-              "subscription"
-            ]
+            "$ref": "#/components/schemas/ClientBillingMode"
           },
           "hourlyRateCents": {
             "type": [
@@ -2402,11 +2447,7 @@ export const requestContract = {
             "type": "string"
           },
           "mode": {
-            "type": "string",
-            "enum": [
-              "hourly",
-              "flat_fee"
-            ]
+            "$ref": "#/components/schemas/CaseBillingMode"
           },
           "hourlyRateCents": {
             "anyOf": [
@@ -2459,11 +2500,7 @@ export const requestContract = {
             ]
           },
           "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "archived"
-            ]
+            "$ref": "#/components/schemas/CaseStatus"
           }
         },
         "minProperties": 1
@@ -2534,11 +2571,7 @@ export const requestContract = {
             "type": "integer"
           },
           "baseUnit": {
-            "type": "string",
-            "enum": [
-              "hour",
-              "intervention"
-            ]
+            "$ref": "#/components/schemas/BaseUnit"
           },
           "vatRate": {
             "type": "number"
@@ -2572,12 +2605,7 @@ export const requestContract = {
             "type": "boolean"
           },
           "pillDisplay": {
-            "type": "string",
-            "enum": [
-              "fees",
-              "time",
-              "case"
-            ]
+            "$ref": "#/components/schemas/PillDisplay"
           },
           "pillWithholdCalls": {
             "type": "boolean"
@@ -2598,17 +2626,7 @@ export const requestContract = {
             "type": "string"
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "reference",
-              "case_number",
-              "opposing_party",
-              "client_name",
-              "file",
-              "email",
-              "domain",
-              "keyword"
-            ]
+            "$ref": "#/components/schemas/MarkerType"
           },
           "value": {
             "type": "string"
@@ -2619,6 +2637,20 @@ export const requestContract = {
             "maximum": 1
           }
         }
+      },
+      "MarkerType": {
+        "type": "string",
+        "enum": [
+          "reference",
+          "case_number",
+          "opposing_party",
+          "client_name",
+          "file",
+          "email",
+          "domain",
+          "keyword"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       },
       "CreateCatalogClientRuleRequest": {
         "type": "object",
@@ -2632,11 +2664,7 @@ export const requestContract = {
             "type": "string"
           },
           "type": {
-            "type": "string",
-            "enum": [
-              "daily_research_cap",
-              "nonbillable_travel"
-            ]
+            "$ref": "#/components/schemas/ClientRuleType"
           },
           "value": {
             "type": "integer"
@@ -2652,24 +2680,12 @@ export const requestContract = {
         ],
         "properties": {
           "scope": {
-            "type": "string",
-            "enum": [
-              "invoice",
-              "case",
-              "dateRange",
-              "selectedPeriods"
-            ]
+            "$ref": "#/components/schemas/SourcePackScope"
           },
           "options": {
             "type": "array",
             "items": {
-              "type": "string",
-              "enum": [
-                "blur",
-                "personal",
-                "audio",
-                "audit"
-              ]
+              "$ref": "#/components/schemas/SourcePackOption"
             },
             "uniqueItems": true
           },
@@ -2697,6 +2713,26 @@ export const requestContract = {
             "type": "string"
           }
         }
+      },
+      "SourcePackScope": {
+        "type": "string",
+        "enum": [
+          "invoice",
+          "case",
+          "dateRange",
+          "selectedPeriods"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "SourcePackOption": {
+        "type": "string",
+        "enum": [
+          "blur",
+          "personal",
+          "audio",
+          "audit"
+        ],
+        "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
       }
     }
   }

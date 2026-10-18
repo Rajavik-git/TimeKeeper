@@ -1,6 +1,6 @@
 import type { components } from "../../contracts/generated.js";
 import type { Candidate } from "../domain/recognition.js";
-import type { PeriodRecord, QuestionRecord } from "./repository.js";
+import type { PeriodRecord } from "./repository.js";
 
 export type CompatibilityRow = Record<string, unknown>;
 export type CompatibilityTable =
@@ -52,11 +52,7 @@ export interface CompatibilityPort {
   invoiceExport(id: number): InvoiceExport | undefined;
   canonicalPeriodForEntry(id: number): PeriodRecord | null;
   ensureCompatibilityEntryId(periodId: string): number;
-  canonicalPeriod(id: string): PeriodRecord | null;
   canonicalPeriodForBlock(blockId: number): PeriodRecord | null;
-  saveCanonicalPeriod(period: PeriodRecord, at: string): void;
-  pendingQuestions(periodId: string): QuestionRecord[];
-  saveQuestion(question: QuestionRecord): void;
   insertCanonicalExpense(expense: CompatibilityRow): void;
   assertExpenseCanBeRemoved(expense: CompatibilityRow): void;
 }

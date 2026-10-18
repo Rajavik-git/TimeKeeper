@@ -102,7 +102,7 @@ it("keeps aliases tied to the canonical target owner", () => {
   ).toThrow();
 });
 
-it.skip("overlap constraints await the duration and overlap decision in docs/DESIGN_REVIEW.md", () => {
+it.skip("overlap constraints await the duration and overlap decision in docs/REQUIREMENTS.md", () => {
   const r = setup(),
     now = "2026-10-17T09:00:00Z";
   r.insertSession({ id: "s", startedAt: now, endedAt: null, revision: 0 }, now);

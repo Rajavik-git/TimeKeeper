@@ -29,8 +29,9 @@ const parseDate = (value: string) => {
 
 export const money = (cents: number, currency = "USD") =>
   currencyFormatter(currency).format(cents / 100);
-export const rate = (cents: number, currency = "USD") =>
-  `${new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(Math.round(cents / 100))}/h`;
+export const recordedMoney = (cents: number, currency: string | null | undefined) =>
+  currency ? money(cents, currency) : `${(cents / 100).toFixed(2)} · currency unavailable`;
+export const rate = (cents: number, currency = "USD") => `${money(cents, currency)}/h`;
 export const percent = (value: number) => `${whole.format(Math.round(value))}%`;
 export const shortDate = (value: string) => short.format(parseDate(value));
 export const longDate = (value: string) => long.format(parseDate(value)).replace(",", "");

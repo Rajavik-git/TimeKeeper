@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +11,33 @@ describe("empty application startup", () => {
   it("serves empty business records with editable neutral preferences", async () => {
     const db = openDb(":memory:");
     try {
+      const historicalTables = [
+        "firm",
+        "setting",
+        "task",
+        "client",
+        "matter",
+        "marker",
+        "client_rule",
+        "block",
+        "source",
+        "pause",
+        "jev_review",
+        "invoice",
+        "time_entry",
+        "expense",
+        "invoice_line",
+        "audit_event",
+        "source_export",
+        "schema_version",
+      ];
+      const storedTables = new Set(
+        db
+          .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+          .all()
+          .map((row) => row.name),
+      );
+      expect(historicalTables.filter((name) => storedTables.has(name))).toEqual([]);
       const app = createApp(db);
       const response = await app.request("/api/state");
       expect(response.status).toBe(200);
@@ -52,6 +80,8 @@ describe("empty application startup", () => {
       const workspace = db.prepare("SELECT workspace_id FROM settings").get()?.workspace_id;
       db.exec("UPDATE settings SET lawyer_name='Saved name', global_hourly_rate_cents=24000");
       db.exec("UPDATE task_types SET label='Saved category' WHERE id=1");
+      // Simulate an existing historical file; canonical rows must still own reads.
+      db.exec(readFileSync("src/backend/adapters/sqlite/schema.sql", "utf8"));
       // Old compatibility rows must never trigger another sample import.
       db.exec(
         `INSERT INTO client VALUES (999,'Legacy sample','LEGACY','individual','hourly',0,0,'')`,

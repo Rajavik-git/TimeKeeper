@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { parseAmount } from "../../src/frontend/features/settings/amount";
+import { parseAmount } from "../../src/frontend/shared/lib/amount";
 
 it("clears nullable rates and budgets while preserving an explicit zero", () => {
   expect(parseAmount("  ", true)).toEqual({ valid: true, cents: null });

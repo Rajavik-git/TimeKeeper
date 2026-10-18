@@ -1,4 +1,5 @@
 import { api, type CoreState } from "./client";
+import { isApiError } from "./errors";
 
 /** Keep committed progress visible when another request or the following read fails. */
 export async function validatePeriods(
@@ -13,7 +14,7 @@ export async function validatePeriods(
         params: { path: { id: period.id } },
         body: { expectedEffectiveRevision: period.effectiveRevision },
       });
-      if (!result.error) successful++;
+      if (!result.error && !isApiError(result.data)) successful++;
       else if (result.response?.status === 409) {
         stale = true;
         break;
@@ -39,13 +40,16 @@ export function validationMessage(
   refreshFailed: boolean,
   stale = false,
 ) {
+  const periodLabel = total === 1 ? "period" : "periods";
   if (stale)
-    return `${successful} of ${total} periods validated. A period changed. Review the latest data before validating again.${refreshFailed ? " Refresh the view." : ""}`;
+    return `Time validated for ${successful} of ${total} ${periodLabel}. A period changed. Review the latest data before validating again.${refreshFailed ? " Refresh the view." : ""}`;
   const progress =
     successful === total
-      ? `${successful} period${successful === 1 ? "" : "s"} validated`
-      : `${successful} of ${total} periods validated. Please retry the rest.`;
+      ? `Time validated for ${successful} ${periodLabel}`
+      : `Time validated for ${successful} of ${total} ${periodLabel}. Retry the remaining periods`;
   return refreshFailed
     ? `${progress}. Displayed data could not refresh. Refresh the view.`
-    : progress;
+    : successful === total
+      ? progress
+      : `${progress}.`;
 }

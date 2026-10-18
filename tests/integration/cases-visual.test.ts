@@ -1,13 +1,10 @@
 import { activityPeriods, selectActivityPeriod } from "../../src/frontend/calculations/activity";
+import { monthlyRecordedTime } from "../../src/frontend/calculations/comparison";
 import { dayFees } from "../../src/frontend/calculations/billing";
 import { expect, it } from "vitest";
 import { memoryDb } from "../fixtures/database.js";
 import { createApp } from "../../src/backend/api/app";
-import {
-  caseMetrics,
-  clientMetrics,
-  previousMonthMetrics,
-} from "../../src/frontend/calculations/cases";
+import { caseMetrics, clientMetrics } from "../../src/frontend/calculations/cases";
 import type { CoreState, State } from "../../src/frontend/api/client";
 
 it("excludes flat fees from Cases to-bill totals while retaining their pricing mode", async () => {
@@ -53,11 +50,8 @@ it("excludes flat fees from Cases to-bill totals while retaining their pricing m
       0,
     );
     expect(total).toBe(933950);
-    const previous = previousMonthMetrics(state, core, "2026-10-16");
-    expect(Math.round(((total - previous.previousToBill) * 100) / previous.previousToBill)).toBe(
-      72,
-    );
-    expect(previous.previousMinutes).toBe(1200);
+    const comparison = monthlyRecordedTime(state, core, "2026-10-16");
+    expect(comparison.previous.roundedMinutes).toBe(1200);
   } finally {
     db.close();
   }
@@ -148,10 +142,21 @@ it("calculates Activity fees from corrected canonical duration and applied rates
       auditEvents: [],
       billing: { invoices: [], lines: [], expenses: [] },
     };
-    expect(dayFees(state, core, [period])).toBe(500);
+    expect(dayFees(state, core, [period])).toMatchObject({
+      cents: 500,
+      complete: true,
+      currency: state.settings.currency,
+    });
     period.billingStatus = "billed";
     period.appliedHourlyRateCents = 24000;
-    expect(dayFees(state, core, [period])).toBe(400);
+    period.appliedCurrency = state.settings.currency;
+    expect(dayFees(state, core, [period])).toMatchObject({
+      cents: 400,
+      complete: true,
+      currency: state.settings.currency,
+    });
+    period.appliedCurrency = null;
+    expect(dayFees(state, core, [period])).toMatchObject({ cents: null, complete: false });
   } finally {
     db.close();
   }
@@ -228,7 +233,11 @@ it("keeps opaque catalog IDs through summaries, rates, and Activity filters", as
       billing: { invoices: [], lines: [], expenses: [] },
     };
     expect(clientMetrics(state, core, owner.id)).toMatchObject({ time: 1, toBill: 500 });
-    expect(dayFees(state, core, [period])).toBe(500);
+    expect(dayFees(state, core, [period])).toMatchObject({
+      cents: 500,
+      complete: true,
+      currency: state.settings.currency,
+    });
     expect(activityPeriods(state, core, owner.id, item.id)).toHaveLength(1);
   } finally {
     db.close();

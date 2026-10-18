@@ -18,6 +18,8 @@ export type CoreState = {
   coverageGaps: components["schemas"]["CoverageGap"][];
   billing: components["schemas"]["BillingState"];
   auditEvents: components["schemas"]["AuditEvent"][];
+  auditUnavailable?: boolean;
+  reconstructionUnavailable?: boolean;
   reconstructionConflicts?: components["schemas"]["ReconstructionConflict"][];
 };
 export type EntityId = string | number;
@@ -31,7 +33,10 @@ export type ScreenProps = {
   catalogState: State;
   workspaceState: CoreState;
   refresh: () => Promise<void>;
-  action: <T>(promise: Promise<{ data?: T; error?: unknown }>) => Promise<T | undefined>;
+  action: <T>(
+    promise: Promise<{ data?: T; error?: unknown }>,
+    notify?: (message: string) => void,
+  ) => Promise<T | undefined>;
   navigate: (view: View, caseId?: EntityId) => void;
   selectedCase?: EntityId;
   openPeriodActivity: (periodId: string) => void;
@@ -52,16 +57,4 @@ export function caseLabel(catalogState: State, caseId: EntityId | null) {
 }
 export function task(catalogState: State, id: EntityId | null) {
   return catalogState.taskTypes.find((t) => t.id === id)?.label ?? "—";
-}
-export function originLabel(origin: string): string {
-  return (
-    (
-      {
-        base: "base rate",
-        client: "client rate",
-        matter: "case rate",
-        flat_fee: "flat fee",
-      } as Record<string, string>
-    )[origin] ?? origin
-  );
 }

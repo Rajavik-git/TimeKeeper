@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ScreenProps } from "../../src/frontend/api/client";
 import { Cases } from "../../src/frontend/features/cases/Cases";
-import { BillingOverview } from "../../src/frontend/features/billing-status/BillingOverview";
+import { BillingOverview } from "../../src/frontend/features/billing-status/components/BillingOverview/BillingOverview";
 import { PreInvoices } from "../../src/frontend/features/billing-status/PreInvoices";
 import { frontendFixture } from "./frontend-fixture";
 
@@ -39,13 +39,16 @@ function props(): ScreenProps {
   };
 }
 
-it("keeps Cases comparisons visible when the previous period has no data", () => {
+it("keeps current Cases figures and explains unavailable historical comparisons once", () => {
   render(<Cases {...props()} />);
-  expect(screen.getAllByText("No previous-period data")).toHaveLength(3);
+  expect(screen.getByText("About these figures")).toBeTruthy();
+  expect(screen.getByText(/earlier balances and counts are not stored/)).toBeTruthy();
+  expect(screen.queryByText("Historical comparison unavailable")).toBeNull();
+  expect(screen.getByText("No percentage comparison")).toBeTruthy();
   expect(screen.queryByText(/(?:Infinity|NaN)%/)).toBeNull();
 });
 
-it("keeps signed percentage comparisons and their previous-period date", () => {
+it("compares corrected monthly time neutrally with explicit date ranges", () => {
   const input = props();
   input.catalogState.cases[0].openedOn = "2026-09-17";
   input.workspaceState.periods[0].endedAt = "2026-10-17T09:01:00Z";
@@ -59,10 +62,13 @@ it("keeps signed percentage comparisons and their previous-period date", () => {
     timeValidatedAt: "2026-09-17T09:01:00Z",
   });
   render(<Cases {...input} />);
-  const toBill = screen.getByRole("button", { name: /^To bill/ });
-  const change = within(toBill).getByText("+100%");
-  expect(change.classList.contains("down")).toBe(true);
-  expect(change.title).toBe("vs Sep 17");
+  const time = screen.getByRole("button", { name: /^Time in October/ });
+  const change = within(time).getByText("0%");
+  expect(change.classList.contains("flat")).toBe(true);
+  expect(change.title).toContain("2026-10-01–2026-10-17 vs 2026-09-01–2026-09-17");
+  expect(screen.getByText("About these figures")).toBeTruthy();
+  expect(screen.getByText(/earlier balances and counts are not stored/)).toBeTruthy();
+  expect(screen.queryByText("Historical comparison unavailable")).toBeNull();
 });
 
 it("uses the current calendar month for the Cases time summary", () => {
@@ -72,9 +78,11 @@ it("uses the current calendar month for the Cases time summary", () => {
   expect(screen.queryByText("Time in October")).toBeNull();
 });
 
-it("keeps Billing comparisons visible when the previous period has no data", () => {
+it("keeps current Billing figures with one historical-baseline explanation", () => {
   render(<BillingOverview {...props()} onSelect={vi.fn()} />);
-  expect(screen.getAllByText("No previous-period data")).toHaveLength(3);
+  expect(screen.getByText("About these figures")).toBeTruthy();
+  expect(screen.getByText(/earlier balances are not stored/)).toBeTruthy();
+  expect(screen.queryByText("Historical comparison unavailable")).toBeNull();
   expect(screen.queryByText(/(?:Infinity|NaN)%/)).toBeNull();
 });
 
@@ -113,7 +121,7 @@ it.each([
     expect(within(card).queryByText("Ready to invoice")).toBeNull();
   if (!testCase.coverage) {
     const summary = container.querySelector<HTMLElement>(".billing-summary")!;
-    expect(within(summary).getByText("0 hourly cases, all validated")).toBeTruthy();
+    expect(within(summary).getByText("0 hourly cases, time validated")).toBeTruthy();
     fireEvent.click(card);
     expect(onSelect).toHaveBeenCalledWith(input.catalogState.cases[0]);
   }
@@ -132,4 +140,64 @@ it("keeps invoice creation blocked while incomplete coverage links to the affect
   expect(screen.getByText(/No evidence is linked and no duration correction/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Review period", exact: true }));
   expect(input.openPeriodReview).toHaveBeenCalledWith("period");
+});
+
+it("scopes both monthly time ranges to the selected client and keeps other workspace figures", () => {
+  const input = props();
+  input.catalogState.clients.push({
+    ...input.catalogState.clients[0],
+    id: "other",
+    name: "Other client",
+  });
+  input.catalogState.cases.push({
+    ...input.catalogState.cases[0],
+    id: "other-case",
+    clientId: "other",
+  });
+  input.workspaceState.periods[0].durationOverrideMs = 7200000;
+  input.workspaceState.periods.push(
+    {
+      ...input.workspaceState.periods[0],
+      id: "previous",
+      startedAt: "2026-09-17T09:00:00Z",
+      durationOverrideMs: 3600000,
+    },
+    {
+      ...input.workspaceState.periods[0],
+      id: "incomplete",
+      caseId: "other-case",
+      durationOverrideMs: null,
+      detectedDurationMs: null,
+    },
+  );
+  const { container, unmount } = render(<Cases {...input} />);
+  const balance = screen.getByRole("button", { name: /^To bill/ }).textContent;
+  const billingBars = container.querySelector(".cases-rail")?.textContent;
+  expect(screen.getByText("Time comparison unavailable")).toBeTruthy();
+  fireEvent.change(screen.getByRole("combobox", { name: "Compare recorded time for" }), {
+    target: { value: "client" },
+  });
+  const time = screen.getByRole("button", { name: /^Time in October/ });
+  expect(within(time).getByText("+100%")).toBeTruthy();
+  expect(within(time).getByText("2h 00m")).toBeTruthy();
+  expect(screen.getByText("1h 00m", { selector: ".recorded-time-comparison strong" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: /^To bill/ }).textContent).toBe(balance);
+  expect(container.querySelector(".cases-rail")?.textContent).toBe(billingBars);
+  expect(sessionStorage.getItem("timekeeper-comparison-client")).toBe("client");
+  unmount();
+  render(<Cases {...input} />);
+  expect(screen.getByRole("combobox", { name: "Compare recorded time for" })).toHaveProperty(
+    "value",
+    "client",
+  );
+});
+
+it("replaces an unknown saved comparison client with All clients", () => {
+  sessionStorage.setItem("timekeeper-comparison-client", "removed");
+  render(<Cases {...props()} />);
+  expect(screen.getByRole("combobox", { name: "Compare recorded time for" })).toHaveProperty(
+    "value",
+    "",
+  );
+  expect(sessionStorage.getItem("timekeeper-comparison-client")).toBeNull();
 });

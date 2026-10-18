@@ -1,10 +1,6 @@
 # Original SQLite data model
 
-> Historical reference. This document preserves the original supplied schema and its earlier review notes. Its open questions and implementation guidance may be superseded. Use the [current data model](../DATABASE.md) and [requirements](../REQUIREMENTS.md) for the accepted design. No migration of this original schema exists.
-
-This document transcribes the supplied schema. It describes TimeKeeper's local application database, separate from Screenpipe's internal storage. No SQL migration has been executed.
-
-Database identifiers remain unchanged from the supplied diagram. The table names mean clients, cases (`dossiers`), tasks (`taches`), subtasks (`sous_taches`), sources, and settings (`parametres`). Translating the documentation does not rename the schema.
+Historical transcription of the supplied six-table schema. Preserve its French identifiers. It is not the implemented work-period model; use the [current data model](../DATABASE.md), [requirements](../REQUIREMENTS.md), and [canonical migrations](../../src/backend/adapters/sqlite/migrate.ts).
 
 ## Relationships
 
@@ -97,35 +93,6 @@ The diagram groups `app_name / window_name` on one line. Whether these are two s
 | `devise`               | TEXT                      |
 | `modifie_le`           | TEXT                      |
 
-## Calculations and states
+## Limits of the original model
 
-The interface calculates summaries from subtask durations based on reviewed Screenpipe memory and lawyer corrections. Preserve detected duration separately from the corrected duration; replay must not overwrite corrections. Returning to an existing case creates a new period, not a duplicate case. Only case hourly rates and a global hourly fallback are in scope. SQLite stores the details without calculating aggregate totals. Which entries contribute to each total and how to round them remain undecided.
-
-Time validation uses `sous_taches.statut`, source validation uses `sources.statut`, and billing uses `taches.facture`. These states are distinct. Allowed values and validation transitions remain undecided.
-
-## Automatic-assignment requirements
-
-The [integration research](../SCREENPIPE_INTEGRATION.md) proposes case-matching metadata, source provenance, assignment decisions, retrieval progress, and stale-result protection. These are not present in the supplied schema and have not been added as migrations. Case assignment still belongs to the parent task, so moving one subtask requires an explicit split/move rule.
-
-## Decisions required before migration
-
-- Define consistency between `taches.client_id` and the assigned case's client, including nullable references.
-- Define when `tarif_applique` is fixed and what happens when a billed task is corrected.
-- Confirm monetary representation. The diagram uses `REAL`; decide between that representation and integer monetary units before implementing billing calculations.
-- Define date formats, time zones, nullability, defaults, constraints, and deletion rules.
-- Define source deduplication and handling of recordings deleted from Screenpipe.
-- Define boolean constraints and enforcement of the single settings row.
-
-See the [design review](../DESIGN_REVIEW.md) for additional gaps and acceptance examples.
-
-Return to the [architecture](../ARCHITECTURE.md) or [README](../../README.md).
-
-## Assignment delivery state
-
-The updated [architecture](../ARCHITECTURE.md) requires delivery of case associations to Screenpipe. Assignment revisions, idempotency identifiers, pending/failed/acknowledged delivery state, and external association references are additional persistence needs not represented in the supplied schema. No migration has been created.
-
-## Session lifecycle requirements
-
-The confirmed workflow needs persisted sessions with identity, start/end timestamps and state, links between sessions and work periods, and idempotency/revision checks for start, assignment, and end commands. The supplied six-table model does not yet represent these fields. Add them only through the agreed schema implementation; no migration exists.
-
-Application exit does not set a session end timestamp or close the active work period. Reopening resumes the existing active session. The explicit Screenpipe end command supplies the session end boundary, including when its persistence must be reconciled after the backend restarts.
+The supplied schema omits sessions, independent period assignment, source aliases, revisions, command recovery, and assignment delivery. Field constraints and representation choices above reflect the original diagram, not current implementation rules. Do not use its task/subtask hierarchy or nullable client assignment to override the current model.

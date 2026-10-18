@@ -37,5 +37,5 @@ it("rounds each selected group from underlying precise durations and flags incom
   });
   expect(summarize([p("x", "A", "C", 0)])).toMatchObject({ roundedMinutes: 0, complete: true });
 });
-it.skip("clips a period at date-range boundaries once the selection rule is agreed in docs/DESIGN_REVIEW.md", () => {});
-it.skip("selects validation states for monetary and time totals once agreed in docs/DESIGN_REVIEW.md", () => {});
+it.skip("clips a period at date-range boundaries once the selection rule is agreed in docs/REQUIREMENTS.md", () => {});
+it.skip("selects validation states for monetary and time totals once agreed in docs/REQUIREMENTS.md", () => {});

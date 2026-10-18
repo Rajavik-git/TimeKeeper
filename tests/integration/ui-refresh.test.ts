@@ -2,8 +2,7 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { memoryDb } from "../fixtures/database.js";
 import { createApp } from "../../src/backend/api/app";
-import { previousBillingMetrics } from "../../src/frontend/calculations/cases";
-import type { State, CoreState } from "../../src/frontend/api/client";
+import type { CoreState } from "../../src/frontend/api/client";
 
 describe("interface API filters and source packs", () => {
   it("filters a selected day on the server and finds case names without accents", async () => {
@@ -52,41 +51,6 @@ describe("interface API filters and source packs", () => {
       expect(JSON.parse(result.export.time_entry_ids)).toEqual(
         pack.entries.map((entry) => entry.id),
       );
-    } finally {
-      db.close();
-    }
-  });
-  it("compares Billing against historically validated September periods", async () => {
-    const db = memoryDb();
-    try {
-      const app = createApp(db);
-      const [state, periods, billing] = await Promise.all([
-        app.request("/api/catalog").then((response) => response.json()) as Promise<State>,
-        app.request("/api/work-periods").then((response) => response.json()) as Promise<
-          CoreState["periods"]
-        >,
-        app.request("/api/billing/state").then((response) => response.json()) as Promise<
-          CoreState["billing"]
-        >,
-      ]);
-      const comparison = previousBillingMetrics(
-        state,
-        {
-          periods,
-          billing,
-          sources: [],
-          sessions: [],
-          activeSession: null,
-          questions: [],
-          coverageGaps: [],
-          auditEvents: [],
-        },
-        "2026-10-16",
-      );
-      expect(comparison.previousDay).toBe("2026-09-16");
-      expect(comparison.toBillCents).toBeGreaterThan(0);
-      expect(comparison.readyCents).toBe(comparison.toBillCents);
-      expect(comparison.waitingCases).toBe(0);
     } finally {
       db.close();
     }

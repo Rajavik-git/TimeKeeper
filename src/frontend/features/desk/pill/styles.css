@@ -1,0 +1,8 @@
+/* The native pill shares tokens and controls, but keeps its transparent document. */
+@layer features, components, tokens;
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+@import "./pill.css" layer(features);
+@import "../components/WorkPill/WorkPill.css" layer(features);
+@import "../../../shared/design-system/controls.css" layer(components);
+@import "../../../shared/design-system/tokens.css" layer(tokens);

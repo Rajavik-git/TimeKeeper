@@ -1,3 +1,4 @@
+import { BillingStatus, RateOrigin } from "../../domain/states.js";
 import { calendarDay } from "../../../shared/dates.js";
 import { eq } from "drizzle-orm";
 import { orm } from "./orm.js";
@@ -10,7 +11,6 @@ import {
 import type { DatabaseSync } from "node:sqlite";
 import { SqliteRepository } from "./core-repository.js";
 import { displayId } from "./identifiers.js";
-import { validateTime } from "../../domain/rules.js";
 
 type Row = Record<string, unknown>;
 function nextEntryId(db: DatabaseSync): number {
@@ -68,7 +68,7 @@ export function entries(db: DatabaseSync, includeExcluded = false): Row[] {
           : (p.durationOverrideMs ?? p.detectedDurationMs)! / 360000,
       label: p.label ?? "",
       amount_cents: 0,
-      rate_origin: "base",
+      rate_origin: RateOrigin.Base,
       billable: p.billable ?? true,
       reason: p.nonbillableReason ?? null,
       review_status:
@@ -76,37 +76,13 @@ export function entries(db: DatabaseSync, includeExcluded = false): Row[] {
           ? "approved"
           : "to_review",
       billing_status:
-        p.billingStatus === "billed" ? "billed" : p.billable === false ? "not_billable" : "to_bill",
+        p.billingStatus === BillingStatus.Billed
+          ? BillingStatus.Billed
+          : p.billable === false
+            ? "not_billable"
+            : "to_bill",
       invoice_id: p.invoiceId ?? null,
     }));
-}
-export function updateEntry(db: DatabaseSync, id: number, data: Row): Row {
-  const link = orm(db)
-    .select()
-    .from(demo_period_entries)
-    .where(eq(demo_period_entries.entry_id, id))
-    .get();
-  const repo = new SqliteRepository(db);
-  const prior = repo.period(String(link?.period_id ?? id));
-  if (!prior) throw Error("Not found");
-  if (data.matter_id !== undefined && String(data.matter_id) !== prior.caseId)
-    throw Error("Assignment must use application service");
-  let next = { ...prior, revision: prior.revision + 1 };
-  if (data.label !== undefined) next.label = String(data.label);
-  if (data.task_id !== undefined)
-    next.taskTypeId = data.task_id === null ? null : Number(data.task_id);
-  if (data.billable !== undefined) next.billable = Boolean(data.billable);
-  if (data.reason !== undefined)
-    next.nonbillableReason = data.reason === null ? null : String(data.reason);
-  if (data.review_status === "to_review")
-    next = { ...next, validatedEffectiveRevision: null, timeValidatedAt: null };
-  if (data.review_status === "approved") {
-    if (next.caseId === null || (next.durationOverrideMs ?? next.detectedDurationMs) === null)
-      throw Error("Case and duration required for approval");
-    next = validateTime(next, new Date().toISOString());
-  }
-  repo.savePeriod(next, new Date().toISOString());
-  return entries(db, true).find((item) => item.id === id)!;
 }
 export function insertEntry(db: DatabaseSync, data: Row): Row {
   if (data.block_id !== null) {
@@ -126,6 +102,8 @@ export function insertEntry(db: DatabaseSync, data: Row): Row {
 }
 
 export function blocks(db: DatabaseSync): Row[] {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='block'").get())
+    return [];
   const repo = new SqliteRepository(db);
   return orm(db)
     .select()

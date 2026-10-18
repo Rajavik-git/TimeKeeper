@@ -1,0 +1,50 @@
+body {
+  font-family: var(--f);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+h1,
+.page h1 {
+  font-size: var(--fs-xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+h2,
+h3,
+.page h2,
+.page h3,
+.card-h h2 {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+.small,
+.tiny,
+.muted,
+.ph p,
+.page-head p,
+.settings-head p,
+.card-h p {
+  font-size: var(--fs-sm);
+}
+.ph p,
+.page-head p,
+.settings-head p,
+.card-h p,
+.muted {
+  color: var(--muted);
+}
+.mono,
+.ref,
+.matter-reference,
+kbd {
+  font-family: var(--m);
+  font-size: var(--fs-xs);
+}

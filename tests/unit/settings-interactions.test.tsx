@@ -1,10 +1,25 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api, type ScreenProps } from "../../src/frontend/api/client";
 import { Settings } from "../../src/frontend/features/settings/Settings";
 import { frontendFixture } from "./frontend-fixture";
+
+beforeEach(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = false;
+    },
+  });
+});
 
 afterEach(() => {
   cleanup();
@@ -23,41 +38,38 @@ function props(): ScreenProps {
   };
 }
 
-it("closes forms on section changes and isolates client and task drafts", async () => {
+it("requires an explicit discard decision before closing a client draft", async () => {
   const user = userEvent.setup();
   render(<Settings {...props()} />);
   await user.click(screen.getByRole("button", { name: "Add client", exact: true }));
   await user.type(screen.getByRole("textbox", { name: "Client name" }), "Unsaved client");
-  await user.type(screen.getByRole("textbox", { name: "Client code" }), "CLIENT");
+  await user.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+  expect(screen.getByText("Discard unsaved changes?")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(screen.getByRole("textbox", { name: "Client name" })).toHaveProperty(
+    "value",
+    "Unsaved client",
+  );
+  await user.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+  await user.click(screen.getByRole("button", { name: "Discard changes" }));
   await user.click(screen.getByRole("button", { name: "Tasks", exact: true }));
-  expect(screen.queryByRole("textbox", { name: "Task label" })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Add task", exact: true }));
   expect(screen.getByRole("textbox", { name: "Task label" })).toHaveProperty("value", "");
-  expect(screen.getByRole("textbox", { name: "Task code" })).toHaveProperty("value", "");
-  await user.type(screen.getByRole("textbox", { name: "Task label" }), "Unsaved task");
-  await user.type(screen.getByRole("textbox", { name: "Task code" }), "TASK");
-  await user.click(screen.getByRole("button", { name: "Clients", exact: true }));
-  expect(screen.queryByRole("textbox", { name: "Client name" })).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Add client", exact: true }));
-  expect(screen.getByRole("textbox", { name: "Client name" })).toHaveProperty("value", "");
-  expect(screen.getByRole("textbox", { name: "Client code" })).toHaveProperty("value", "");
 });
 
-it("does not carry client amount errors into another section or a new form", async () => {
+it("retains invalid rate edits and their errors when changing sections", async () => {
   const user = userEvent.setup();
-  const post = vi.spyOn(api, "POST");
   render(<Settings {...props()} />);
-  await user.click(screen.getByRole("button", { name: "Add client", exact: true }));
-  const name = screen.getByRole("textbox", { name: "Client name" });
-  fireEvent.submit(name.closest("form")!);
-  expect(screen.getByRole("alert").textContent).toContain("Enter a non-negative amount");
-  expect(post).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Rates", exact: true }));
+  const rate = screen.getByRole("textbox", { name: "Hourly rate" });
+  await user.clear(rate);
+  await user.type(rate, "invalid");
+  fireEvent.blur(rate);
+  expect(screen.getByRole("alert").textContent).toContain("non-negative");
   await user.click(screen.getByRole("button", { name: "Tasks", exact: true }));
-  await user.click(screen.getByRole("button", { name: "Add task", exact: true }));
-  expect(screen.queryByRole("alert")).toBeNull();
-  await user.click(screen.getByRole("button", { name: "Clients", exact: true }));
-  await user.click(screen.getByRole("button", { name: "Add client", exact: true }));
-  expect(screen.queryByRole("alert")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Rates", exact: true }));
+  expect(screen.getByRole("textbox", { name: "Hourly rate" })).toHaveProperty("value", "invalid");
+  expect(screen.getByRole("alert").textContent).toContain("non-negative");
 });
 
 it.each(["client", "task"] as const)("preserves the %s draft when saving fails", async (kind) => {
@@ -75,7 +87,7 @@ it.each(["client", "task"] as const)("preserves the %s draft when saving fails",
     name: kind === "client" ? "Client name" : "Task label",
   });
   const code = screen.getByRole("textbox", {
-    name: kind === "client" ? "Client code" : "Task code",
+    name: kind === "client" ? /Client code/ : "Task code",
   });
   await user.type(name, "Keep this draft");
   await user.type(code, "KEEP");
@@ -115,10 +127,7 @@ it("keeps unsupported capture controls inactive and uses distinct keys for equal
   );
   await user.click(screen.getByRole("button", { name: "Rates", exact: true }));
   expect(screen.getByRole("textbox", { name: "Hourly rate" })).toHaveProperty("value", "0.00");
-  expect(screen.getByRole("textbox", { name: "Sales tax on fees" })).toHaveProperty(
-    "value",
-    "None",
-  );
+  expect(screen.getByRole("textbox", { name: "VAT on fees (%)" })).toHaveProperty("value", "None");
   expect(errors.mock.calls.flat().join(" ")).not.toContain("same key");
   expect(patch).not.toHaveBeenCalled();
 });
@@ -139,4 +148,45 @@ it("creates a research cap using the entered limit instead of the fixed default"
       body: { clientId: "client", type: "daily_research_cap", value: 10 },
     }),
   );
+});
+
+it("keeps client categories and billing labels distinct from stored values", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  input.catalogState.clients.push({
+    ...input.catalogState.clients[0],
+    id: "company",
+    name: "Example company",
+    type: "company",
+    mode: "subscription",
+  });
+  render(<Settings {...input} />);
+  expect(screen.getByText("Individual")).toBeTruthy();
+  expect(screen.getByText("Company")).toBeTruthy();
+  expect(screen.getByText("Subscription")).toBeTruthy();
+  expect(screen.getByRole("cell", { name: "Hourly" })).toBeTruthy();
+  expect(screen.getByRole("columnheader", { name: "VAT" })).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Edit Example company" }));
+  expect(screen.getByRole("option", { name: "Subscription" })).toHaveProperty(
+    "value",
+    "subscription",
+  );
+});
+
+it("keeps a failed configured rate and a local retry message across sections", async () => {
+  const user = userEvent.setup();
+  vi.spyOn(api, "PATCH").mockResolvedValue({ error: { message: "Unavailable" } } as never);
+  render(<Settings {...props()} />);
+  await user.click(screen.getByRole("button", { name: "Rates", exact: true }));
+  const rate = screen.getByRole("textbox", { name: "Hourly rate" });
+  await user.clear(rate);
+  await user.type(rate, "90");
+  fireEvent.blur(rate);
+  await waitFor(() =>
+    expect(screen.getByRole("alert").textContent).toContain("Press Enter to retry"),
+  );
+  await user.click(screen.getByRole("button", { name: "Tasks", exact: true }));
+  await user.click(screen.getByRole("button", { name: "Rates", exact: true }));
+  expect(screen.getByRole("textbox", { name: "Hourly rate" })).toHaveProperty("value", "90");
+  expect(screen.getByRole("alert").textContent).toContain("Press Enter to retry");
 });

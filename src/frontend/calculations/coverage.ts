@@ -1,3 +1,4 @@
+import { AvailabilityStatus } from "../../contracts/states.generated";
 import type { CoreState } from "../api/client";
 import { effectiveMs, hasCoverageGap } from "./billing";
 
@@ -13,9 +14,9 @@ export function coverageProblems(
   const linked = sources.filter((source) => source.workPeriodId === period.id);
   if (!linked.length && period.durationOverrideMs === null)
     reasons.push("No evidence is linked and no duration correction is recorded.");
-  if (linked.some((source) => source.availabilityStatus === "unavailable"))
+  if (linked.some((source) => source.availabilityStatus === AvailabilityStatus.Unavailable))
     reasons.push("A linked source is unavailable in Screenpipe.");
-  if (linked.some((source) => source.availabilityStatus === "unknown"))
+  if (linked.some((source) => source.availabilityStatus === AvailabilityStatus.Unknown))
     reasons.push("Availability of a linked source has not been checked.");
   return reasons;
 }

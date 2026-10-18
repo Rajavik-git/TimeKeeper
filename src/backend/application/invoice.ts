@@ -1,6 +1,22 @@
+import {
+  expenseTypes,
+  invoiceLineOrigins,
+  invoiceTypes,
+  rateOrigins,
+  isState,
+  ExpenseType,
+  BillingStatus,
+  CaseBillingMode,
+  ClientRuleType,
+  InvoiceLineOrigin,
+  InvoiceType,
+  RateOrigin,
+  SystemTaskCode,
+} from "../domain/states.js";
+import { researchCapDurationMs } from "../../shared/client-rule-policy.js";
 import { invoiceAmounts } from "../../shared/invoice-math.js";
 import { calendarDay, isCalendarDay, isTimeZone, systemTimeZone } from "../../shared/dates.js";
-import { AppError } from "./service.js";
+import { AppError } from "./errors.js";
 import type { InvoicePort, InvoiceSnapshot } from "../ports/invoice.js";
 
 function nonnegative(value: unknown, name: string): asserts value is number {
@@ -25,12 +41,12 @@ export function issueInvoice(
           snapshot.caseId.trim().length > 0 &&
           snapshot.caseId.length <= 200)
       ) ||
-      (snapshot.type !== "deposit" && snapshot.type !== "final") ||
+      !isState(snapshot.type, invoiceTypes) ||
       !Array.isArray(snapshot.periodIds) ||
       !Array.isArray(snapshot.lines) ||
       typeof snapshot.revisions !== "object" ||
       snapshot.revisions === null ||
-      !["matter", "client", "base", "flat_fee"].includes(snapshot.rateOrigin)
+      !isState(snapshot.rateOrigin, rateOrigins)
     )
       throw new AppError("invalid-request", "invalid invoice snapshot");
     const timeZone = snapshot.timeZone ?? systemTimeZone();
@@ -38,7 +54,7 @@ export function issueInvoice(
     const caseId = String(snapshot.caseId);
     const item = port.getCase(caseId);
     if (!item) throw new AppError("not-found", "case not found");
-    if (snapshot.type === "final" && port.hasFinalInvoice(caseId))
+    if (snapshot.type === InvoiceType.Final && port.hasFinalInvoice(caseId))
       throw new AppError("conflict", "final invoice already exists");
     for (const key of [
       "billedMinutes",
@@ -52,17 +68,17 @@ export function issueInvoice(
     ] as const)
       nonnegative(snapshot[key], key);
     const rate =
-      item.mode === "flat_fee"
+      item.mode === CaseBillingMode.FlatFee
         ? 0
         : (item.caseRateCents ?? item.clientRateCents ?? item.globalRateCents);
     const origin =
-      item.mode === "flat_fee"
-        ? "flat_fee"
+      item.mode === CaseBillingMode.FlatFee
+        ? RateOrigin.FlatFee
         : item.caseRateCents !== null
-          ? "matter"
+          ? RateOrigin.Case
           : item.clientRateCents !== null
-            ? "client"
-            : "base";
+            ? RateOrigin.Client
+            : RateOrigin.Base;
     if (snapshot.rateCents !== rate || snapshot.rateOrigin !== origin)
       throw new AppError("conflict", "configured rate changed");
     const ids = new Set(snapshot.periodIds);
@@ -81,7 +97,7 @@ export function issueInvoice(
       if (!Number.isSafeInteger(durationMs))
         throw new AppError("invalid-request", "duration total exceeds supported range");
       if (
-        period.billingStatus !== "unbilled" ||
+        period.billingStatus !== BillingStatus.Unbilled ||
         period.invoiceId !== null ||
         period.validatedEffectiveRevision !== period.effectiveRevision ||
         snapshot.revisions[id] !== period.effectiveRevision
@@ -93,17 +109,23 @@ export function issueInvoice(
     const context = port.getRuleContext(caseId, [...ids]);
     for (const rule of context.rules) {
       if (
-        rule.type === "nonbillable_travel" &&
-        context.periods.some((period) => ids.has(period.id) && period.taskCode === "DEPL")
+        rule.type === ClientRuleType.NonbillableTravel &&
+        context.periods.some(
+          (period) => ids.has(period.id) && period.taskCode === SystemTaskCode.Travel,
+        )
       )
         throw new AppError("conflict", "client travel rule excludes a selected period");
-      if (rule.type === "daily_research_cap") {
+      if (rule.type === ClientRuleType.DailyResearchCap) {
         const byDate = new Map<string, number>();
-        for (const period of context.periods.filter((period) => period.taskCode === "RECH")) {
+        for (const period of context.periods.filter(
+          (period) => period.taskCode === SystemTaskCode.Research,
+        )) {
           const date = calendarDay(period.startedAt, timeZone);
           byDate.set(date, (byDate.get(date) ?? 0) + (period.effectiveDurationMs ?? 0));
         }
-        if ([...byDate.values()].some((durationMs) => durationMs > rule.value * 360000))
+        if (
+          [...byDate.values()].some((durationMs) => durationMs > researchCapDurationMs(rule.value))
+        )
           throw new AppError("conflict", "client daily research cap exceeded");
       }
     }
@@ -115,7 +137,7 @@ export function issueInvoice(
     for (const line of snapshot.lines) {
       if (
         !line ||
-        !["work_period", "expense", "flat_fee"].includes(line.origin) ||
+        !isState(line.origin, invoiceLineOrigins) ||
         typeof line.originId !== "string" ||
         typeof line.label !== "string" ||
         typeof line.vat !== "boolean"
@@ -127,22 +149,22 @@ export function issueInvoice(
         ["amountCents", line.amountCents],
       ] as const)
         nonnegative(value, name);
-      if (line.origin === "work_period") {
+      if (line.origin === InvoiceLineOrigin.WorkPeriod) {
         workLines++;
         if (
           line.originId !== caseId ||
           line.billedMinutes !== snapshot.billedMinutes ||
           line.rateCents !== snapshot.rateCents ||
-          line.amountCents !== (item.mode === "flat_fee" ? 0 : snapshot.feesCents) ||
+          line.amountCents !== (item.mode === CaseBillingMode.FlatFee ? 0 : snapshot.feesCents) ||
           !line.vat
         )
           throw new AppError("conflict", "work line does not match selected periods");
-      } else if (line.origin === "flat_fee") {
+      } else if (line.origin === InvoiceLineOrigin.FlatFee) {
         flatFeeLines++;
         if (
-          item.mode !== "flat_fee" ||
+          item.mode !== CaseBillingMode.FlatFee ||
           line.originId !== caseId ||
-          snapshot.type !== "final" ||
+          snapshot.type !== InvoiceType.Final ||
           line.amountCents !== item.flatFeeCents ||
           line.billedMinutes !== 0 ||
           line.rateCents !== 0 ||
@@ -160,12 +182,12 @@ export function issueInvoice(
           expense.caseId !== caseId ||
           expense.invoiceId !== null ||
           expense.amountCents !== line.amountCents ||
-          line.vat !== (expense.type === "expense")
+          line.vat !== (expense.type === ExpenseType.Expense)
         )
           throw new AppError("conflict", "expense changed or already billed");
         if (line.billedMinutes !== 0 || line.rateCents !== 0)
           throw new AppError("conflict", "expense line cannot contain work duration or rate");
-        if (expense.type === "expense") expensesCents += expense.amountCents;
+        if (expense.type === ExpenseType.Expense) expensesCents += expense.amountCents;
         else disbursementsCents += expense.amountCents;
       }
     }
@@ -173,12 +195,21 @@ export function issueInvoice(
       throw new AppError("invalid-request", "one grouped work line required");
     if (flatFeeLines > 1) throw new AppError("invalid-request", "duplicate flat fee");
     if (snapshot.lines.length === 0) throw new AppError("invalid-request", "nothing to invoice");
-    if (item.mode === "flat_fee" && snapshot.type === "final" && flatFeeLines !== 1)
+    if (
+      item.mode === CaseBillingMode.FlatFee &&
+      snapshot.type === InvoiceType.Final &&
+      flatFeeLines !== 1
+    )
       throw new AppError("invalid-request", "final flat-fee invoice requires the agreed fee line");
     const expected = invoiceAmounts({
       durationMs,
       rateCents: rate,
-      flatFeeCents: item.mode === "flat_fee" ? (flatFeeLines ? (item.flatFeeCents ?? 0) : 0) : null,
+      flatFeeCents:
+        item.mode === CaseBillingMode.FlatFee
+          ? flatFeeLines
+            ? (item.flatFeeCents ?? 0)
+            : 0
+          : null,
       expensesCents,
       disbursementsCents,
       vatRate: item.vatRate,
@@ -211,17 +242,13 @@ export function addExpense(
     caseId: string;
     date: string;
     label: string;
-    type: "expense" | "disbursement";
+    type: ExpenseType;
     amountCents: number;
   },
 ) {
   return port.transaction(() => {
     if (!port.getCase(input.caseId)) throw new AppError("not-found", "case not found");
-    if (
-      !isCalendarDay(input.date) ||
-      !input.label?.trim() ||
-      !["expense", "disbursement"].includes(input.type)
-    )
+    if (!isCalendarDay(input.date) || !input.label?.trim() || !isState(input.type, expenseTypes))
       throw new AppError("invalid-request", "invalid expense");
     nonnegative(input.amountCents, "amountCents");
     return { id: port.addExpense(input) };
@@ -230,7 +257,7 @@ export function addExpense(
 
 export function removeExpense(port: InvoicePort, id: number) {
   return port.transaction(() => {
-    const expense = port.getExpense(id);
+    const expense = port.getExpenseForRemoval(id);
     if (!expense) throw new AppError("not-found", "expense not found");
     if (expense.invoiceId !== null) throw new AppError("conflict", "expense already billed");
     port.removeExpense(id);

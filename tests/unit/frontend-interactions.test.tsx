@@ -15,11 +15,23 @@ import { useResource } from "../../src/frontend/api/queries";
 import { api, type ScreenProps } from "../../src/frontend/api/client";
 import { Settings } from "../../src/frontend/features/settings/Settings";
 import { Cases } from "../../src/frontend/features/cases/Cases";
-import { DayCalendar } from "../../src/frontend/features/workday/DayCalendar";
+import { DayCalendar } from "../../src/frontend/features/workday/components/DayCalendar/DayCalendar";
 import { PreInvoices } from "../../src/frontend/features/billing-status/PreInvoices";
 import { frontendFixture } from "./frontend-fixture";
 
 beforeEach(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = true;
+    },
+  });
+  Object.defineProperty(HTMLDialogElement.prototype, "close", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.open = false;
+    },
+  });
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -124,10 +136,13 @@ it("clears case rate and budget overrides, preserves zero, and rejects a blank r
   await user.click(screen.getByRole("button", { name: "Edit Test client" }));
   await user.clear(screen.getByRole("textbox", { name: "Rate USD/h" }));
   await user.tab();
+  expect(patch).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Save client" }));
   expect(patch).toHaveBeenCalledWith(
     "/api/catalog/clients/{id}",
-    expect.objectContaining({ body: { hourlyRateCents: null } }),
+    expect.objectContaining({ body: expect.objectContaining({ hourlyRateCents: null }) }),
   );
+  expect(screen.queryByRole("dialog")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Rates", exact: true }));
   const rate = screen.getByRole("textbox", { name: "Test case own rate USD/h" });
   await user.clear(rate);
@@ -216,7 +231,7 @@ it("refreshes committed progress in Cases after a later validation request rejec
   await user.click(screen.getByRole("button", { name: "Validate all (2)" }));
   await waitFor(() => expect(input.refresh).toHaveBeenCalledOnce());
   expect(post).toHaveBeenCalledTimes(2);
-  expect(screen.getByRole("status").textContent).toContain("1 of 2 periods validated");
+  expect(screen.getByRole("status").textContent).toContain("Time validated for 1 of 2 periods");
 });
 
 it("renders a core-created case whose opening date is unknown", () => {
@@ -235,7 +250,7 @@ it("labels independently billed work accurately and opens its period review", as
   input.workspaceState.periods[0].billingStatus = "billed";
   input.openPeriodReview = vi.fn();
   render(<Cases {...input} />);
-  expect(screen.queryByText("In invoice")).toBeNull();
+  expect(screen.queryByText("Included in issued invoice")).toBeNull();
   await user.click(screen.getByRole("button", { name: "Review", exact: true }));
   expect(input.openPeriodReview).toHaveBeenCalledWith("period");
 });
@@ -254,4 +269,52 @@ it("explains an invoice coverage blocker and links directly to the target period
   );
   await user.click(screen.getByRole("button", { name: "Review period", exact: true }));
   expect(input.openPeriodReview).toHaveBeenCalledWith("period");
+});
+
+it("counts only the markers visible in the case marker table, including the client name", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  input.selectedCase = "case";
+  render(<Cases {...input} />);
+  await user.click(screen.getByRole("tab", { name: "Markers (2)" }));
+  expect(screen.getByText("Client name")).toBeTruthy();
+  expect(screen.getAllByRole("row")).toHaveLength(3);
+});
+
+it("shows human marker choices while sending the canonical marker value", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  input.selectedCase = "case";
+  const post = vi.spyOn(api, "POST").mockResolvedValue({ data: { id: "marker" } } as never);
+  render(<Cases {...input} />);
+  await user.click(screen.getByRole("tab", { name: "Markers (2)" }));
+  await user.click(screen.getAllByRole("button", { name: "Add marker", exact: true }).at(-1)!);
+  expect(screen.getByRole("option", { name: "Opposing party" })).toHaveProperty(
+    "value",
+    "opposing_party",
+  );
+  expect(screen.queryByRole("option", { name: "opposing_party" })).toBeNull();
+  await user.selectOptions(screen.getByRole("combobox", { name: "Marker type" }), "opposing_party");
+  await user.type(screen.getByRole("textbox", { name: "New marker" }), "Example opponent");
+  await user.click(screen.getAllByRole("button", { name: "Add marker", exact: true }).at(-1)!);
+  expect(post).toHaveBeenCalledWith("/api/catalog/markers", {
+    body: { caseId: "case", type: "opposing_party", value: "Example opponent" },
+  });
+});
+
+it("distinguishes no-charge work from unbilled work in case time", () => {
+  const input = props();
+  input.selectedCase = "case";
+  input.workspaceState.periods.push({
+    ...input.workspaceState.periods[0],
+    id: "no-charge",
+    label: "Courtesy review",
+    billable: false,
+    nonbillableReason: "offered",
+  });
+  render(<Cases {...input} />);
+  expect(screen.getByText("No charge")).toBeTruthy();
+  expect(screen.getByText("Unbilled")).toBeTruthy();
+  expect(screen.queryByText("Offered")).toBeNull();
+  expect(screen.getAllByText("Time validated")).toHaveLength(2);
 });

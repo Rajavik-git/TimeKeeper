@@ -11,9 +11,9 @@ import {
 } from "../../src/frontend/shared/format";
 
 describe("English display formats", () => {
-  it("uses two decimal places for money and whole dollars for hourly rates", () => {
+  it("uses two decimal places for money and hourly rates", () => {
     expect(money(139000)).toBe("$1,390.00");
-    expect(rate(30000)).toBe("$300/h");
+    expect(rate(30000)).toBe("$300.00/h");
     expect(percent(91)).toBe("91%");
   });
   it("shows durations as hours and minutes without decimal hours", () => {
@@ -31,5 +31,5 @@ describe("English display formats", () => {
 
 it("formats configured currencies without retaining the USD symbol", () => {
   expect(money(30000, "EUR")).toBe("€300.00");
-  expect(rate(30000, "EUR")).toBe("€300/h");
+  expect(rate(30000, "EUR")).toBe("€300.00/h");
 });

@@ -1,3 +1,5 @@
+import { CaseBillingMode } from "../../domain/states.js";
+import { AppError } from "../../application/errors.js";
 import { readRow, readRows, writeRow } from "./table-access.js";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
@@ -5,7 +7,7 @@ import { dirname, resolve } from "node:path";
 const projectRoot = process.cwd();
 import { initializeDatabase } from "./initialize.js";
 import type { components } from "../../../contracts/generated.js";
-import { blocks, entries, insertEntry, updateEntry } from "./entries.js";
+import { blocks, entries, insertEntry } from "./entries.js";
 import { catalogRows, catalogWrite } from "./catalog.js";
 import { transaction as sqliteTransaction } from "./transaction.js";
 import { chooseRate } from "../../domain/pricing.js";
@@ -70,12 +72,21 @@ function databaseValue(value: unknown): string | number | null {
   if (result === null || typeof result === "string" || typeof result === "number") return result;
   throw Error("Invalid database value");
 }
+const optionalHistoricalTables = new Set<Table>(["block", "pause", "jev_review", "schema_version"]);
+function historicalTableMissing(db: DatabaseSync, table: Table): boolean {
+  return (
+    optionalHistoricalTables.has(table) &&
+    !db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table)
+  );
+}
 export function all(db: DatabaseSync, table: Table): Row[] {
+  if (historicalTableMissing(db, table)) return [];
   if (table === "time_entry") return entries(db);
   if (table === "block") return blocks(db);
   return (catalogRows(db, table) ?? readRows(db, table)).map(normalize);
 }
 export function one(db: DatabaseSync, table: Table, id: number | string): Row | undefined {
+  if (historicalTableMissing(db, table)) return undefined;
   if (table === "time_entry")
     return entries(db, true).find((item) => String(item.id) === String(id));
   if (table === "block") return blocks(db).find((item) => String(item.id) === String(id));
@@ -85,6 +96,8 @@ export function one(db: DatabaseSync, table: Table, id: number | string): Row | 
   return row ? normalize(row) : undefined;
 }
 export function insert(db: DatabaseSync, table: Table, data: Row): Row {
+  if (historicalTableMissing(db, table))
+    throw new AppError("pending", "historical capture controls are unavailable");
   if (table === "time_entry") return insertEntry(db, data);
   const projected = catalogWrite(db, table, data);
   if (projected) return normalize(projected);
@@ -95,7 +108,8 @@ export function insert(db: DatabaseSync, table: Table, data: Row): Row {
   return one(db, table, id)!;
 }
 export function update(db: DatabaseSync, table: Table, id: number | string, data: Row): Row {
-  if (table === "time_entry") return updateEntry(db, Number(id), data);
+  if (table === "time_entry")
+    throw new AppError("invalid-request", "period writes require an application use case");
   if (table === "block")
     data = Object.fromEntries(Object.entries(data).filter(([key]) => key !== "matter_id"));
   const projected = catalogWrite(db, table, data, id);
@@ -107,7 +121,7 @@ export function update(db: DatabaseSync, table: Table, id: number | string, data
   if (!keys.length) throw Error("No updatable field");
   writeRow(db, table, Object.fromEntries(keys.map((key) => [key, databaseValue(data[key])])), id);
   const row = one(db, table, id);
-  if (!row) throw Error("Not found");
+  if (!row) throw new AppError("not-found", "resource not found");
   return row;
 }
 export function transaction<T>(db: DatabaseSync, work: () => T): T {
@@ -159,6 +173,6 @@ export function rate(db: DatabaseSync, dossierId: number | string | null) {
     base_cents: Number(cab.base_rate_cents),
     client_cents: client?.rate_cents == null ? undefined : Number(client.rate_cents),
     matter_cents: matter?.own_rate_cents == null ? undefined : Number(matter.own_rate_cents),
-    flat_fee: matter?.mode === "flat_fee",
+    flat_fee: matter?.mode === CaseBillingMode.FlatFee,
   });
 }

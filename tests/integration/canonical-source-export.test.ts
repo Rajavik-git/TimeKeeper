@@ -111,7 +111,9 @@ it("exports canonical identities and precise timestamps, hashes the exact redact
     sha256: result.export.sha256,
   });
   expect(db.prepare("SELECT COUNT(*) AS count FROM demo_period_entries").get()?.count).toBe(0);
-  expect(db.prepare("SELECT COUNT(*) AS count FROM source_export").get()?.count).toBe(0);
+  expect(
+    db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_export'").get(),
+  ).toBeUndefined();
   expect(
     db
       .prepare("SELECT COUNT(*) AS count FROM audit_events WHERE action='Source pack generated'")

@@ -1,3 +1,9 @@
+import {
+  type NonbillableReason,
+  AssignmentOrigin,
+  BillingStatus,
+  CaseStatus,
+} from "../domain/states.js";
 import { calendarDay, isCalendarDay } from "../../shared/dates.js";
 import { formatInvoiceCsv } from "./invoice-csv.js";
 import { decision } from "../domain/recognition.js";
@@ -6,9 +12,7 @@ import type {
   CompatibilityRow,
   CompatibilityTable,
 } from "../ports/compatibility.js";
-import type { AssignmentPort } from "../ports/assignment.js";
 import type { PeriodRecord } from "../ports/repository.js";
-import { updateTimeEntry } from "./assignment.js";
 import {
   buildCaseSourcePack,
   type SourcePackScope,
@@ -16,8 +20,8 @@ import {
 } from "./source-pack.js";
 import { CatalogService } from "./catalog.js";
 import { SourceExportService } from "./source-export.js";
-import { changePeriod, effectiveDuration, validateTime } from "../domain/rules.js";
-import { AppError, TimeKeeperService } from "./service.js";
+import { AppError } from "./errors.js";
+import { TimeKeeperService } from "./service.js";
 
 const currentDate = () => calendarDay(new Date());
 const inputDate = (value: unknown) => {
@@ -27,7 +31,8 @@ const inputDate = (value: unknown) => {
   return value;
 };
 const required = (value: unknown, label: string) => {
-  if (value === null || value === undefined || value === "") throw Error(`${label} is required`);
+  if (value === null || value === undefined || value === "")
+    throw new AppError("invalid-request", `${label} is required`);
   return value;
 };
 
@@ -99,7 +104,7 @@ function translate(body: Record<string, unknown>, fields: Record<string, string>
     if (key === "status" && fields === caseFields) {
       if (value !== "open" && value !== "closed")
         throw new AppError("invalid-request", "invalid case status");
-      translated = value === "closed" ? "archived" : "active";
+      translated = value === "closed" ? CaseStatus.Archived : CaseStatus.Active;
     }
     result[fields[key]!] = translated;
   }
@@ -116,7 +121,7 @@ export class CompatibilityApiService {
 
   private get(table: CompatibilityTable, id: number | string): CompatibilityRow {
     const result = this.port.get(table, id);
-    if (!result) throw Error("Not found");
+    if (!result) throw new AppError("not-found", "resource not found");
     return result;
   }
 
@@ -187,44 +192,33 @@ export class CompatibilityApiService {
       entry.block_id == null
         ? this.port.canonicalPeriodForEntry(Number(entry.id))
         : this.port.canonicalPeriodForBlock(Number(entry.block_id));
-    if (!period) throw Error("Canonical work period not found");
+    if (!period) throw new AppError("not-found", "canonical work period not found");
     return period;
   }
 
-  private saveEntryPeriod(
-    entry: CompatibilityRow,
-    options: { validate?: boolean; unvalidate?: boolean } = {},
-  ) {
-    const prior = this.periodForEntry(entry);
-    if (prior.billingStatus === "billed" || prior.invoiceId !== null)
-      throw Error("Billed work period cannot be edited");
-    const caseId = entry.matter_id == null ? null : String(entry.matter_id);
-    if (caseId !== prior.caseId)
-      throw new AppError("conflict", "compatibility assignment is out of sync");
-    let next = prior;
-    if (options.unvalidate)
-      next = { ...next, validatedEffectiveRevision: null, timeValidatedAt: null };
-    if (options.validate) {
-      if (caseId === null || effectiveDuration(next) === null)
-        throw Error("Case and duration required for approval");
-      next = validateTime(next, new Date().toISOString());
-    }
-    next = {
-      ...next,
-      taskTypeId: entry.task_id == null ? null : Number(entry.task_id),
-      label: String(entry.label),
-      billable: Boolean(entry.billable),
-      nonbillableReason: entry.reason as string | null,
-      revision: prior.revision + 1,
-    };
-    this.port.saveCanonicalPeriod(next, new Date().toISOString());
-    return next;
-  }
-
-  updateEntry(id: number, body: Record<string, unknown>, assignment: AssignmentPort) {
+  updateEntry(id: number, body: Record<string, unknown>) {
     return this.port.transaction(() => {
       const before = this.get("time_entry", id);
       const prior = this.periodForEntry(before);
+      const allowed = [
+        "matter_id",
+        "billable",
+        "reason",
+        "label",
+        "review_status",
+        "expected_assignment_revision",
+        "expected_effective_revision",
+      ];
+      if (Object.keys(body).some((key) => !allowed.includes(key)))
+        throw new AppError("invalid-request", "field not allowed");
+      if (prior.billingStatus === BillingStatus.Billed || prior.invoiceId != null)
+        throw new AppError("conflict", "billed period must be unbilled before editing");
+      if (
+        body.review_status !== undefined &&
+        body.review_status !== "approved" &&
+        body.review_status !== "to_review"
+      )
+        throw new AppError("invalid-request", "invalid review status");
       if (body.review_status === "approved")
         this.assertApprovalRevision(prior, body.expected_effective_revision);
       if ("matter_id" in body) {
@@ -239,29 +233,35 @@ export class CompatibilityApiService {
           prior.id,
           String(body.matter_id),
           prior.assignmentRevision,
-          "lawyer",
+          AssignmentOrigin.Lawyer,
         );
       }
-      const {
-        expected_assignment_revision: _revision,
-        expected_effective_revision: _effective,
-        ...legacyBody
-      } = body;
-      const after = updateTimeEntry(
-        { ...assignment, transaction: (work) => work() },
+      const details = {
+        ...("label" in body ? { label: body.label as string } : {}),
+        ...("billable" in body ? { billable: body.billable as boolean } : {}),
+        ...("reason" in body ? { nonbillableReason: body.reason as NonbillableReason | null } : {}),
+      };
+      if (Object.keys(details).length) this.core.updatePeriodDetails(prior.id, details);
+      if (body.review_status === "approved") {
+        // The supplied revision guards the pre-edit snapshot; assignment and validation
+        // form one atomic legacy operation, so validate the resulting effective value.
+        const current = this.core.getPeriod(prior.id);
+        this.core.validatePeriod(prior.id, current.effectiveRevision);
+      } else if (body.review_status === "to_review") this.core.clearTimeValidation(prior.id);
+      if ("matter_id" in body && before.block_id != null)
+        this.port.update("block", Number(before.block_id), {
+          matter_id: body.matter_id,
+          state: "assigned",
+        });
+      const after = this.get("time_entry", id);
+      this.port.audit(
+        "Time entry updated",
+        JSON.stringify(before),
+        JSON.stringify(after),
         id,
-        legacyBody,
+        before.block_id == null ? null : Number(before.block_id),
       );
-      const changedCase =
-        "matter_id" in body &&
-        (after.matter_id == null ? null : String(after.matter_id)) !== prior.caseId;
-      this.saveEntryPeriod(after, {
-        validate: body.review_status === "approved",
-        unvalidate: body.review_status === "to_review",
-      });
-      if (changedCase && body.review_status !== "approved")
-        this.port.update("time_entry", id, { review_status: "to_review" });
-      return this.get("time_entry", id);
+      return after;
     });
   }
 
@@ -297,8 +297,8 @@ export class CompatibilityApiService {
           continue;
         }
         if (entry.review_status !== "approved") {
-          this.port.update("time_entry", Number(entry.id), { review_status: "approved" });
-          this.saveEntryPeriod(this.get("time_entry", Number(entry.id)), { validate: true });
+          const period = this.periodForEntry(entry);
+          this.core.validatePeriod(period.id, period.effectiveRevision);
           this.port.audit(
             "Time entry approved",
             "to_review",
@@ -330,8 +330,8 @@ export class CompatibilityApiService {
         .filter(
           (item) => String(item.matter_id) === String(id) && item.review_status !== "approved",
         )) {
-        this.port.update("time_entry", Number(entry.id), { review_status: "approved" });
-        this.saveEntryPeriod(this.get("time_entry", Number(entry.id)), { validate: true });
+        const period = this.periodForEntry(entry);
+        this.core.validatePeriod(period.id, period.effectiveRevision);
         this.port.audit(
           "Time entry approved",
           "to_review",
@@ -347,19 +347,14 @@ export class CompatibilityApiService {
 
   discardEntry(id: number) {
     const entry = this.get("time_entry", id);
-    if (entry.billing_status === "billed" || !entry.block_id)
-      throw Error("Block cannot be discarded");
+    if (entry.billing_status === BillingStatus.Billed || !entry.block_id)
+      throw new AppError("invalid-request", "Block cannot be discarded");
     return this.port.transaction(() => {
       const period = this.periodForEntry(entry);
-      if (period.billingStatus === "billed" || period.invoiceId !== null)
-        throw Error("Billed work period cannot be discarded");
+      if (period.billingStatus === BillingStatus.Billed || period.invoiceId !== null)
+        throw new AppError("invalid-request", "Billed work period cannot be discarded");
       const block = this.port.update("block", Number(entry.block_id), { state: "discarded" });
-      this.port.saveCanonicalPeriod(
-        { ...period, excluded: true, revision: period.revision + 1 },
-        new Date().toISOString(),
-      );
-      for (const question of this.port.pendingQuestions(period.id))
-        this.port.saveQuestion({ ...question, status: "superseded" });
+      this.core.updatePeriodDetails(period.id, { excluded: true }, period.revision);
       this.port.delete("time_entry", id);
       this.port.audit(
         "Block discarded",
@@ -373,57 +368,16 @@ export class CompatibilityApiService {
   }
 
   recoverBlock(id: number) {
-    const block = this.get("block", id);
-    if (
-      block.state !== "discarded" ||
-      this.port.rows("time_entry").some((entry) => entry.block_id === block.id)
-    )
-      throw Error("Block cannot be recovered");
     return this.port.transaction(() => {
-      const task = this.port.rows("task").find((item) => item.code === "RECH");
-      if (!task) throw Error("Recovery task missing");
-      const entry = this.port.insert("time_entry", {
-        block_id: block.id,
-        matter_id: null,
-        task_id: task.id,
-        date: block.date,
-        tenths_of_hour: Math.max(1, Math.round(Number(block.minutes) / 6)),
-        label: `${block.app} · ${block.window_title}`,
-        amount_cents: 0,
-        rate_origin: "base",
-        billable: true,
-        reason: null,
-        review_status: "to_review",
-        billing_status: "to_bill",
-        invoice_id: null,
-      });
-      this.port.update("block", id, { state: "to_check" });
+      const block = this.get("block", id);
       const period = this.port.canonicalPeriodForBlock(id);
-      if (!period) throw Error("Canonical work period not found");
-      if (period.caseId !== null)
-        this.port.update("time_entry", Number(entry.id), { matter_id: period.caseId });
-      this.port.update("block", id, {
-        state: period.caseId ? "assigned" : "to_check",
-        matter_id: period.caseId,
-      });
-      const next = {
-        ...period,
-        excluded: false,
-        taskTypeId: Number(task.id),
-        label: String(entry.label),
-        billable: true,
-        revision: period.revision + 1,
-      };
-      this.port.saveCanonicalPeriod(next, new Date().toISOString());
-      if (next.caseId === null)
-        this.core.askQuestion({
-          questionId: `recovered-period-question-${next.id}-${next.assignmentRevision}`,
-          sessionId: next.sessionId,
-          periodId: next.id,
-          expectedAssignmentRevision: next.assignmentRevision,
-        });
-      this.port.audit("Block recovered", "", "to assign", Number(entry.id), id);
-      return this.get("time_entry", Number(entry.id));
+      if (!period) throw new AppError("not-found", "canonical work period not found");
+      if (block.state !== "discarded" || !period.excluded)
+        throw new AppError("invalid-request", "Block cannot be recovered");
+      this.core.updatePeriodDetails(period.id, { excluded: false }, period.revision);
+      const entryId = this.port.ensureCompatibilityEntryId(period.id);
+      this.port.audit("Block recovered", "", "restored", entryId, id);
+      return this.get("time_entry", entryId);
     });
   }
 
@@ -465,7 +419,7 @@ export class CompatibilityApiService {
   removeExpense(id: number) {
     return this.port.transaction(() => {
       const item = this.get("expense", id);
-      if (item.invoice_id) throw Error("Expense already billed");
+      if (item.invoice_id) throw new AppError("invalid-request", "Expense already billed");
       this.port.assertExpenseCanBeRemoved(item);
       this.port.delete("expense", id);
       this.port.audit("Expense removed", JSON.stringify(item));
@@ -475,7 +429,7 @@ export class CompatibilityApiService {
 
   invoiceCsv(id: number) {
     const invoice = this.port.invoiceExport(id);
-    if (!invoice) throw Error("Not found");
+    if (!invoice) throw new AppError("not-found", "resource not found");
     return { csv: formatInvoiceCsv(invoice) };
   }
 
@@ -488,7 +442,7 @@ export class CompatibilityApiService {
 
   timeEntrySourceDetails(id: number) {
     const entry = this.get("time_entry", id);
-    if (!entry.block_id) throw Error("Not found");
+    if (!entry.block_id) throw new AppError("not-found", "resource not found");
     const block = this.get("block", Number(entry.block_id));
     return {
       time_entry: entry,
@@ -582,30 +536,21 @@ export class CompatibilityApiService {
 
   closeBlock(id: number, minutes: number) {
     const block = this.get("block", id);
-    if (!Number.isInteger(minutes) || minutes < 1) throw Error("Invalid duration");
+    if (!Number.isInteger(minutes) || minutes < 1)
+      throw new AppError("invalid-request", "Invalid duration");
     return this.port.transaction(() => {
       const entry = this.port.rows("time_entry").find((item) => item.block_id === block.id);
-      if (!entry || entry.billing_status === "billed") throw Error("Block cannot be closed");
+      if (!entry || entry.billing_status === BillingStatus.Billed)
+        throw new AppError("invalid-request", "Block cannot be closed");
       const before = Number(entry.tenths_of_hour);
-      this.port.update("time_entry", Number(entry.id), {
-        tenths_of_hour: before + Math.max(1, Math.round(minutes / 6)),
-      });
       this.port.update("block", id, {
         minutes: Number(block.minutes) + minutes,
         state: "assigned",
       });
       const period = this.periodForEntry(entry);
-      if (period.billingStatus === "billed" || period.invoiceId !== null)
-        throw Error("Billed work period cannot be closed");
-      const next = {
-        ...changePeriod(period, {
-          detectedDurationMs: (period.detectedDurationMs ?? 0) + minutes * 60000,
-        }),
-        revision: period.revision + 1,
-      };
-      this.port.saveCanonicalPeriod(next, new Date().toISOString());
-      if (next.effectiveRevision !== period.effectiveRevision)
-        this.port.update("time_entry", Number(entry.id), { review_status: "to_review" });
+      if (period.billingStatus === BillingStatus.Billed || period.invoiceId !== null)
+        throw new AppError("invalid-request", "Billed work period cannot be closed");
+      this.core.setDetectedDuration(period.id, (period.detectedDurationMs ?? 0) + minutes * 60000);
       this.port.audit(
         "Block closed",
         String(before),

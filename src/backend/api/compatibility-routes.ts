@@ -4,10 +4,10 @@ import { SourceExportService } from "../application/source-export.js";
 import { sourceExportPort } from "../adapters/sqlite/source-export.js";
 import { Hono } from "hono";
 import type { DatabaseSync } from "node:sqlite";
-import { AppError, TimeKeeperService } from "../application/service.js";
+import { AppError } from "../application/errors.js";
+import { TimeKeeperService } from "../application/service.js";
 import { CompatibilityApiService } from "../application/compatibility.js";
 import { createCompatibilityPort } from "../adapters/sqlite/compatibility.js";
-import { assignmentPort } from "../adapters/sqlite/assignment.js";
 import { SqliteRepository } from "../adapters/sqlite/core-repository.js";
 import { apiError } from "./errors.js";
 
@@ -34,7 +34,6 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
     new CatalogService(catalogRepository(db)),
     new SourceExportService(sourceExportPort(db)),
   );
-  const assignment = assignmentPort(db);
   routes.get("/state", (c) =>
     c.json(
       compatibility.state(c.req.query("date"), c.req.query("clientId"), c.req.query("caseId")),
@@ -67,11 +66,7 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
   });
   routes.patch("/time-entries/:id", async (c) =>
     c.json(
-      compatibility.updateEntry(
-        id(c.req.param("id")),
-        await c.req.json<Record<string, unknown>>(),
-        assignment,
-      ),
+      compatibility.updateEntry(id(c.req.param("id")), await c.req.json<Record<string, unknown>>()),
     ),
   );
   routes.post("/day/approve", async (c) => {

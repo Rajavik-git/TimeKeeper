@@ -1,0 +1,38 @@
+.catalog-editor {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+.catalog-editor-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.catalog-editor-fields label:not(.check) {
+  display: grid;
+  gap: 6px;
+}
+.catalog-editor-fields .check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.catalog-editor-fields textarea {
+  resize: vertical;
+  min-height: 76px;
+}
+.catalog-editor-fields p {
+  margin: 0;
+  font-size: 12px;
+}
+.draft-discard {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.draft-discard p {
+  margin: 0 0 10px;
+}

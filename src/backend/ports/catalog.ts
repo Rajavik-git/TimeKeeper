@@ -13,6 +13,11 @@ export interface CatalogPort {
   transaction<T>(work: () => T): T;
   state(): CatalogState;
   client(id: string): CatalogClient | undefined;
+  /** Unvalidated audit preimage permits explicit repair of historical invalid enums. */
+  auditSnapshot(
+    kind: "client" | "case" | "settings" | "marker" | "clientRule",
+    id: string | number,
+  ): Record<string, unknown> | undefined;
   case(id: string): CatalogCase | undefined;
   taskType(id: number): CatalogTaskType | undefined;
   marker(id: number): CatalogMarker | undefined;

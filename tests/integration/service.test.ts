@@ -317,10 +317,10 @@ it("invalidates detected-duration changes and preserves identical replay after v
   });
 });
 
-it.skip("derives periods and durations from screenshots once the interval rule is agreed in docs/DESIGN_REVIEW.md", () => {});
-it.skip("delivers end while the app is closed once the durable transport is chosen in docs/DESIGN_REVIEW.md", () => {});
-it.skip("freezes historical rates once the snapshot boundary is agreed in docs/DESIGN_REVIEW.md", () => {});
-it.skip("edits billed periods once the billing transition is agreed in docs/DESIGN_REVIEW.md", () => {});
+it.skip("derives periods and durations from screenshots once the interval rule is agreed in docs/REQUIREMENTS.md", () => {});
+it.skip("delivers end while the app is closed once the durable transport is chosen in docs/REQUIREMENTS.md", () => {});
+it.skip("freezes historical rates once the snapshot boundary is agreed in docs/REQUIREMENTS.md", () => {});
+it.skip("edits billed periods once the billing transition is agreed in docs/REQUIREMENTS.md", () => {});
 
 it("uses a configured global rate unless the case has an explicit zero rate", () => {
   const { repo, service } = fixture();
@@ -476,8 +476,8 @@ it("does not infer elapsed duration from observations thirty seconds apart", () 
   expect(service.getPeriod("p").detectedDurationMs).toBeNull();
 });
 
-it.skip("identifies a folder transition and matches a case after the folder-identification rule in docs/DESIGN_REVIEW.md is agreed", () => {});
-it.skip("verifies one provider tag target for all aliases after the Screenpipe target mapping contract in docs/DESIGN_REVIEW.md is verified", () => {});
+it.skip("identifies a folder transition and matches a case after the folder-identification rule in docs/REQUIREMENTS.md is agreed", () => {});
+it.skip("verifies one provider tag target for all aliases after the Screenpipe target mapping contract in docs/REQUIREMENTS.md is verified", () => {});
 
 it("protects lawyer case corrections during recovered transitions", () => {
   const { repo, service } = fixture();

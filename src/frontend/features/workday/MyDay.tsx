@@ -1,15 +1,25 @@
-import { calendarDay, calendarTime, systemTimeZone } from "../../../shared/dates";
-import { validatePeriods as runValidation, validationMessage } from "../../api/validatePeriods";
-import { DayCalendar, monthEnd } from "./DayCalendar";
+import { csvCell } from "../../../shared/csv";
+import { PageHeader } from "../../shared/components/PageHeader/PageHeader";
+import { rateOriginLabels } from "../../shared/presentation/billing";
+import { timeValidationLabels } from "../../shared/presentation/work-period";
+import { LeftOutPeriods } from "./components/LeftOutPeriods/LeftOutPeriods";
+import { DaySortHeader } from "./components/DaySortHeader/DaySortHeader";
+import { DayFilters } from "./components/DayFilters/DayFilters";
+import { DayCaseQuestion } from "./components/DayCaseQuestion/DayCaseQuestion";
+import { DayPeriodRow } from "./components/DayPeriodRow/DayPeriodRow";
+import { useDayCommands } from "./hooks/useDayCommands";
+import { BillingStatus, RateOrigin, ValidationStatus } from "../../../contracts/states.generated";
+import { useDayResources } from "./hooks/useDayResources";
+import { calendarTime } from "../../../shared/dates";
+import { DayCalendar } from "./components/DayCalendar/DayCalendar";
 import {
   buildDayView,
   type DayFilter as Filter,
   type SortState,
   type MainSortKey as MainKey,
   type LeftSortKey as LeftKey,
-} from "./dayView";
+} from "./lib/dayView";
 import { useToday } from "../../shared/hooks/useToday";
-import { useResource, requireData } from "../../api/queries";
 import {
   useCallback,
   useEffect,
@@ -23,10 +33,7 @@ import {
   clientForCase,
   caseById,
   money as formatMoney,
-  type CoreState,
-  type EntityId,
   type ScreenProps,
-  type State,
 } from "../../api/client";
 import {
   dayFees,
@@ -35,20 +42,13 @@ import {
   formatPreciseDuration,
   formatRoundedMinutes,
   summarizeWork,
+  type Period,
 } from "../../calculations/billing";
-import { CaseSelect } from "../../shared/components/CaseSelect";
-import { Kpi } from "../../shared/components/Kpi";
-import { Icon } from "../../shared/components/Icon";
-import { CaseReference } from "../../shared/components/CaseReference";
-import { showToast } from "../../shared/components/Toast";
-import { longDate } from "../../shared/format";
-import "./MyDay.css";
+import { Kpi } from "../../shared/components/Kpi/Kpi";
+import { Icon } from "../../shared/components/Icon/Icon";
+import { showToast } from "../../shared/components/Toast/Toast";
+import { longDate, rate as formatRate } from "../../shared/format";
 
-type DayData = Pick<CoreState, "periods" | "coverageGaps" | "questions"> & {
-  date: string;
-  state: State;
-};
-type Period = CoreState["periods"][number];
 export type MyDayViewState = {
   selectedDate: string;
   month: string;
@@ -83,38 +83,6 @@ const sortNext = <Key extends string>(
           ? "descending"
           : "ascending",
 });
-const csvCell = (value: string) => {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return `"${safe.replaceAll('"', '""')}"`;
-};
-
-function SortHeader<Key extends string>({
-  label,
-  sort,
-  sortKey,
-  numeric,
-  onSort,
-  className = "",
-}: {
-  label: string;
-  sort: SortState<Key>;
-  sortKey: Key;
-  numeric?: boolean;
-  onSort: (key: Key, numeric: boolean) => void;
-  className?: string;
-}) {
-  return (
-    <th
-      scope="col"
-      className={`sortable ${className}`}
-      aria-sort={sort?.key === sortKey ? sort.direction : undefined}
-    >
-      <button className="day-sort" onClick={() => onSort(sortKey, !!numeric)}>
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function MyDay({
   catalogState,
@@ -128,14 +96,15 @@ export function MyDay({
   viewState,
   setViewState,
   openPeriodReview,
+  resources,
 }: ScreenProps & {
+  resources?: ReturnType<typeof useDayResources>;
   returnFocusId?: string | null;
   onFocusReturned?: () => void;
   viewState: MyDayViewState;
   setViewState: Dispatch<SetStateAction<MyDayViewState>>;
 }) {
   const today = useToday();
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
 
   const { selectedDate, month, filter, mainSort, leftSort, clientFilter, caseFilter } = viewState;
   const setSelectedDate = (date: string) =>
@@ -156,101 +125,17 @@ export function MyDay({
   const setCaseFilter = (value: string) =>
     setViewState((current) => ({ ...current, caseFilter: value }));
 
-  const pendingDays = new Set(
-    workspaceState.periods
-      .filter(
-        (period) =>
-          !period.excluded && !period.timeValidated && calendarDay(period.startedAt) <= today,
-      )
-      .map((period) => calendarDay(period.startedAt)),
-  );
-
-  const [editing, setEditing] = useState<string | null>(null);
-  const [editingRevision, setEditingRevision] = useState<number | null>(null);
-  const [minutes, setMinutes] = useState("");
-  const [durationSaving, setDurationSaving] = useState(false);
-  const [excluding, setExcluding] = useState(false);
   const [recentlyAssigned, setRecentlyAssigned] = useState<string | null>(null);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const filterWrap = useRef<HTMLDivElement>(null);
-  const [answerCase, setAnswerCase] = useState<EntityId | null>(null);
-  const [validating, setValidating] = useState(false);
   const [focusQuestionAfterValidation, setFocusQuestionAfterValidation] = useState(false);
-  const [answering, setAnswering] = useState(false);
   const questionCard = useRef<HTMLElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const [hasMoreRows, setHasMoreRows] = useState(false);
-  useEffect(() => {
-    if (!validating && focusQuestionAfterValidation) {
-      questionCard.current?.focus();
-      setFocusQuestionAfterValidation(false);
-    }
-  }, [validating, focusQuestionAfterValidation]);
-  useEffect(() => {
-    if (!filterOpen) return;
-    const close = (event: PointerEvent) => {
-      if (!filterWrap.current?.contains(event.target as Node)) setFilterOpen(false);
-    };
-    const escape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setFilterOpen(false);
-        filterWrap.current?.querySelector<HTMLButtonElement>(".day-filter-toggle")?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [filterOpen]);
   const changeMainSort = (key: MainKey, numeric: boolean) =>
     setViewState((current) => ({ ...current, mainSort: sortNext(current.mainSort, key, numeric) }));
   const changeLeftSort = (key: LeftKey, numeric: boolean) =>
     setViewState((current) => ({ ...current, leftSort: sortNext(current.leftSort, key, numeric) }));
-  const dayQuery = useResource(`day:${selectedDate}`, async (signal): Promise<DayData> => {
-    const [state, periods, coverageGaps, questions] = await Promise.all([
-      api.GET("/api/catalog", { signal }),
-      api.GET("/api/work-periods", {
-        signal,
-        params: { query: { date: selectedDate, timeZone: systemTimeZone() } },
-      }),
-      api.GET("/api/coverage-gaps", {
-        signal,
-        params: { query: { date: selectedDate, timeZone: systemTimeZone() } },
-      }),
-      api.GET("/api/questions", {
-        signal,
-        params: { query: { date: selectedDate, timeZone: systemTimeZone() } },
-      }),
-    ]);
-    return {
-      date: selectedDate,
-      state: requireData(state),
-      periods: requireData(periods),
-      coverageGaps: requireData(coverageGaps),
-      questions: requireData(questions),
-    };
-  });
-  const monthQuery = useResource(`month:${month}`, async (signal) =>
-    requireData(
-      await api.GET("/api/work-periods", {
-        signal,
-        params: { query: { from: `${month}-01`, to: monthEnd(month), timeZone: systemTimeZone() } },
-      }),
-    ),
-  );
-  const recorded = new Set(
-    (monthQuery.data ?? [])
-      .filter((period) => !period.excluded)
-      .map((period) => calendarDay(period.startedAt)),
-  );
-  const loadError = dayQuery.error
-    ? "Could not refresh this day. Displayed data may be out of date."
-    : monthQuery.error
-      ? "Could not load the calendar's recorded days."
-      : "";
-  const data: DayData | null = dayQuery.data ?? null;
+  const localResources = useDayResources(selectedDate, month, !resources);
+  const { data, recorded, pending, dayQuery, monthQuery } = resources ?? localResources;
   useEffect(() => {
     if (!data || !returnFocusId) return;
     const button = document.querySelector<HTMLButtonElement>(
@@ -268,7 +153,7 @@ export function MyDay({
     review,
     validated,
     unresolved,
-    recognized,
+    assignedToValidate,
     mainRows,
     leftRows,
     exportedPeriods,
@@ -290,80 +175,43 @@ export function MyDay({
       };
     },
   });
-  const summary = summarizeWork(included, workspaceState.sources);
-  const fees = dayFees(catalogState, workspaceState, included);
-  const notRecordedMs = coverageGaps.reduce(
+  const summary = summarizeWork(included, data?.sources ?? workspaceState.sources);
+  const fees = dayFees(
+    data?.state ?? catalogState,
+    data ? { ...workspaceState, ...data } : workspaceState,
+    included,
+  );
+  const feeValue =
+    fees.cents !== null && fees.currency ? formatMoney(fees.cents, fees.currency) : null;
+  const feeDetail = !data
+    ? "Estimate unavailable"
+    : !fees.complete
+      ? fees.currency && fees.knownCents > 0
+        ? `Incomplete estimate · ${formatMoney(fees.knownCents, fees.currency)} known; some pricing is unavailable`
+        : "Estimate unavailable · some pricing or currencies cannot be combined"
+      : "Hourly estimate · excludes flat fees and expenses";
+  const completed = Boolean(data && included.length && !review.length);
+  const coverageGapMs = coverageGaps.reduce(
     (total, gap) => total + Math.max(0, Date.parse(gap.endedAt) - Date.parse(gap.startedAt)),
     0,
   );
-  const questionFor = (periodId: string) =>
-    data?.questions.find(
-      (question) => question.periodId === periodId && question.status === "pending",
-    );
-  const assign = (periodId: string, caseId: EntityId) => {
-    const period = periods.find((item) => item.id === periodId);
-    if (!period) return;
-    const question = questionFor(periodId);
-    if (question)
-      return action(
-        api.POST("/api/questions/answer", {
-          body: {
-            questionId: question.questionId,
-            sessionId: question.sessionId,
-            periodId,
-            expectedAssignmentRevision: question.expectedAssignmentRevision,
-            caseId: String(caseId),
-            responseCommandId: crypto.randomUUID(),
-          },
-        }),
-      );
-    return action(
-      api.POST("/api/work-periods/{id}/assignment", {
-        params: { path: { id: periodId } },
-        body: {
-          caseId: String(caseId),
-          expectedAssignmentRevision: period.assignmentRevision,
-          origin: "lawyer",
-        },
-      }),
-    );
-  };
-  const saveDuration = async (periodId: string) => {
-    const parsed = minutes.trim() ? Number(minutes) : NaN;
-    const durationMs = Math.round(parsed * 60000);
-    if (!Number.isSafeInteger(durationMs) || durationMs < 0) {
-      showToast("Enter a non-negative duration in minutes.");
-      return;
+  const { assign, validate, validating } = useDayCommands({
+    data,
+    action,
+    refresh,
+    onValidatedQuestion: () => setFocusQuestionAfterValidation(true),
+  });
+  useEffect(() => {
+    if (!validating && focusQuestionAfterValidation) {
+      questionCard.current?.focus();
+      setFocusQuestionAfterValidation(false);
     }
-    setDurationSaving(true);
-    const result = await action(
-      api.POST("/api/work-periods/{id}/duration-override", {
-        params: { path: { id: periodId } },
-        body: { durationMs, expectedRevision: editingRevision! },
-      }),
-    );
-    setDurationSaving(false);
-    if (result) setEditing(null);
-  };
-  const validate = async (target: Period[], focusQuestion = false) => {
-    if (validating || !target.length) return;
-    setValidating(true);
-    showToast(`Validating ${target.length} period${target.length === 1 ? "" : "s"}…`);
-    try {
-      const result = await runValidation(target, refresh);
-      showToast(
-        validationMessage(result.successful, target.length, result.refreshFailed, result.stale),
-      );
-      if (focusQuestion && result.successful) setFocusQuestionAfterValidation(true);
-    } finally {
-      setValidating(false);
-    }
-  };
+  }, [validating, focusQuestionAfterValidation]);
   const tabs: [Filter, string, number][] = [
     ["all", "All", included.length],
-    ["review", "To validate", review.length],
-    ["validated", "Validated", validated.length],
-    ["left", "Left out", excluded.length],
+    ["review", timeValidationLabels[ValidationStatus.Unvalidated], review.length],
+    ["validated", timeValidationLabels[ValidationStatus.Validated], validated.length],
+    ["left", "Excluded from totals", excluded.length],
   ];
   useEffect(() => {
     const element = tableRef.current;
@@ -379,55 +227,79 @@ export function MyDay({
       element.removeEventListener("scroll", update);
     };
   }, [filter, data, included.length, excluded.length]);
-  const caseRate = (caseId: EntityId | null) => {
+  const caseRate = (period: Period) => {
+    if (period.billingStatus === BillingStatus.Billed) {
+      if (period.appliedHourlyRateCents == null || !period.appliedCurrency)
+        return "Historical rate unavailable";
+      return `Applied ${formatRate(period.appliedHourlyRateCents, period.appliedCurrency)}`;
+    }
+    const caseId = period.caseId;
     if (!caseId)
-      return `base rate ${money(catalogState.settings.globalHourlyRateCents ?? 0).replace(/\.00$/, "")}/h`;
+      return `${rateOriginLabels[RateOrigin.Base]} ${formatRate(catalogState.settings.globalHourlyRateCents ?? 0, catalogState.settings.currency ?? "USD")}`;
     const { rateCents, origin } = configuredRate(catalogState, caseId);
-    if (origin === "flat_fee") return "flat fee";
-    const label =
-      origin === "matter" ? "case rate" : origin === "client" ? "client rate" : "base rate";
-    return `${label} ${money(rateCents).replace(/\.00$/, "")}/h`;
+    if (origin === RateOrigin.FlatFee) return rateOriginLabels[origin];
+    const label = rateOriginLabels[origin];
+    return `${label} ${formatRate(rateCents, catalogState.settings.currency ?? "USD")}`;
   };
   return (
     <>
-      <div className="ph">
-        <div className="t">
-          <h1>My day</h1>
-          <p>
+      <PageHeader
+        className="ph"
+        title={<>My day</>}
+        description={
+          <>
             {longDate(selectedDate).replace(" ", ", ")}
             {selectedDate === today ? " · today" : ""}
-          </p>
-        </div>
-        <div className="actions">
-          <DayCalendar
-            selected={selectedDate}
-            recorded={recorded}
-            pending={pendingDays}
-            onSelect={setSelectedDate}
-            onMonthChange={setMonth}
-          />
-          <button
-            className="btn"
-            disabled
-            title="Manual time entry is not available yet."
-            aria-describedby="manual-time-unavailable"
-          >
-            <Icon name="plus" small />
-            Add a hearing or meeting
-          </button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <div className="actions">
+            <DayCalendar
+              selected={selectedDate}
+              recorded={recorded}
+              pending={pending}
+              indicatorsAvailable={Boolean(monthQuery.data)}
+              onSelect={setSelectedDate}
+              onMonthChange={setMonth}
+            />
+            <button
+              className="btn"
+              disabled
+              title="Manual time entry is not available yet."
+              aria-describedby="manual-time-unavailable"
+            >
+              <Icon name="plus" small />
+              Add a hearing or meeting
+            </button>
+          </div>
+        }
+      />
       <p id="manual-time-unavailable" className="sr-only">
         Manual time entry is not available yet.
       </p>
-      {loadError && (
+      {dayQuery.error && (
         <p className="day-load-error" role="alert">
-          {loadError}
+          {data
+            ? "Could not refresh this day. Displayed data may be out of date."
+            : "Could not load this day. Work periods and totals are unavailable."}{" "}
+          <button className="btn sm" onClick={() => void dayQuery.refetch()}>
+            Retry day
+          </button>
+        </p>
+      )}
+      {monthQuery.error && (
+        <p className="day-load-error" role="alert">
+          {monthQuery.data
+            ? "Could not refresh the calendar. Its day indicators may be out of date."
+            : "Could not load the calendar's work-day indicators."}{" "}
+          <button className="btn sm" onClick={() => void monthQuery.refetch()}>
+            Retry calendar
+          </button>
         </p>
       )}
       <div className="grid4">
         <Kpi
-          title="Time today"
+          title="Recorded time"
           value={
             summary.roundedMinutes ? (
               formatRoundedMinutes(summary.roundedMinutes)
@@ -437,22 +309,24 @@ export function MyDay({
           }
           detail={
             !data
-              ? "Loading time…"
+              ? dayQuery.error
+                ? "Time unavailable"
+                : "Loading time…"
               : !summary.complete
                 ? "Partial total · some durations or sources are unavailable"
-                : "Worked and recorded, after corrections"
+                : "Included work periods, after corrections"
           }
         />
         <Kpi
-          title="Fees today"
-          value={fees ? money(fees) : <span className="zero">—</span>}
-          detail={!summary.complete ? "Partial estimate · before expenses" : "Before expenses"}
+          title="Estimated fees"
+          value={data && feeValue ? feeValue : <span className="zero">—</span>}
+          detail={feeDetail}
         />
         <Kpi
-          title="Not recorded"
+          title="Coverage gaps"
           value={
-            notRecordedMs ? (
-              formatRoundedMinutes(Math.ceil(notRecordedMs / 60000))
+            coverageGapMs ? (
+              formatRoundedMinutes(Math.ceil(coverageGapMs / 60000))
             ) : (
               <span className="zero">—</span>
             )
@@ -468,43 +342,51 @@ export function MyDay({
           }
         />
         <Kpi
-          title="To validate"
+          title={timeValidationLabels[ValidationStatus.Unvalidated]}
           value={review.length || <span className="zero">—</span>}
-          detail="Periods"
+          detail={!data ? "Work periods unavailable" : "Work periods"}
         />
       </div>
       <div className={`day-prompts${unresolved.length ? "" : " day-prompts-single"}`}>
-        <section className="card day-ready">
+        <section className={`card day-ready${completed ? " day-complete" : ""}`}>
           <div>
             <h2>
-              {!included.length
-                ? "No work recorded"
-                : review.length
-                  ? "Your day is ready."
-                  : "Day validated"}
+              {!data
+                ? dayQuery.error
+                  ? "Day unavailable"
+                  : "Loading day…"
+                : !included.length
+                  ? "No included work periods"
+                  : review.length
+                    ? "Review time for this day"
+                    : "Time validated for this day"}
             </h2>
             <p>
-              {!included.length
-                ? "Choose another day to review recorded work."
-                : review.length
-                  ? recognized.length
-                    ? `TimeKeeper recognized ${recognized.length} ${recognized.length === 1 ? "period" : "periods"} on their own. ${unresolved.length ? `${unresolved.length} needs one answer from you.` : "Nothing needs your answer."} Check them below, then validate in one click.`
-                    : "Review the periods below and answer any open case question."
-                  : `${included.length} periods · ${formatRoundedMinutes(summary.roundedMinutes)} · ${money(fees)}`}
+              {!data
+                ? dayQuery.error
+                  ? "Retry to load work periods and totals."
+                  : "Loading work periods and totals."
+                : !included.length
+                  ? "Choose another day or check periods excluded from totals."
+                  : review.length
+                    ? assignedToValidate.length
+                      ? `${assignedToValidate.length} assigned ${assignedToValidate.length === 1 ? "period needs" : "periods need"} time validation. ${unresolved.length ? `${unresolved.length} ${unresolved.length === 1 ? "period needs" : "periods need"} a case assignment.` : "Nothing needs your answer."} Review them below, then validate their time.`
+                      : "Review the periods below and answer any open case question."
+                    : `${included.length} ${included.length === 1 ? "period" : "periods"} · ${formatRoundedMinutes(summary.roundedMinutes)} · ${feeValue ?? "fees unavailable"}`}
             </p>
           </div>
-          {recognized.length > 0 ? (
+          {assignedToValidate.length > 0 ? (
             <button
               className="btn attn"
               disabled={validating}
               aria-busy={validating}
-              onClick={() => void validate(recognized, true)}
+              onClick={() => void validate(assignedToValidate, true)}
             >
               {validating
                 ? "Validating…"
-                : recognized.length === 1
-                  ? "Validate the recognized period"
-                  : `Validate the ${recognized.length} recognized periods`}
+                : assignedToValidate.length === 1
+                  ? "Validate assigned time"
+                  : `Validate time for ${assignedToValidate.length} assigned periods`}
             </button>
           ) : included.length > 0 && !review.length ? (
             <button className="btn ghost sm" onClick={() => navigate("preInvoices")}>
@@ -512,93 +394,22 @@ export function MyDay({
             </button>
           ) : null}
         </section>
-        {unresolved.length > 0 && (
-          <section className="card day-question" ref={questionCard} tabIndex={-1}>
-            <div>
-              <h2>
-                <Icon name="alert" small /> Which case was this?
-              </h2>
-              {unresolved[0] ? (
-                <p>
-                  {calendarTime(unresolved[0].startedAt)}–
-                  {unresolved[0].endedAt ? calendarTime(unresolved[0].endedAt) : undefined} ·{" "}
-                  {unresolved[0].demoWindowTitle ?? unresolved[0].label}
-                </p>
-              ) : (
-                <p>Every period has a case. You can review the list below.</p>
-              )}
-            </div>
-            {unresolved[0] && (
-              <div className="row">
-                <CaseSelect
-                  catalogState={catalogState}
-                  value={answerCase}
-                  allowEmpty
-                  onChange={setAnswerCase}
-                />
-                <button
-                  className="btn primary"
-                  aria-disabled={!answerCase}
-                  disabled={answering}
-                  aria-busy={answering}
-                  onClick={async () => {
-                    if (!answerCase) {
-                      showToast("Choose a case first");
-                      return;
-                    }
-                    setAnswering(true);
-                    showToast("Assigning case…");
-                    const periodId = unresolved[0]!.id;
-                    const result = await assign(periodId, answerCase);
-                    setAnswering(false);
-                    if (result) {
-                      showToast(
-                        `Assigned to ${caseById(catalogState, answerCase)?.title ?? "case"}`,
-                      );
-                      setRecentlyAssigned(periodId);
-                      window.setTimeout(
-                        () =>
-                          setRecentlyAssigned((current) => (current === periodId ? null : current)),
-                        600,
-                      );
-                    } else showToast("Could not assign this case");
-                  }}
-                >
-                  {answering ? "Answering…" : "Answer"}
-                </button>
-                <button
-                  className="btn"
-                  disabled={excluding}
-                  aria-busy={excluding}
-                  onClick={async () => {
-                    const periodId = unresolved[0]!.id;
-                    setExcluding(true);
-                    const result = await action(
-                      api.PATCH("/api/work-periods/{id}/details", {
-                        params: { path: { id: periodId } },
-                        body: { excluded: true, expectedRevision: unresolved[0]!.revision },
-                      }),
-                    );
-                    setExcluding(false);
-                    if (result)
-                      showToast(
-                        "Period left out",
-                        "Undo",
-                        () =>
-                          void action(
-                            api.PATCH("/api/work-periods/{id}/details", {
-                              params: { path: { id: periodId } },
-                              body: { excluded: false, expectedRevision: result.revision },
-                            }),
-                          ),
-                      );
-                  }}
-                >
-                  Not client work
-                </button>
-              </div>
-            )}
-          </section>
+        {unresolved[0] && (
+          <DayCaseQuestion
+            key={unresolved[0].id}
+            period={unresolved[0]}
+            sectionRef={questionCard}
+            catalogState={catalogState}
+            action={action}
+            assign={assign}
+            onAssigned={(periodId) => {
+              setRecentlyAssigned(periodId);
+              window.setTimeout(
+                () => setRecentlyAssigned((current) => (current === periodId ? null : current)),
+                600,
+              );
+            }}
+          />
         )}
       </div>
       <section className="card day-periods">
@@ -612,77 +423,14 @@ export function MyDay({
             ))}
           </div>
           <div className="right">
-            <div className="day-filter-wrap" ref={filterWrap}>
-              <button
-                className="btn ghost sm day-filter-toggle"
-                aria-expanded={filterOpen}
-                aria-controls="day-filter-popover"
-                onClick={() => setFilterOpen((value) => !value)}
-              >
-                <Icon name="filter" small />
-                Filter
-                {(clientFilter || caseFilter) && (
-                  <>
-                    <span className="day-filter-dot" aria-hidden="true" />
-                    <span className="sr-only">Filters active</span>
-                  </>
-                )}
-              </button>
-              {filterOpen && (
-                <div
-                  id="day-filter-popover"
-                  className="day-filter-popover"
-                  role="group"
-                  aria-label="Filter work periods"
-                >
-                  <label>
-                    Client
-                    <select
-                      className="select sm"
-                      value={clientFilter}
-                      onChange={(event) => {
-                        setClientFilter(event.target.value);
-                        setCaseFilter("");
-                      }}
-                    >
-                      <option value="">All clients</option>
-                      {catalogState.clients.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Case
-                    <select
-                      className="select sm"
-                      value={caseFilter}
-                      onChange={(event) => setCaseFilter(event.target.value)}
-                    >
-                      <option value="">All cases</option>
-                      {catalogState.cases
-                        .filter((item) => !clientFilter || String(item.clientId) === clientFilter)
-                        .map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.title}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <button
-                    className="btn sm"
-                    disabled={!clientFilter && !caseFilter}
-                    onClick={() => {
-                      setClientFilter("");
-                      setCaseFilter("");
-                    }}
-                  >
-                    Clear filters
-                  </button>
-                </div>
-              )}
-            </div>
+            <DayFilters
+              clients={catalogState.clients}
+              cases={catalogState.cases}
+              clientFilter={clientFilter}
+              caseFilter={caseFilter}
+              setClientFilter={setClientFilter}
+              setCaseFilter={setCaseFilter}
+            />
             <button
               className="btn ghost sm"
               onClick={() => {
@@ -693,7 +441,13 @@ export function MyDay({
                   caseById(catalogState, period.caseId)?.title ?? "",
                   period.label,
                   formatPreciseDuration(effectiveMs(period)),
-                  period.excluded ? "Left out" : period.timeValidated ? "Validated" : "To validate",
+                  period.excluded
+                    ? "Excluded from totals"
+                    : timeValidationLabels[
+                        period.timeValidated
+                          ? ValidationStatus.Validated
+                          : ValidationStatus.Unvalidated
+                      ],
                 ]);
                 const csv =
                   "\uFEFF" +
@@ -718,117 +472,56 @@ export function MyDay({
             </button>
           </div>
         </div>
-        {!data && !loadError ? (
-          <div className="empty" role="status">
-            <b>Loading day…</b>
+        {!data ? (
+          <div className="empty" role={dayQuery.error ? undefined : "status"}>
+            <b>{dayQuery.error ? "Work periods unavailable" : "Loading work periods…"}</b>
           </div>
         ) : filter === "left" ? (
-          <div className="tbl" ref={tableRef} data-has-more={hasMoreRows}>
-            <table>
-              <thead>
-                <tr>
-                  <SortHeader
-                    label="Time"
-                    sort={leftSort}
-                    sortKey="time"
-                    numeric
-                    onSort={changeLeftSort}
-                  />
-                  <SortHeader
-                    label="Application"
-                    sort={leftSort}
-                    sortKey="application"
-                    onSort={changeLeftSort}
-                  />
-                  <SortHeader
-                    label="Work observed"
-                    sort={leftSort}
-                    sortKey="work"
-                    onSort={changeLeftSort}
-                  />
-                  <SortHeader
-                    label="Duration"
-                    sort={leftSort}
-                    sortKey="duration"
-                    numeric
-                    className="r"
-                    onSort={changeLeftSort}
-                  />
-                  <th scope="col" className="r">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {leftRows.map((period) => (
-                  <tr key={period.id}>
-                    <td className="num">
-                      {calendarTime(period.startedAt)}–
-                      {(period.endedAt ? calendarTime(period.endedAt) : undefined) ?? "…"}
-                    </td>
-                    <td>{period.demoApp ?? "—"}</td>
-                    <td>{period.demoWindowTitle ?? period.label}</td>
-                    <td className="r num">{formatPreciseDuration(effectiveMs(period))}</td>
-                    <td>
-                      <button
-                        className="btn sm"
-                        onClick={() =>
-                          void action(
-                            api.PATCH("/api/work-periods/{id}/details", {
-                              params: { path: { id: period.id } },
-                              body: { excluded: false, expectedRevision: period.revision },
-                            }),
-                          )
-                        }
-                      >
-                        Count as work
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!leftRows.length && (
-              <div className="empty">
-                <b>No matching periods left out</b>
-                <button
-                  className="btn sm"
-                  onClick={() => {
-                    setFilter("all");
-                    setClientFilter("");
-                    setCaseFilter("");
-                  }}
-                >
-                  Show all periods
-                </button>
-              </div>
-            )}
-          </div>
+          <LeftOutPeriods
+            periods={leftRows}
+            sort={leftSort}
+            onSort={changeLeftSort}
+            tableRef={tableRef}
+            hasMoreRows={hasMoreRows}
+            onRestore={(period) =>
+              action(
+                api.PATCH("/api/work-periods/{id}/details", {
+                  params: { path: { id: period.id } },
+                  body: { excluded: false, expectedRevision: period.revision },
+                }),
+              )
+            }
+            onShowAll={() => {
+              setFilter("all");
+              setClientFilter("");
+              setCaseFilter("");
+            }}
+          />
         ) : (
           <div className="tbl day-table" ref={tableRef} data-has-more={hasMoreRows}>
-            <table>
+            <table className="data-table">
               <thead>
                 <tr>
-                  <SortHeader
+                  <DaySortHeader
                     label="Period"
                     sort={mainSort}
                     sortKey="period"
                     numeric
                     onSort={changeMainSort}
                   />
-                  <SortHeader
+                  <DaySortHeader
                     label="Client · case"
                     sort={mainSort}
                     sortKey="case"
                     onSort={changeMainSort}
                   />
-                  <SortHeader
+                  <DaySortHeader
                     label="Work performed"
                     sort={mainSort}
                     sortKey="work"
                     onSort={changeMainSort}
                   />
-                  <SortHeader
+                  <DaySortHeader
                     label="Duration"
                     sort={mainSort}
                     sortKey="duration"
@@ -855,11 +548,11 @@ export function MyDay({
                             Coverage gap
                           </span>{" "}
                           <span className="muted">
-                            · no recording for{" "}
+                            · coverage gap for{" "}
                             {Math.round(
                               (Date.parse(row.gap.endedAt) - Date.parse(row.gap.startedAt)) / 60000,
                             )}{" "}
-                            min. Not counted as work, not counted as idle.
+                            min. Excluded from work totals. This does not establish inactivity.
                           </span>
                           <button
                             className="btn sm gap-add"
@@ -873,134 +566,31 @@ export function MyDay({
                       </tr>
                     );
                   const period = row.period;
-                  const caseId = period.caseId ? period.caseId : null;
-                  const item = caseById(catalogState, caseId),
-                    owner = clientForCase(catalogState, caseId);
-                  const linked = workspaceState.sources.filter(
-                    (record) => record.workPeriodId === period.id,
-                  );
+                  const item = caseById(catalogState, period.caseId);
                   return (
-                    <tr
+                    <DayPeriodRow
                       key={period.id}
-                      className={recentlyAssigned === period.id ? "recently-assigned" : undefined}
-                    >
-                      <td className="num">
-                        {calendarTime(period.startedAt)}–
-                        {(period.endedAt ? calendarTime(period.endedAt) : undefined) ?? "…"}
-                        <span className="sub">{period.demoApp ?? "Application unavailable"}</span>
-                      </td>
-                      <td>
-                        {item ? (
-                          <>
-                            <span className="day-client" title={owner?.name}>
-                              {owner?.name}
-                            </span>
-                            <span className="sub" title={`${item.title} · ${item.reference}`}>
-                              {item.title} · <CaseReference value={item.reference} />
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="flag">
-                              <Icon name="alert" small />
-                              Unresolved
-                            </span>
-                            <span className="sub">Waiting for your answer above</span>
-                          </>
-                        )}
-                      </td>
-                      <td className="wrap">
-                        {period.label}
-                        <span className="sub">
-                          {catalogState.taskTypes.find((task) => task.id === period.taskTypeId)
-                            ?.label ?? "Work period"}{" "}
-                          · {caseRate(caseId)}
-                        </span>
-                      </td>
-                      <td className="r num">
-                        {editing === period.id ? (
-                          <span className="row">
-                            <input
-                              className="field"
-                              type="number"
-                              min="0"
-                              step="0.001"
-                              aria-label="Corrected minutes"
-                              value={minutes}
-                              onChange={(event) => setMinutes(event.target.value)}
-                            />
-                            <button
-                              className="btn sm primary"
-                              disabled={durationSaving}
-                              aria-busy={durationSaving}
-                              onClick={() => void saveDuration(period.id)}
-                            >
-                              Save
-                            </button>
-                            <button
-                              className="btn sm"
-                              disabled={durationSaving}
-                              onClick={() => setEditing(null)}
-                            >
-                              Cancel
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            className={`day-duration${period.durationOverrideMs !== null ? " corrected" : ""}`}
-                            disabled={period.billingStatus === "billed"}
-                            aria-label={`Correct duration for ${period.label}`}
-                            title="Correct duration"
-                            onClick={() => {
-                              setEditing(period.id);
-                              setEditingRevision(period.revision);
-                              setMinutes(String((effectiveMs(period) ?? 0) / 60000));
-                            }}
-                          >
-                            {formatPreciseDuration(effectiveMs(period))}
-                            <Icon name="edit" small />
-                          </button>
-                        )}
-                        {period.durationOverrideMs !== null && (
-                          <span className="sub">
-                            was {formatPreciseDuration(period.detectedDurationMs)}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="day-actions">
-                          {openPeriodReview && (
-                            <button
-                              className="btn sm"
-                              data-review-period-id={period.id}
-                              onClick={() => openPeriodReview(period.id)}
-                            >
-                              Review
-                            </button>
-                          )}
-                          {period.timeValidated ? (
-                            <span className="day-validated">✓ Validated</span>
-                          ) : period.caseId ? (
-                            <button
-                              className="btn sm attn"
-                              disabled={validating}
-                              aria-busy={validating}
-                              onClick={() => void validate([period])}
-                            >
-                              Validate
-                            </button>
-                          ) : null}
-                          <button
-                            className="btn sm"
-                            data-source-period-id={period.id}
-                            disabled={!linked.length}
-                            onClick={() => openPeriodActivity(period.id)}
-                          >
-                            Sources
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                      period={period}
+                      item={item}
+                      clientName={clientForCase(catalogState, period.caseId)?.name}
+                      taskLabel={
+                        catalogState.taskTypes.find((task) => task.id === period.taskTypeId)
+                          ?.label ?? "Work period"
+                      }
+                      rateLabel={caseRate(period)}
+                      sourceCount={
+                        (data?.sources ?? workspaceState.sources).filter(
+                          (source) => source.workPeriodId === period.id,
+                        ).length
+                      }
+                      highlighted={recentlyAssigned === period.id}
+                      validating={validating}
+                      onValidate={() => validate([period])}
+                      openPeriodReview={
+                        openPeriodReview ? () => openPeriodReview(period.id) : undefined
+                      }
+                      openPeriodActivity={() => openPeriodActivity(period.id)}
+                    />
                   );
                 })}
               </tbody>
@@ -1009,12 +599,12 @@ export function MyDay({
               <div className="empty">
                 <b>
                   {!included.length && !coverageGaps.length
-                    ? "No work recorded"
+                    ? "No work periods"
                     : "No matching periods"}
                 </b>
                 <p>
                   {!included.length && !coverageGaps.length
-                    ? "Nothing was recorded on this day."
+                    ? "No included work periods are available for this day."
                     : "Adjust the filters or choose another day."}
                 </p>
                 {included.length > 0 && (

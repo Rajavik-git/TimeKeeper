@@ -1,7 +1,28 @@
+import {
+  clientTypes,
+  clientBillingModes,
+  caseStatuses,
+  caseBillingModes,
+  baseUnits,
+  pillDisplays,
+  markerTypes,
+  clientRuleTypes,
+  CaseStatus,
+  ClientBillingMode,
+  ClientRuleType,
+  ClientType,
+  CaseBillingMode,
+  MarkerType,
+  systemTaskCodes,
+} from "../domain/states.js";
+import {
+  DEFAULT_DAILY_RESEARCH_CAP_UNITS,
+  researchCapHours,
+} from "../../shared/client-rule-policy.js";
 import { randomUUID } from "node:crypto";
 import { calendarDay, isCalendarDay } from "../../shared/dates.js";
 import { nextCaseReference } from "../domain/nomenclature.js";
-import { defaultWeights, type MarkerType } from "../domain/recognition.js";
+import { defaultWeights } from "../domain/recognition.js";
 import type {
   CatalogCase,
   CatalogClient,
@@ -10,7 +31,7 @@ import type {
   CatalogSettings,
   CatalogTaskType,
 } from "../ports/catalog.js";
-import { AppError } from "./service.js";
+import { AppError } from "./errors.js";
 
 type Validator = (value: unknown) => unknown;
 const invalid = (message: string): never => {
@@ -70,8 +91,8 @@ const clientFields: Record<keyof Omit<CatalogClient, "id">, Validator> = {
   name: requiredText,
   code: nullable(clientCode),
   active: boolean,
-  type: member("individual", "company"),
-  mode: member("hourly", "subscription"),
+  type: member(...clientTypes),
+  mode: member(...clientBillingModes),
   hourlyRateCents: nullable(cents),
   vatApplicable: boolean,
   billingAddress: text,
@@ -80,11 +101,11 @@ const caseFields: Record<keyof Omit<CatalogCase, "id" | "reference">, Validator>
   clientId: identifier,
   title: requiredText,
   hourlyRateCents: nullable(cents),
-  status: member("active", "archived"),
+  status: member(...caseStatuses),
   category: text,
   caseNumber: text,
   opposingParty: text,
-  mode: member("hourly", "flat_fee"),
+  mode: member(...caseBillingModes),
   flatFeeCents: nullable(cents),
   hourCap: nullable(number()),
   successFeePercent: nullable(number(0, 100)),
@@ -98,7 +119,7 @@ const settingsFields: Record<keyof Omit<CatalogSettings, "id">, Validator> = {
   lawyerName: text,
   address: text,
   vatNumber: text,
-  baseUnit: member("hour", "intervention"),
+  baseUnit: member(...baseUnits),
   vatRate: number(0, 100),
   confidenceThreshold: number(0, 1),
   excludedApps: text,
@@ -106,7 +127,7 @@ const settingsFields: Record<keyof Omit<CatalogSettings, "id">, Validator> = {
   notifications: boolean,
   pillPosition: text,
   pillAlwaysOnTop: boolean,
-  pillDisplay: member("fees", "time", "case"),
+  pillDisplay: member(...pillDisplays),
   pillWithholdCalls: boolean,
   invoicePrefix: requiredText,
   nextNumber: number(1, Number.MAX_SAFE_INTEGER, true),
@@ -181,8 +202,8 @@ export class CatalogService {
           id: id as string,
           code: null,
           active: true,
-          type: "individual",
-          mode: "hourly",
+          type: ClientType.Individual,
+          mode: ClientBillingMode.Hourly,
           hourlyRateCents: null,
           vatApplicable: false,
           billingAddress: "",
@@ -194,8 +215,10 @@ export class CatalogService {
     );
   }
   updateClient(id: string, input: Record<string, unknown>) {
-    return this.change("Client updated", found(this.port.client(id), "client"), (at) =>
-      this.port.updateClient(id, patch(input, clientFields), at),
+    return this.change(
+      "Client updated",
+      found(this.port.auditSnapshot("client", id), "client"),
+      (at) => this.port.updateClient(id, patch(input, clientFields), at),
     );
   }
   createCase(input: Record<string, unknown>) {
@@ -221,11 +244,11 @@ export class CatalogService {
           reference: assignedReference,
           title: values.title!,
           hourlyRateCents: null,
-          status: "active",
+          status: CaseStatus.Active,
           category: "",
           caseNumber: "",
           opposingParty: "",
-          mode: "hourly",
+          mode: CaseBillingMode.Hourly,
           flatFeeCents: null,
           hourCap: null,
           successFeePercent: null,
@@ -238,9 +261,9 @@ export class CatalogService {
       if (values.opposingParty?.trim())
         this.port.createMarker({
           caseId: result.id,
-          type: "opposing_party",
+          type: MarkerType.OpposingParty,
           value: values.opposingParty,
-          weight: defaultWeights.opposing_party,
+          weight: defaultWeights[MarkerType.OpposingParty],
           learned: false,
           hits: 0,
           lastSeenAt: null,
@@ -251,19 +274,23 @@ export class CatalogService {
   updateCase(id: string, input: Record<string, unknown>) {
     if ("reference" in input) invalid("Case reference is immutable");
     const values = patch(input, caseFields);
-    return this.change("Case updated", found(this.port.case(id), "case"), (at) => {
+    return this.change("Case updated", found(this.port.auditSnapshot("case", id), "case"), (at) => {
       if (values.clientId !== undefined) found(this.port.client(values.clientId), "client");
       return this.port.updateCase(id, values, at);
     });
   }
   updateSettings(input: Record<string, unknown>) {
-    return this.change("Settings updated", this.port.state().settings, (at) =>
-      this.port.updateSettings(patch(input, settingsFields), at),
+    return this.change(
+      "Settings updated",
+      found(this.port.auditSnapshot("settings", 1), "settings"),
+      (at) => this.port.updateSettings(patch(input, settingsFields), at),
     );
   }
   createTaskType(input: Record<string, unknown>) {
     const values = patch<Omit<CatalogTaskType, "id">>(input, taskFields);
     if (!values.code || !values.label) invalid("code and label required");
+    if (systemTaskCodes.some((code) => code === values.code))
+      invalid("Built-in task codes are reserved");
     return this.change("Task created", undefined, () =>
       this.port.createTaskType({
         code: values.code!,
@@ -276,16 +303,22 @@ export class CatalogService {
     );
   }
   updateTaskType(id: number, input: Record<string, unknown>) {
-    return this.change("Task updated", found(this.port.taskType(id), "task type"), () =>
-      this.port.updateTaskType(id, patch(input, taskFields)),
-    );
+    const current = found(this.port.taskType(id), "task type");
+    const values = patch(input, taskFields);
+    if (values.code !== undefined && values.code !== current.code) {
+      if (systemTaskCodes.some((code) => code === current.code))
+        invalid("Built-in task codes are immutable; edit the label instead");
+      if (systemTaskCodes.some((code) => code === values.code))
+        invalid("Built-in task codes are reserved");
+    }
+    return this.change("Task updated", current, () => this.port.updateTaskType(id, values));
   }
   createMarker(input: Record<string, unknown>) {
     const value = patch<{ caseId: string; type: MarkerType; value: string; weight: number }>(
       input,
       {
         caseId: identifier,
-        type: member(...Object.keys(defaultWeights)),
+        type: member(...markerTypes),
         value: requiredText,
         weight: number(0, 1),
       },
@@ -305,30 +338,34 @@ export class CatalogService {
     });
   }
   removeMarker(id: number) {
-    return this.change("Marker removed", found(this.port.marker(id), "marker"), () => {
-      this.port.removeMarker(id);
-      return { deleted: true };
-    });
+    return this.change(
+      "Marker removed",
+      found(this.port.auditSnapshot("marker", id), "marker"),
+      () => {
+        this.port.removeMarker(id);
+        return { deleted: true };
+      },
+    );
   }
   createClientRule(input: Record<string, unknown>) {
     const values = patch<Pick<CatalogClientRule, "clientId" | "type" | "value" | "label">>(input, {
       clientId: identifier,
-      type: member("daily_research_cap", "nonbillable_travel"),
+      type: member(...clientRuleTypes),
       value: number(0, Number.MAX_SAFE_INTEGER, true),
       label: requiredText,
     });
     if (!values.clientId || !values.type) invalid("clientId and type required");
-    const cap = values.type === "daily_research_cap";
+    const cap = values.type === ClientRuleType.DailyResearchCap;
     return this.change("Client rule created", undefined, () => {
       found(this.port.client(values.clientId!), "client");
       return this.port.createClientRule({
         clientId: values.clientId!,
         type: values.type!,
-        value: values.value ?? (cap ? 5 : 0),
+        value: values.value ?? (cap ? DEFAULT_DAILY_RESEARCH_CAP_UNITS : 0),
         label:
           values.label ??
           (cap
-            ? `No more than ${(values.value ?? 5) / 10} h of billable research per day`
+            ? `No more than ${researchCapHours(values.value ?? DEFAULT_DAILY_RESEARCH_CAP_UNITS)} h of billable research per day`
             : "Travel is not billable"),
       });
     });
@@ -336,7 +373,7 @@ export class CatalogService {
   removeClientRule(id: number) {
     return this.change(
       "Client rule removed",
-      found(this.port.clientRule(id), "client rule"),
+      found(this.port.auditSnapshot("clientRule", id), "client rule"),
       () => {
         this.port.removeClientRule(id);
         return { deleted: true };

@@ -1,3 +1,4 @@
+import { AppError } from "../../application/errors.js";
 import { deleteRow } from "./table-access.js";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -74,19 +75,12 @@ export function createCompatibilityPort(db: DatabaseSync): CompatibilityPort {
       return canonical.period(String(link?.period_id ?? id));
     },
     ensureCompatibilityEntryId: (periodId) => ensureCompatibilityEntryId(db, periodId),
-    canonicalPeriod: (id) => canonical.period(id),
     canonicalPeriodForBlock: (blockId) => {
       const link = db
         .prepare("SELECT period_id FROM demo_block_periods WHERE block_id=?")
         .get(blockId) as { period_id: string } | undefined;
       return link ? canonical.period(link.period_id) : null;
     },
-    saveCanonicalPeriod: (period, at) => canonical.savePeriod(period, at),
-    pendingQuestions: (periodId) =>
-      canonical
-        .allQuestions()
-        .filter((question) => question.periodId === periodId && question.status === "pending"),
-    saveQuestion: (question) => canonical.saveQuestion(question),
     insertCanonicalExpense: (expense) => {
       if (db.prepare("SELECT 1 FROM expenses WHERE id=?").get(Number(expense.id))) return;
       db.prepare(
@@ -114,7 +108,8 @@ export function createCompatibilityPort(db: DatabaseSync): CompatibilityPort {
         canonicalExpense.amount_cents !== expense.amount_cents
       )
         throw Error("Canonical expense does not match");
-      if (canonicalExpense.invoice_id !== null) throw Error("Expense already billed");
+      if (canonicalExpense.invoice_id !== null)
+        throw new AppError("conflict", "expense already billed");
       // Removal is performed by the shared canonical delete path.
     },
   };

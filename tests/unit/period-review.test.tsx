@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../../src/frontend/api/client";
-import { PeriodReviewDialog } from "../../src/frontend/features/workday/PeriodReviewDialog";
+import { PeriodReviewDialog } from "../../src/frontend/features/workday/components/PeriodReviewDialog/PeriodReviewDialog";
 import { frontendFixture } from "./frontend-fixture";
 
 beforeEach(() => {
@@ -153,6 +153,8 @@ it("preserves a draft and stops writes after an external update until explicit r
   expect(minutes).toHaveProperty("value", "5");
   expect(screen.getByRole("button", { name: "Save duration" })).toHaveProperty("disabled", true);
   await user.click(screen.getByRole("button", { name: "Reload latest period" }));
+  expect(minutes).toHaveProperty("value", "5");
+  await user.click(screen.getByRole("button", { name: "Discard corrections", exact: true }));
   expect(minutes).toHaveProperty("value", "2");
   expect(post).not.toHaveBeenCalled();
 });
@@ -174,6 +176,10 @@ it("preserves the duration draft on failure and validates only the reviewed effe
     "value",
     "10",
   );
+  expect(screen.getByRole("button", { name: "Validate time" })).toHaveProperty("disabled", true);
+  expect(screen.getByRole("button", { name: "Mark billed" })).toHaveProperty("disabled", true);
+  expect(post).toHaveBeenCalledTimes(1);
+  await user.click(screen.getByRole("button", { name: "Discard draft corrections" }));
   await user.click(screen.getByRole("button", { name: "Validate time" }));
   expect(post).toHaveBeenLastCalledWith("/api/work-periods/{id}/validate-time", {
     params: { path: { id: "period" } },
@@ -205,6 +211,58 @@ it("explains evidence blockers and displays protected reconstruction proposals w
   ).toContain("add no time");
   expect(screen.getByRole("button", { name: "Validate time" })).toHaveProperty("disabled", true);
   await user.click(screen.getByRole("button", { name: "Review sources" }));
-  expect(input.close).toHaveBeenCalledOnce();
+  expect(input.close).not.toHaveBeenCalled();
   expect(input.openPeriodActivity).toHaveBeenCalledWith("period");
+});
+
+it("requires explicit discard before closing and preserves corrections during source review", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  const { rerender } = render(<PeriodReviewDialog {...input} />);
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Corrected minutes" }), {
+    target: { value: "12" },
+  });
+  await user.selectOptions(screen.getByRole("combobox", { name: "Assigned case" }), "other-case");
+  expect(screen.getByRole("button", { name: "Mark billed" })).toHaveProperty("disabled", true);
+  await user.click(screen.getByRole("button", { name: "Close period review" }));
+  expect(input.close).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("button", { name: "Keep editing" }));
+  await user.click(screen.getByRole("button", { name: "Review sources" }));
+  rerender(<PeriodReviewDialog {...input} hidden />);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  rerender(<PeriodReviewDialog {...input} />);
+  expect(screen.getByRole("spinbutton", { name: "Corrected minutes" })).toHaveProperty(
+    "value",
+    "12",
+  );
+  expect(screen.getByRole("combobox", { name: "Assigned case" })).toHaveProperty(
+    "value",
+    "other-case",
+  );
+  await user.click(screen.getByRole("button", { name: "Close period review" }));
+  await user.click(screen.getByRole("button", { name: "Discard corrections", exact: true }));
+  expect(input.close).toHaveBeenCalledOnce();
+});
+
+it("normalizes successful duration saves while retaining a pending case correction", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  vi.spyOn(api, "POST").mockResolvedValue({
+    data: { ...input.period, revision: 2, durationOverrideMs: 120000 },
+  } as never);
+  render(<PeriodReviewDialog {...input} />);
+  await user.selectOptions(screen.getByRole("combobox", { name: "Assigned case" }), "other-case");
+  fireEvent.change(screen.getByRole("spinbutton", { name: "Corrected minutes" }), {
+    target: { value: "2.0" },
+  });
+  await user.click(screen.getByRole("button", { name: "Save duration" }));
+  expect(screen.getByRole("spinbutton", { name: "Corrected minutes" })).toHaveProperty(
+    "value",
+    "2",
+  );
+  expect(screen.getByRole("combobox", { name: "Assigned case" })).toHaveProperty(
+    "value",
+    "other-case",
+  );
+  expect(screen.getByRole("button", { name: "Mark billed" })).toHaveProperty("disabled", true);
 });

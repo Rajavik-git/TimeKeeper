@@ -1,3 +1,5 @@
+import { actionErrorMessage, isApiError, unavailableMessage } from "./errors";
+
 /** A committed write remains successful even if its following read fails. */
 export async function performAction<T>(
   promise: Promise<{ data?: T; error?: unknown; response?: Response }>,
@@ -7,7 +9,9 @@ export async function performAction<T>(
   let result: { data?: T; error?: unknown; response?: Response };
   try {
     result = await promise;
-    if (result.error) {
+    // Some deferred application failures use HTTP 202 with the same error envelope.
+    const failure = result.error ?? (isApiError(result.data) ? result.data : undefined);
+    if (failure) {
       if (result.response?.status === 409) {
         try {
           await refresh();
@@ -17,15 +21,11 @@ export async function performAction<T>(
         }
         return undefined;
       }
-      const error = result.error;
-      throw Error(
-        typeof error === "object" && error && "error" in error
-          ? String(error.error)
-          : JSON.stringify(error),
-      );
+      notify(actionErrorMessage(failure));
+      return undefined;
     }
-  } catch (error) {
-    notify(String(error));
+  } catch {
+    notify(unavailableMessage);
     return undefined;
   }
   try {

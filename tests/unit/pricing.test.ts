@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { readCatalog } from "../../src/backend/adapters/sqlite/catalog-repository.js";
+import { CatalogService } from "../../src/backend/application/catalog.js";
+import { catalogRepository } from "../../src/backend/adapters/sqlite/catalog-repository.js";
+import { SystemTaskCode } from "../../src/backend/domain/states.js";
 import { memoryDb } from "../fixtures/database.js";
 import { SqliteRepository } from "../../src/backend/adapters/sqlite/core-repository";
 import { TimeKeeperService } from "../../src/backend/application/service";
@@ -92,7 +95,7 @@ describe("React billing calculations and frozen invoice application", () => {
           core,
           core.periods.filter((p) => p.startedAt.startsWith("2026-10-16")),
         ),
-      ).toBe(91250);
+      ).toMatchObject({ cents: 91250, complete: true, currency: "USD" });
       expect(core.periods.find((p) => p.id === "14")).toMatchObject({
         detectedDurationMs: 152 * 60000,
         durationOverrideMs: 108 * 60000,
@@ -110,6 +113,7 @@ describe("React billing calculations and frozen invoice application", () => {
         ...f.core().periods.find((p) => p.id === "19")!,
         billingStatus: "billed" as const,
         appliedHourlyRateCents: 25000,
+        appliedCurrency: "USD",
       };
       const changed = {
         ...f.catalog,
@@ -117,8 +121,8 @@ describe("React billing calculations and frozen invoice application", () => {
           item.id === "5" ? { ...item, hourlyRateCents: 100000 } : item,
         ),
       };
-      expect(dayFees(f.catalog, f.core(), [period])).toBe(21250);
-      expect(dayFees(changed, f.core(), [period])).toBe(21250);
+      expect(dayFees(f.catalog, f.core(), [period])).toMatchObject({ cents: 21250 });
+      expect(dayFees(changed, f.core(), [period])).toMatchObject({ cents: 21250 });
     } finally {
       f.db.close();
     }
@@ -241,9 +245,13 @@ describe("React billing calculations and frozen invoice application", () => {
       f.db.close();
     }
   });
-  it("enforces retained client rules when a snapshot is submitted directly", () => {
+  it("enforces travel rules after the built-in task label changes", () => {
     const f = fixture();
     try {
+      const travel = f.catalog.taskTypes.find((task) => task.code === SystemTaskCode.Travel)!;
+      new CatalogService(catalogRepository(f.db)).updateTaskType(travel.id, {
+        label: "Updated travel label",
+      });
       const draft = snapshot(draftInvoice(f.catalog, f.core(), 2, "final"));
       f.db
         .prepare(
@@ -261,9 +269,13 @@ describe("React billing calculations and frozen invoice application", () => {
       f.db.close();
     }
   });
-  it("applies a client daily research cap across already billed cases", () => {
+  it("applies the daily research cap across billed cases after a task label change", () => {
     const f = fixture();
     try {
+      const research = f.catalog.taskTypes.find((task) => task.code === SystemTaskCode.Research)!;
+      new CatalogService(catalogRepository(f.db)).updateTaskType(research.id, {
+        label: "Updated research label",
+      });
       f.db
         .prepare(
           "UPDATE work_periods SET session_id='demo-2026-10-09',started_at='2026-10-09T10:00:00Z',ended_at='2026-10-09T10:10:00Z',detected_duration_ms=600000,task_type_id=(SELECT id FROM task_types WHERE code='RECH') WHERE id='1'",

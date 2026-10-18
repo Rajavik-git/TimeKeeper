@@ -1,10 +1,18 @@
+import type {
+  BillingStatus,
+  RateOrigin,
+  ExpenseType,
+  InvoiceLineOrigin,
+  InvoiceType,
+} from "../domain/states.js";
+import { caseBillingModes, invoiceStatuses } from "../domain/states.js";
 export interface InvoicePeriod {
   effectiveDurationMs: number | null;
   id: string;
   caseId: string | null;
   effectiveRevision: number;
   validatedEffectiveRevision: number | null;
-  billingStatus: "billed" | "unbilled";
+  billingStatus: BillingStatus;
   billable: boolean;
   excluded: boolean;
   invoiceId: number | null;
@@ -14,20 +22,20 @@ export interface InvoiceExpense {
   caseId: string;
   invoiceId: number | null;
   amountCents: number;
-  type: "expense" | "disbursement";
+  type: ExpenseType;
 }
 export interface InvoiceCase {
   vatRate: number;
   vatApplicable: boolean;
   id: string;
-  mode: "hourly" | "flat_fee";
+  mode: (typeof caseBillingModes)[number];
   flatFeeCents: number | null;
   caseRateCents: number | null;
   clientRateCents: number | null;
   globalRateCents: number;
 }
 export interface FrozenLine {
-  origin: "work_period" | "expense" | "flat_fee";
+  origin: InvoiceLineOrigin;
   originId: string;
   label: string;
   billedMinutes: number;
@@ -38,12 +46,12 @@ export interface FrozenLine {
 export interface InvoiceSnapshot {
   timeZone?: string;
   caseId: number | string;
-  type: "deposit" | "final";
+  type: InvoiceType;
   periodIds: string[];
   revisions: Record<string, number>;
   billedMinutes: number;
   rateCents: number;
-  rateOrigin: "matter" | "client" | "base" | "flat_fee";
+  rateOrigin: RateOrigin;
   feesCents: number;
   subtotalCents: number;
   expensesCents: number;
@@ -57,6 +65,7 @@ export interface InvoicePort {
   getCase(id: string): InvoiceCase | null;
   getPeriod(id: string): InvoicePeriod | null;
   getExpense(id: number): InvoiceExpense | null;
+  getExpenseForRemoval(id: number): Pick<InvoiceExpense, "id" | "invoiceId"> | null;
   getRuleContext(
     caseId: string,
     periodIds: string[],
@@ -80,8 +89,8 @@ export interface InvoicePort {
     caseId: string;
     number: string;
     date: string;
-    type: "deposit" | "final";
-    status: string;
+    type: InvoiceType;
+    status: (typeof invoiceStatuses)[number];
     subtotalCents: number;
     vatCents: number;
     disbursementsCents: number;
@@ -91,7 +100,7 @@ export interface InvoicePort {
   listInvoiceLines(): Array<{
     id: number;
     invoiceId: number;
-    origin: string;
+    origin: InvoiceLineOrigin;
     originId: string;
     label: string;
     billedMinutes: number;
@@ -104,7 +113,7 @@ export interface InvoicePort {
     caseId: string;
     date: string;
     label: string;
-    type: "expense" | "disbursement";
+    type: ExpenseType;
     amountCents: number;
     invoiceId: number | null;
   }>;
@@ -112,7 +121,7 @@ export interface InvoicePort {
     caseId: string;
     date: string;
     label: string;
-    type: "expense" | "disbursement";
+    type: ExpenseType;
     amountCents: number;
   }): number;
   removeExpense(id: number): void;

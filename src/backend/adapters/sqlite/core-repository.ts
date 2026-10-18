@@ -1,8 +1,23 @@
+import { AppError } from "../../application/errors.js";
+import { enumValue as member } from "./enum-value.js";
+import {
+  coverageGapStatuses,
+  reconstructionStatuses,
+  nonbillableReasons,
+  isState,
+  type NonbillableReason,
+  CommandStatus,
+  ReconstructionStatus,
+  RetrievalStatus,
+  ValidationStatus,
+} from "../../domain/states.js";
 import { DatabaseSync } from "node:sqlite";
 import type {
   CommandRecord,
   CoverageGap,
   PeriodRecord,
+  PeriodQuery,
+  QueriedPeriod,
   QuestionRecord,
   Repository,
   SessionRecord,
@@ -14,128 +29,16 @@ import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { orm } from "./orm.js";
 import * as tables from "./tables.js";
 
-type Row = Record<string, unknown>;
-const row = (value: unknown): Row | null => {
-  if (value === undefined || value === null) return null;
-  if (typeof value !== "object" || Array.isArray(value)) throw Error("Invalid SQLite row");
-  return Object.fromEntries(Object.entries(value));
-};
-const str = (value: unknown): string => {
-  if (typeof value !== "string") throw Error("Invalid SQLite text value");
-  return value;
-};
-const nullable = (value: unknown): string | null => (value === null ? null : str(value));
-const num = (value: unknown): number => {
-  if (typeof value !== "number" || !Number.isFinite(value))
-    throw Error("Invalid SQLite numeric value");
-  return value;
-};
-const flag = (value: unknown): boolean => {
-  if (value !== 0 && value !== 1) throw Error("Invalid SQLite boolean value");
-  return value === 1;
-};
-const nullableNum = (value: unknown): number | null => (value === null ? null : num(value));
-function member<T extends string>(value: unknown, allowed: readonly T[]): T {
-  for (const item of allowed) if (item === value) return item;
-  throw Error("Invalid SQLite enum value");
-}
-
-function session(value: unknown): SessionRecord | null {
-  const r = row(value);
-  return r
-    ? {
-        id: str(r.id),
-        startedAt: str(r.started_at),
-        endedAt: nullable(r.ended_at),
-        revision: num(r.revision),
-      }
-    : null;
-}
-function period(value: unknown): PeriodRecord | null {
-  const r = row(value);
-  return r
-    ? {
-        id: str(r.id),
-        sessionId: str(r.session_id),
-        caseId: nullable(r.case_id),
-        initialCaseId: nullable(r.initial_case_id),
-        initialOrigin: member(r.initial_origin, ["unresolved", "automatic", "lawyer"]),
-        startedAt: str(r.started_at),
-        endedAt: nullable(r.ended_at),
-        detectedDurationMs: nullableNum(r.detected_duration_ms),
-        durationOverrideMs: nullableNum(r.duration_override_ms),
-        assignmentOrigin: member(r.assignment_origin, ["unresolved", "automatic", "lawyer"]),
-        assignmentRevision: num(r.assignment_revision),
-        effectiveRevision: num(r.effective_revision),
-        validatedEffectiveRevision: nullableNum(r.validated_effective_revision),
-        timeValidatedAt: nullable(r.time_validated_at),
-        billingStatus: member(r.billing_status, ["unbilled", "billed"]),
-        billedAt: nullable(r.billed_at),
-        revision: num(r.revision),
-        appliedHourlyRateCents: nullableNum(r.applied_hourly_rate_cents),
-        appliedCurrency: nullable(r.applied_currency),
-        taskTypeId: nullableNum(r.task_type_id),
-        label: str(r.label),
-        billable: flag(r.billable),
-        nonbillableReason: nullable(r.nonbillable_reason),
-        excluded: flag(r.excluded),
-        demoApp: nullable(r.demo_app),
-        demoWindowTitle: nullable(r.demo_window_title),
-        demoConfidence: nullableNum(r.demo_confidence),
-        invoiceId: nullableNum(r.invoice_id),
-      }
-    : null;
-}
-function command(value: unknown): CommandRecord | null {
-  const r = row(value);
-  return r
-    ? {
-        producerId: str(r.producer_id),
-        commandId: str(r.command_id),
-        kind: member(r.kind, ["start", "end"]),
-        payloadFingerprint: str(r.payload_fingerprint),
-        sessionId: str(r.session_id),
-        status: member(r.status, ["pending", "applied", "rejected"]),
-        prerequisiteId: nullable(r.prerequisite_id),
-        payloadJson: str(r.payload_json),
-        resultJson: nullable(r.result_json),
-      }
-    : null;
-}
-function question(value: unknown): QuestionRecord | null {
-  const r = row(value);
-  return r
-    ? {
-        questionId: str(r.question_id),
-        sessionId: str(r.session_id),
-        periodId: str(r.work_period_id),
-        expectedAssignmentRevision: num(r.expected_assignment_revision),
-        status: member(r.status, ["pending", "answered", "superseded"]),
-        responseCommandId: nullable(r.response_command_id),
-        responseResultJson: nullable(r.response_result_json),
-      }
-    : null;
-}
-function source(value: unknown): SourceRecord | null {
-  const r = row(value);
-  return r
-    ? {
-        id: str(r.id),
-        workPeriodId: nullable(r.work_period_id),
-        instanceId: str(r.screenpipe_instance_id),
-        contentType: str(r.content_type),
-        externalId: str(r.external_id),
-        recordedAt: str(r.recorded_at),
-        ingestedAt: str(r.ingested_at),
-        excerpt: nullable(r.excerpt),
-        detectedMarker: nullable(r.detected_marker),
-        validationStatus: member(r.validation_status, ["unvalidated", "validated"]),
-        validatedAt: nullable(r.validated_at),
-        availabilityStatus: member(r.availability_status, ["unknown", "available", "unavailable"]),
-        availabilityCheckedAt: nullable(r.availability_checked_at),
-      }
-    : null;
-}
+import {
+  session,
+  period,
+  command,
+  question,
+  source,
+  str,
+  nullable,
+  nullableNum,
+} from "./core-row-mappers.js";
 
 export class SqliteRepository implements Repository {
   readonly db: DatabaseSync;
@@ -232,7 +135,7 @@ export class SqliteRepository implements Repository {
         and(
           eq(t.producer_id, producerId),
           eq(t.prerequisite_id, prerequisiteId),
-          eq(t.status, "pending"),
+          eq(t.status, CommandStatus.Pending),
         ),
       )
       .orderBy(t.created_at, t.command_id)
@@ -243,6 +146,20 @@ export class SqliteRepository implements Repository {
     return period(
       orm(this.db).select().from(tables.work_periods).where(eq(tables.work_periods.id, id)).get(),
     );
+  }
+  periodForNonbillableReasonRepair(
+    id: string,
+    reason: NonbillableReason | null,
+  ): PeriodRecord | null {
+    if (reason !== null && !isState(reason, nonbillableReasons))
+      throw new AppError("invalid-request", "invalid nonbillable reason");
+    const stored = orm(this.db)
+      .select()
+      .from(tables.work_periods)
+      .where(eq(tables.work_periods.id, id))
+      .get();
+    // Only the explicitly supplied field is replaced before strict mapping. Nothing is persisted here.
+    return stored ? period({ ...stored, nonbillable_reason: reason }) : null;
   }
   activePeriod(sessionId: string): PeriodRecord | null {
     const t = tables.work_periods;
@@ -273,6 +190,29 @@ export class SqliteRepository implements Repository {
         )
         .get(sessionId, at),
     );
+  }
+  queryPeriods(query: PeriodQuery): QueriedPeriod[] {
+    const p = tables.work_periods;
+    const cases = tables.cases;
+    const conditions = [
+      query.sessionId === undefined ? undefined : eq(p.session_id, query.sessionId),
+      query.caseId === undefined ? undefined : eq(p.case_id, query.caseId),
+      query.clientId === undefined ? undefined : eq(cases.client_id, query.clientId),
+      query.startedFrom === undefined
+        ? undefined
+        : sql`julianday(${p.started_at}) >= julianday(${query.startedFrom})`,
+      query.startedBefore === undefined
+        ? undefined
+        : sql`julianday(${p.started_at}) < julianday(${query.startedBefore})`,
+    ];
+    return orm(this.db)
+      .select({ period: p, clientId: cases.client_id })
+      .from(p)
+      .leftJoin(cases, eq(p.case_id, cases.id))
+      .where(and(...conditions))
+      .orderBy(sql`julianday(${p.started_at})`, p.id)
+      .all()
+      .map((value) => ({ ...period(value.period)!, clientId: value.clientId }));
   }
   listPeriods(sessionId: string): PeriodRecord[] {
     const t = tables.work_periods;
@@ -309,8 +249,8 @@ export class SqliteRepository implements Repository {
         assignment_origin: p.assignmentOrigin,
         time_validation_status:
           p.validatedEffectiveRevision === p.effectiveRevision && p.timeValidatedAt
-            ? "validated"
-            : "unvalidated",
+            ? ValidationStatus.Validated
+            : ValidationStatus.Unvalidated,
         effective_revision: p.effectiveRevision,
         validated_effective_revision: p.validatedEffectiveRevision,
         time_validated_at: p.timeValidatedAt,
@@ -345,8 +285,8 @@ export class SqliteRepository implements Repository {
         assignment_origin: p.assignmentOrigin,
         time_validation_status:
           p.validatedEffectiveRevision === p.effectiveRevision && p.timeValidatedAt
-            ? "validated"
-            : "unvalidated",
+            ? ValidationStatus.Validated
+            : ValidationStatus.Unvalidated,
         effective_revision: p.effectiveRevision,
         validated_effective_revision: p.validatedEffectiveRevision,
         time_validated_at: p.timeValidatedAt,
@@ -597,7 +537,7 @@ export class SqliteRepository implements Repository {
     return orm(this.db)
       .select()
       .from(t)
-      .where(ne(t.status, "complete"))
+      .where(ne(t.status, RetrievalStatus.Complete))
       .orderBy(sql`julianday(${t.requested_start_at})`, t.id)
       .all()
       .map((r) => ({
@@ -605,7 +545,7 @@ export class SqliteRepository implements Repository {
         sessionId: r.session_id,
         startedAt: r.requested_start_at,
         endedAt: r.requested_end_at,
-        status: member(r.status, ["pending", "failed"]),
+        status: member(r.status, coverageGapStatuses),
       }));
   }
   insertSource(s: SourceRecord): void {
@@ -658,7 +598,7 @@ export class SqliteRepository implements Repository {
       .map(({ sourceReferencesJson, ...row }) => ({
         ...row,
         sourceReferences: JSON.parse(sourceReferencesJson) as string[],
-        status: row.status as "pending" | "resolved",
+        status: member(row.status, reconstructionStatuses),
       }));
   }
   insertConflict(
@@ -678,7 +618,7 @@ export class SqliteRepository implements Repository {
         proposed_started_at: startedAt,
         proposed_ended_at: endedAt,
         source_references_json: sourceReferencesJson,
-        status: "pending",
+        status: ReconstructionStatus.Pending,
       })
       .onConflictDoNothing()
       .run();

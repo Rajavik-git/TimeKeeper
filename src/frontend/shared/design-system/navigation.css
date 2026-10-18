@@ -1,0 +1,56 @@
+.tabs {
+  display: flex;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.tabs button {
+  min-height: var(--h-md);
+  margin-bottom: -1px;
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 500 var(--fs-md)/1.4 var(--f);
+}
+.tabs button[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.seg,
+.theme {
+  display: inline-flex;
+  gap: 0;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--hover);
+}
+:is(.seg, .theme) button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--h-sm);
+  min-height: var(--h-sm);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--tab-inactive);
+  font: 500 var(--fs-sm)/1.4 var(--f);
+}
+:is(.seg, .theme) button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-tab);
+}
+.seg .c {
+  color: var(--tab-count);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}

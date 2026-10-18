@@ -7,8 +7,11 @@
     "node": "24.x"
   },
   "scripts": {
-    "contract:gen": "openapi-typescript src/contracts/openapi.yaml -o src/contracts/generated.ts && node scripts/generate-request-contract.mjs",
+    "setup": "node install.mjs",
+    "setup:check": "node install.mjs --check",
+    "contract:gen": "node --import tsx scripts/sync-state-contract.ts && openapi-typescript src/contracts/openapi.yaml -o src/contracts/generated.ts && node scripts/generate-request-contract.mjs",
     "db:reset": "node --env-file-if-exists=.env --import tsx scripts/reset-db.ts",
+    "db:samples": "node --import tsx scripts/load-comparison-samples.ts",
     "dev": "concurrently -k \"npm run dev:server\" \"npm run dev:ui\"",
     "dev:server": "node --env-file-if-exists=.env --watch --import tsx src/backend/api/index.ts",
     "dev:ui": "node --env-file-if-exists=.env node_modules/vite/bin/vite.js --config src/frontend/vite.config.ts",

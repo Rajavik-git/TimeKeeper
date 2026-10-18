@@ -1,3 +1,14 @@
+import { enumValue } from "./enum-value.js";
+import {
+  baseUnits,
+  pillDisplays,
+  clientTypes,
+  clientBillingModes,
+  caseStatuses,
+  caseBillingModes,
+  markerTypes,
+  clientRuleTypes,
+} from "../../domain/states.js";
 import type { DatabaseSync } from "node:sqlite";
 import { asc, eq, sql } from "drizzle-orm";
 import { orm } from "./orm.js";
@@ -13,7 +24,7 @@ import type {
   CatalogTaskType,
 } from "../../ports/catalog.js";
 
-function settings(row: typeof t.settings.$inferSelect): CatalogSettings {
+function settingsForAudit(row: typeof t.settings.$inferSelect) {
   return {
     id: row.id,
     workspaceId: row.workspace_id,
@@ -22,7 +33,7 @@ function settings(row: typeof t.settings.$inferSelect): CatalogSettings {
     lawyerName: row.lawyer_name ?? "",
     address: row.address ?? "",
     vatNumber: row.vat_number ?? "",
-    baseUnit: row.base_unit as CatalogSettings["baseUnit"],
+    baseUnit: row.base_unit,
     vatRate: row.vat_rate,
     confidenceThreshold: row.confidence_threshold,
     excludedApps: row.excluded_apps,
@@ -30,42 +41,63 @@ function settings(row: typeof t.settings.$inferSelect): CatalogSettings {
     notifications: Boolean(row.notifications),
     pillPosition: row.pill_position,
     pillAlwaysOnTop: Boolean(row.pill_always_on_top),
-    pillDisplay: row.pill_display as CatalogSettings["pillDisplay"],
+    pillDisplay: row.pill_display,
     pillWithholdCalls: Boolean(row.pill_withhold_calls),
     invoicePrefix: row.invoice_prefix,
     nextNumber: row.next_number,
   };
 }
-function client(row: typeof t.clients.$inferSelect): CatalogClient {
+function settings(row: typeof t.settings.$inferSelect): CatalogSettings {
+  return {
+    ...settingsForAudit(row),
+    baseUnit: enumValue(row.base_unit, baseUnits, "settings.baseUnit"),
+    pillDisplay: enumValue(row.pill_display, pillDisplays, "settings.pillDisplay"),
+  };
+}
+function clientForAudit(row: typeof t.clients.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
     code: row.code,
     active: Boolean(row.active),
-    type: row.type as CatalogClient["type"],
-    mode: row.mode as CatalogClient["mode"],
+    type: row.type,
+    mode: row.mode,
     hourlyRateCents: row.hourly_rate_cents,
     vatApplicable: Boolean(row.vat_applicable),
     billingAddress: row.billing_address,
   };
 }
-function legalCase(row: typeof t.cases.$inferSelect): CatalogCase {
+function client(row: typeof t.clients.$inferSelect): CatalogClient {
+  return {
+    ...clientForAudit(row),
+    type: enumValue(row.type, clientTypes, "client.type"),
+    mode: enumValue(row.mode, clientBillingModes, "client.mode"),
+  };
+}
+function legalCaseForAudit(row: typeof t.cases.$inferSelect) {
   return {
     id: row.id,
     clientId: row.client_id,
     reference: row.reference,
     title: row.title,
     hourlyRateCents: row.hourly_rate_cents,
-    status: row.status as CatalogCase["status"],
+    status: row.status,
     category: row.category,
     caseNumber: row.case_number,
     opposingParty: row.opposing_party,
-    mode: row.mode as CatalogCase["mode"],
+    mode: row.mode,
     flatFeeCents: row.flat_fee_cents,
     hourCap: row.hour_cap,
     successFeePercent: row.success_fee_percent,
     budgetCents: row.budget_cents,
     openedOn: row.opened_on,
+  };
+}
+function legalCase(row: typeof t.cases.$inferSelect): CatalogCase {
+  return {
+    ...legalCaseForAudit(row),
+    status: enumValue(row.status, caseStatuses, "legalCase.status"),
+    mode: enumValue(row.mode, caseBillingModes, "legalCase.mode"),
   };
 }
 function taskType(row: typeof t.task_types.$inferSelect): CatalogTaskType {
@@ -78,11 +110,11 @@ function taskType(row: typeof t.task_types.$inferSelect): CatalogTaskType {
     sortOrder: row.sort_order,
   };
 }
-function marker(row: typeof t.markers.$inferSelect): CatalogMarker {
+function markerForAudit(row: typeof t.markers.$inferSelect) {
   return {
     id: row.id,
     caseId: row.case_id,
-    type: row.type as CatalogMarker["type"],
+    type: row.type,
     value: row.value,
     weight: row.weight,
     learned: Boolean(row.learned),
@@ -90,13 +122,22 @@ function marker(row: typeof t.markers.$inferSelect): CatalogMarker {
     lastSeenAt: row.last_seen_at,
   };
 }
-function clientRule(row: typeof t.client_rules.$inferSelect): CatalogClientRule {
+function marker(row: typeof t.markers.$inferSelect): CatalogMarker {
+  return { ...markerForAudit(row), type: enumValue(row.type, markerTypes, "marker.type") };
+}
+function clientRuleForAudit(row: typeof t.client_rules.$inferSelect) {
   return {
     id: row.id,
     clientId: row.client_id,
-    type: row.type as CatalogClientRule["type"],
+    type: row.type,
     value: row.value,
     label: row.label,
+  };
+}
+function clientRule(row: typeof t.client_rules.$inferSelect): CatalogClientRule {
+  return {
+    ...clientRuleForAudit(row),
+    type: enumValue(row.type, clientRuleTypes, "clientRule.type"),
   };
 }
 const flag = (value: boolean | undefined) => (value === undefined ? undefined : value ? 1 : 0);
@@ -177,6 +218,50 @@ export function catalogRepository(db: DatabaseSync): CatalogPort {
         .all()
         .map(clientRule),
     }),
+    auditSnapshot(kind, id) {
+      switch (kind) {
+        case "client": {
+          const row = query
+            .select()
+            .from(t.clients)
+            .where(eq(t.clients.id, String(id)))
+            .get();
+          return row && clientForAudit(row);
+        }
+        case "case": {
+          const row = query
+            .select()
+            .from(t.cases)
+            .where(eq(t.cases.id, String(id)))
+            .get();
+          return row && legalCaseForAudit(row);
+        }
+        case "settings": {
+          const row = query
+            .select()
+            .from(t.settings)
+            .where(eq(t.settings.id, Number(id)))
+            .get();
+          return row && settingsForAudit(row);
+        }
+        case "marker": {
+          const row = query
+            .select()
+            .from(t.markers)
+            .where(eq(t.markers.id, Number(id)))
+            .get();
+          return row && markerForAudit(row);
+        }
+        case "clientRule": {
+          const row = query
+            .select()
+            .from(t.client_rules)
+            .where(eq(t.client_rules.id, Number(id)))
+            .get();
+          return row && clientRuleForAudit(row);
+        }
+      }
+    },
     client(id) {
       const row = query.select().from(t.clients).where(eq(t.clients.id, id)).get();
       return row && client(row);

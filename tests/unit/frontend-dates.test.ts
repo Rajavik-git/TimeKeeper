@@ -1,14 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { activityPeriods, activityTimeline } from "../../src/frontend/calculations/activity";
-import {
-  previousBillingMetrics,
-  previousMonthMetrics,
-} from "../../src/frontend/calculations/cases";
+import { monthlyRecordedTime } from "../../src/frontend/calculations/comparison";
 import { draftInvoice } from "../../src/frontend/calculations/billing";
 import {
   invoiceRows,
   invoiceRowsCsv,
-} from "../../src/frontend/features/billing-status/invoiceRows";
+} from "../../src/frontend/features/billing-status/lib/invoiceRows";
 import { auditDate, shortDate } from "../../src/frontend/shared/format";
 import { frontendFixture } from "./frontend-fixture";
 
@@ -31,8 +28,7 @@ it.each([
   ["2026-01-31", "2025-12-31"],
 ])("compares %s with the last available day in the previous month", (today, previousDay) => {
   const { state, core } = frontendFixture();
-  expect(previousMonthMetrics(state, core, today).previousDay).toBe(previousDay);
-  expect(previousBillingMetrics(state, core, today).previousDay).toBe(previousDay);
+  expect(monthlyRecordedTime(state, core, today).previousDay).toBe(previousDay);
 });
 
 it("groups a whole period by its local start day and preserves its precise duration", () => {
@@ -56,9 +52,8 @@ it("excludes local March work from the February comparison even when its UTC dat
   const { state, core } = frontendFixture();
   state.cases[0].openedOn = "2026-01-01";
   core.periods[0].startedAt = "2026-02-28T23:30:00Z";
-  const previous = previousMonthMetrics(state, core, "2026-03-31");
-  expect(previous.previousMinutes).toBe(0);
-  expect(previous.previousToBill).toBe(0);
+  const previous = monthlyRecordedTime(state, core, "2026-03-31");
+  expect(previous.previous.roundedMinutes).toBe(0);
 });
 
 it("uses the same local day and clock for audit timestamps without shifting date-only labels", () => {
@@ -95,6 +90,24 @@ it("exports draft currency explicitly and retains fractional minutes for each pe
   );
 });
 
+it("exports known hourly zero amounts while keeping unknown and flat-fee amounts distinct", () => {
+  const { state, core } = frontendFixture();
+  core.periods[0] = { ...core.periods[0], detectedDurationMs: 0, durationOverrideMs: 0 };
+  const draft = draftInvoice(state, core, "case", "final");
+  const [zero] = invoiceRows(state.cases[0], core.periods, [], draft, "2026-10-17");
+  expect(zero).toMatchObject({ durationMs: 0, amountCents: 0 });
+  expect(invoiceRowsCsv([zero], "EUR")).toContain(';"0";"0.00";"EUR"');
+
+  const unknown = { ...core.periods[0], detectedDurationMs: null, durationOverrideMs: null };
+  expect(invoiceRows(state.cases[0], [unknown], [], draft, "2026-10-17")[0]).toMatchObject({
+    durationMs: null,
+    amountCents: null,
+  });
+  expect(
+    invoiceRows({ ...state.cases[0], mode: "flat_fee" }, core.periods, [], draft, "2026-10-17")[0],
+  ).toMatchObject({ durationMs: 0, amountCents: null });
+});
+
 it.each([
   ["2026-03-29T00:30:00Z", "2026-03-29T01:30:00Z"],
   ["2026-10-25T00:30:00Z", "2026-10-25T01:30:00Z"],
@@ -125,18 +138,4 @@ it("keeps an overnight timeline period whole and does not invent an open boundar
     period.id,
   )!;
   expect(open.endMs).toBe(open.startMs);
-});
-
-it("excludes unknown case-opening dates from historical case and billing comparisons", () => {
-  const { state, core } = frontendFixture();
-  state.cases[0].openedOn = null;
-  core.periods[0].startedAt = "2026-02-20T09:00:00Z";
-  expect(previousMonthMetrics(state, core, "2026-03-31")).toMatchObject({
-    previousCases: 0,
-    previousToBill: 0,
-  });
-  expect(previousBillingMetrics(state, core, "2026-03-31")).toMatchObject({
-    toBillCents: 0,
-    readyCents: 0,
-  });
 });

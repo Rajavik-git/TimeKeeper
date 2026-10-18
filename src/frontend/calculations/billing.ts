@@ -1,3 +1,12 @@
+import {
+  AvailabilityStatus,
+  BillingStatus,
+  CaseBillingMode,
+  ExpenseType,
+  InvoiceLineOrigin,
+  InvoiceType,
+  RateOrigin,
+} from "../../contracts/states.generated";
 import { invoiceAmounts } from "../../shared/invoice-math";
 import type { CoreState, State, EntityId } from "../api/client";
 import { summarize, type Summary } from "./summary";
@@ -10,7 +19,7 @@ export type InvoiceDraft = {
   revisions: Record<string, number>;
   billedMinutes: number;
   rateCents: number;
-  rateOrigin: "matter" | "client" | "base" | "flat_fee";
+  rateOrigin: RateOrigin;
   feesCents: number;
   subtotalCents: number;
   expensesCents: number;
@@ -20,7 +29,7 @@ export type InvoiceDraft = {
   pendingPeriods: number;
   complete: boolean;
   lines: Array<{
-    origin: "work_period" | "expense" | "flat_fee";
+    origin: InvoiceLineOrigin;
     originId: string;
     label: string;
     billedMinutes: number;
@@ -42,7 +51,8 @@ export {
 export function hasCoverageGap(period: Period, sources: CoreState["sources"]): boolean {
   if (effectiveMs(period) === null) return true;
   const linked = sources.filter((source) => source.workPeriodId === period.id);
-  if (linked.some((source) => source.availabilityStatus !== "available")) return true;
+  if (linked.some((source) => source.availabilityStatus !== AvailabilityStatus.Available))
+    return true;
   if (period.durationOverrideMs !== null) return false;
   return linked.length === 0;
 }
@@ -67,51 +77,29 @@ export function summarizeWork(periods: readonly Period[], sources: CoreState["so
 export function configuredRate(
   state: State,
   caseId: EntityId,
-): { rateCents: number; origin: "matter" | "client" | "base" | "flat_fee" } {
+): { rateCents: number; origin: RateOrigin } {
   const item = state.cases.find((m) => String(m.id) === String(caseId));
   if (!item) throw Error("Case not found");
-  if (item.mode === "flat_fee") return { rateCents: 0, origin: "flat_fee" };
+  if (item.mode === CaseBillingMode.FlatFee) return { rateCents: 0, origin: RateOrigin.FlatFee };
   const client = state.clients.find((c) => String(c.id) === String(item.clientId));
-  if (item.hourlyRateCents !== null) return { rateCents: item.hourlyRateCents, origin: "matter" };
+  if (item.hourlyRateCents !== null)
+    return { rateCents: item.hourlyRateCents, origin: RateOrigin.Case };
   if (typeof client?.hourlyRateCents === "number")
-    return { rateCents: client.hourlyRateCents, origin: "client" };
-  return { rateCents: state.settings.globalHourlyRateCents ?? 0, origin: "base" };
+    return { rateCents: client.hourlyRateCents, origin: RateOrigin.Client };
+  return { rateCents: state.settings.globalHourlyRateCents ?? 0, origin: RateOrigin.Base };
 }
 
-export function dayFees(
-  state: State,
-  workspaceState: CoreState,
-  periods: readonly Period[],
-): number {
-  const byRate = new Map<string, { periods: Period[]; rateCents: number }>();
-  for (const period of periods.filter((p) => !p.excluded && p.billable)) {
-    const configured = period.caseId
-      ? configuredRate(state, period.caseId)
-      : { rateCents: state.settings.globalHourlyRateCents ?? 0, origin: "base" as const };
-    if (configured.origin === "flat_fee") continue;
-    const rateCents =
-      period.billingStatus === "billed"
-        ? (period.appliedHourlyRateCents ?? configured.rateCents)
-        : configured.rateCents;
-    const key = `${period.caseId ?? ""}:${rateCents}`;
-    const group = byRate.get(key) ?? { periods: [], rateCents };
-    group.periods.push(period);
-    byRate.set(key, group);
-  }
-  let fees = 0;
-  for (const group of byRate.values()) {
-    fees += Math.round(
-      (summarizeWork(group.periods, workspaceState.sources).roundedMinutes * group.rateCents) / 60,
-    );
-  }
-  return fees;
+export { dayFees, type FeeEstimate } from "./fees";
+
+export function needsTimeValidation(period: Pick<Period, "excluded" | "timeValidated">) {
+  return !period.excluded && !period.timeValidated;
 }
 
 export function draftInvoice(
   state: State,
   workspaceState: CoreState,
   caseId: EntityId,
-  type: "deposit" | "final",
+  type: InvoiceType,
 ): InvoiceDraft {
   const item = state.cases.find((m) => String(m.id) === String(caseId));
   if (!item) throw Error("Case not found");
@@ -119,27 +107,33 @@ export function draftInvoice(
   if (!client) throw Error("Client not found");
   const periods = workspaceState.periods.filter(
     (p) =>
-      p.caseId === String(caseId) && !p.excluded && p.billable && p.billingStatus === "unbilled",
+      p.caseId === String(caseId) &&
+      !p.excluded &&
+      p.billable &&
+      p.billingStatus === BillingStatus.Unbilled,
   );
   const summary = summarizeWork(periods, workspaceState.sources);
   const rate = configuredRate(state, caseId);
   const flatFeeDue =
-    item.mode === "flat_fee" &&
-    type === "final" &&
-    !workspaceState.billing.invoices.some((i) => i.caseId === String(caseId) && i.type === "final");
+    item.mode === CaseBillingMode.FlatFee &&
+    type === InvoiceType.Final &&
+    !workspaceState.billing.invoices.some(
+      (i) => i.caseId === String(caseId) && i.type === InvoiceType.Final,
+    );
   const expenses = workspaceState.billing.expenses.filter(
     (e) => e.caseId === String(caseId) && !e.invoiceId,
   );
   const expensesCents = expenses
-    .filter((e) => e.type === "expense")
+    .filter((e) => e.type === ExpenseType.Expense)
     .reduce((total, e) => total + e.amountCents, 0);
   const disbursementsCents = expenses
-    .filter((e) => e.type === "disbursement")
+    .filter((e) => e.type === ExpenseType.Disbursement)
     .reduce((total, e) => total + e.amountCents, 0);
   const amounts = invoiceAmounts({
     durationMs: summary.preciseDurationMs,
     rateCents: rate.rateCents,
-    flatFeeCents: rate.origin === "flat_fee" ? (flatFeeDue ? (item.flatFeeCents ?? 0) : 0) : null,
+    flatFeeCents:
+      rate.origin === RateOrigin.FlatFee ? (flatFeeDue ? (item.flatFeeCents ?? 0) : 0) : null,
     expensesCents,
     disbursementsCents,
     vatRate: state.settings.vatRate ?? 0,
@@ -149,7 +143,7 @@ export function draftInvoice(
   const lines: InvoiceDraft["lines"] = [];
   if (flatFeeDue)
     lines.push({
-      origin: "flat_fee",
+      origin: InvoiceLineOrigin.FlatFee,
       originId: String(caseId),
       label: `Agreed flat fee · ${item.title}`,
       billedMinutes: 0,
@@ -159,23 +153,23 @@ export function draftInvoice(
     });
   if (periods.length)
     lines.push({
-      origin: "work_period",
+      origin: InvoiceLineOrigin.WorkPeriod,
       originId: String(caseId),
       label: `Work on ${item.title}`,
       billedMinutes: summary.roundedMinutes,
       rateCents: rate.rateCents,
-      amountCents: rate.origin === "flat_fee" ? 0 : feesCents,
+      amountCents: rate.origin === RateOrigin.FlatFee ? 0 : feesCents,
       vat: true,
     });
   for (const expense of expenses)
     lines.push({
-      origin: "expense",
+      origin: InvoiceLineOrigin.Expense,
       originId: String(expense.id),
       label: expense.label,
       billedMinutes: 0,
       rateCents: 0,
       amountCents: expense.amountCents,
-      vat: expense.type !== "disbursement",
+      vat: expense.type !== ExpenseType.Disbursement,
     });
   return {
     caseId,

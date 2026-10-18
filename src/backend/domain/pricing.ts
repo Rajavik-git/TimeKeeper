@@ -1,4 +1,5 @@
-export type RateOrigin = "base" | "client" | "matter" | "flat_fee";
+import { RateOrigin } from "./states/billing.js";
+export type { RateOrigin } from "./states/billing.js";
 
 export interface RateChoice {
   rate_cents: number;
@@ -12,12 +13,12 @@ export function chooseRate(input: {
   matter_cents?: number | null;
   flat_fee?: boolean;
 }): RateChoice {
-  if (input.flat_fee) return { rate_cents: 0, origin: "flat_fee", flat_fee: true };
+  if (input.flat_fee) return { rate_cents: 0, origin: RateOrigin.FlatFee, flat_fee: true };
   if (input.matter_cents != null)
-    return { rate_cents: input.matter_cents, origin: "matter", flat_fee: false };
+    return { rate_cents: input.matter_cents, origin: RateOrigin.Case, flat_fee: false };
   if (input.client_cents != null)
-    return { rate_cents: input.client_cents, origin: "client", flat_fee: false };
-  return { rate_cents: input.base_cents, origin: "base", flat_fee: false };
+    return { rate_cents: input.client_cents, origin: RateOrigin.Client, flat_fee: false };
+  return { rate_cents: input.base_cents, origin: RateOrigin.Base, flat_fee: false };
 }
 
 export function calculateLine(input: {

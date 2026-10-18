@@ -1,15 +1,15 @@
+import { MarkerType, SignalPlace } from "./states/recognition.js";
 export const defaultWeights = {
-  reference: 0.95,
-  case_number: 0.95,
-  opposing_party: 0.6,
-  client_name: 0.3,
-  file: 0.6,
-  email: 0.45,
-  domain: 0.35,
-  keyword: 0.15,
+  [MarkerType.Reference]: 0.95,
+  [MarkerType.CaseNumber]: 0.95,
+  [MarkerType.OpposingParty]: 0.6,
+  [MarkerType.ClientName]: 0.3,
+  [MarkerType.File]: 0.6,
+  [MarkerType.Email]: 0.45,
+  [MarkerType.Domain]: 0.35,
+  [MarkerType.Keyword]: 0.15,
 } as const;
-export type MarkerType = keyof typeof defaultWeights;
-export type SignalPlace = "app" | "window_title" | "browser_url" | "ocr" | "audio" | "speaker";
+export type { MarkerType, SignalPlace } from "./states/recognition.js";
 export interface Signals {
   app: string;
   window_title: string;
@@ -68,12 +68,14 @@ const contains = (text: string, value: string) => {
 };
 export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
   const fields: Array<[SignalPlace, string]> = [
-    ["app", signals.app],
-    ["window_title", signals.window_title],
-    ...(signals.browser_url ? [["browser_url", signals.browser_url] as [SignalPlace, string]] : []),
-    ...(signals.ocr_texts ?? []).map((x): [SignalPlace, string] => ["ocr", x]),
-    ...(signals.audio_transcripts ?? []).map((x): [SignalPlace, string] => ["audio", x]),
-    ...(signals.speakers ?? []).map((x): [SignalPlace, string] => ["speaker", x]),
+    [SignalPlace.App, signals.app],
+    [SignalPlace.WindowTitle, signals.window_title],
+    ...(signals.browser_url
+      ? [[SignalPlace.BrowserUrl, signals.browser_url] as [SignalPlace, string]]
+      : []),
+    ...(signals.ocr_texts ?? []).map((x): [SignalPlace, string] => [SignalPlace.Ocr, x]),
+    ...(signals.audio_transcripts ?? []).map((x): [SignalPlace, string] => [SignalPlace.Audio, x]),
+    ...(signals.speakers ?? []).map((x): [SignalPlace, string] => [SignalPlace.Speaker, x]),
   ];
   return catalog.matters
     .map((matter) => {
@@ -85,13 +87,13 @@ export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
         marker_id: number | null;
       }> = [
         {
-          type: "reference",
+          type: MarkerType.Reference,
           value: matter.reference,
           weight: defaultWeights.reference,
           marker_id: null,
         },
         {
-          type: "reference",
+          type: MarkerType.Reference,
           value: matter.reference.slice(0, 8),
           weight: defaultWeights.reference,
           marker_id: null,
@@ -99,7 +101,7 @@ export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
         ...(client
           ? [
               {
-                type: "client_name" as const,
+                type: MarkerType.ClientName,
                 value: client.name,
                 weight: defaultWeights.client_name,
                 marker_id: null,
@@ -115,7 +117,9 @@ export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
       for (const cue of cues) {
         if (cue.value === "N/A" || cue.value.startsWith("CASE [")) continue;
         const hit = fields.find(([place, text]) =>
-          cue.type !== "domain" || place === "browser_url" ? contains(text, cue.value) : false,
+          cue.type !== MarkerType.Domain || place === SignalPlace.BrowserUrl
+            ? contains(text, cue.value)
+            : false,
         );
         const key = `${cue.type}:${normalized(cue.value)}`;
         if (hit && !seen.has(key)) {
@@ -130,7 +134,7 @@ export function recognize(signals: Signals, catalog: Catalog): Candidate[] {
         }
       }
       // Full and short matter references are one cue, even when both appear.
-      const references = found.filter((x) => x.type === "reference");
+      const references = found.filter((x) => x.type === MarkerType.Reference);
       if (references.length > 1) found.splice(found.indexOf(references[1]), 1);
       const continuity =
         !!signals.previous &&
@@ -154,8 +158,8 @@ export function decision(candidates: Candidate[], threshold: number) {
       (x) =>
         x !== best &&
         x.score === best.score &&
-        x.found.every((cue) => cue.type === "client_name") &&
-        best.found.every((cue) => cue.type === "client_name"),
+        x.found.every((cue) => cue.type === MarkerType.ClientName) &&
+        best.found.every((cue) => cue.type === MarkerType.ClientName),
     );
   return !best
     ? { state: "to_check" as const, matter_id: null, confidence: 0 }

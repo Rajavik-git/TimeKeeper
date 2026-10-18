@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { calendarDay, isCalendarDay, isTimeZone, systemTimeZone } from "../../shared/dates.js";
-import { AppError } from "./service.js";
+import {
+  SourcePackScope,
+  SourcePackOption,
+  sourcePackScopes,
+  sourcePackOptions,
+  isState,
+} from "../domain/states.js";
+import { AppError } from "./errors.js";
 import { formatInvoiceCsv } from "./invoice-csv.js";
 import type {
   SourceExportPort,
@@ -11,15 +18,13 @@ import type {
 const invalid = (message: string): never => {
   throw new AppError("invalid-request", message);
 };
-const scopes = new Set(["invoice", "case", "dateRange", "selectedPeriods"]);
-const supportedOptions = new Set(["blur", "personal", "audio", "audit"]);
 
 function validate(request: SourceExportRequest): string {
-  if (!request || typeof request !== "object" || !scopes.has(request.scope))
+  if (!request || typeof request !== "object" || !isState(request.scope, sourcePackScopes))
     invalid("invalid source pack scope");
   if (
     !Array.isArray(request.options) ||
-    request.options.some((option) => !supportedOptions.has(option))
+    request.options.some((option) => !isState(option, sourcePackOptions))
   )
     invalid("invalid source pack options");
   const timeZone = request.timeZone ?? systemTimeZone();
@@ -29,15 +34,15 @@ function validate(request: SourceExportRequest): string {
       invalid("invalid source pack calendar day");
   if (request.from && request.to && request.from > request.to)
     invalid("from must be on or before to");
-  if (request.scope === "dateRange" && (!request.from || !request.to))
+  if (request.scope === SourcePackScope.DateRange && (!request.from || !request.to))
     invalid("date range required");
   if (
-    request.scope === "invoice" &&
+    request.scope === SourcePackScope.Invoice &&
     (!Number.isSafeInteger(request.invoiceId) || request.invoiceId! < 1)
   )
     invalid("invoice required");
   if (
-    request.scope === "selectedPeriods" &&
+    request.scope === SourcePackScope.SelectedPeriods &&
     (!Array.isArray(request.periodIds) ||
       !request.periodIds.length ||
       request.periodIds.some((id) => typeof id !== "string" || !id))
@@ -67,7 +72,10 @@ export class SourceExportService {
       const snapshot = this.port.snapshot();
       const item = snapshot.catalog.cases.find((item) => item.id === caseId);
       if (!item) throw new AppError("not-found", "case not found");
-      if (request.scope === "invoice" && this.port.invoiceCaseId(request.invoiceId!) !== caseId)
+      if (
+        request.scope === SourcePackScope.Invoice &&
+        this.port.invoiceCaseId(request.invoiceId!) !== caseId
+      )
         invalid("invoice does not belong to this case");
       const blockedApps = snapshot.catalog.settings.excludedApps
         .split(",")
@@ -76,18 +84,27 @@ export class SourceExportService {
       const periods = snapshot.periods.filter((period) => {
         if (period.caseId !== caseId || period.excluded) return false;
         if (
-          request.options.includes("personal") &&
+          request.options.includes(SourcePackOption.Personal) &&
           period.demoApp &&
           blockedApps.some((app) => period.demoApp!.toLocaleLowerCase("en-US").includes(app))
         )
           return false;
-        if (request.scope === "invoice") return period.invoiceId === request.invoiceId;
-        if (request.scope === "dateRange") {
-          const day = calendarDay(period.startedAt, timeZone);
-          return day >= request.from! && day <= request.to!;
+        switch (request.scope) {
+          case SourcePackScope.Invoice:
+            return period.invoiceId === request.invoiceId;
+          case SourcePackScope.DateRange: {
+            const day = calendarDay(period.startedAt, timeZone);
+            return day >= request.from! && day <= request.to!;
+          }
+          case SourcePackScope.SelectedPeriods:
+            return request.periodIds!.includes(period.id);
+          case SourcePackScope.Case:
+            return true;
+          default: {
+            const unsupportedScope: never = request.scope;
+            return invalid(`unsupported source pack scope: ${unsupportedScope}`);
+          }
         }
-        if (request.scope === "selectedPeriods") return request.periodIds!.includes(period.id);
-        return true;
       });
       if (!periods.length) invalid("No periods in source pack scope");
       const periodIds = periods.map((period) => period.id);
@@ -96,9 +113,9 @@ export class SourceExportService {
         (source) =>
           source.workPeriodId !== null &&
           selected.has(source.workPeriodId) &&
-          (request.options.includes("audio") || source.contentType !== "audio"),
+          (request.options.includes(SourcePackOption.Audio) || source.contentType !== "audio"),
       );
-      const auditEvents = request.options.includes("audit")
+      const auditEvents = request.options.includes(SourcePackOption.Audit)
         ? snapshot.auditEvents.filter(
             (event) => event.periodId !== null && selected.has(event.periodId),
           )

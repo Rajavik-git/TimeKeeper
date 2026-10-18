@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { Hono } from "hono";
 import { CatalogService } from "../application/catalog.js";
 import { catalogRepository } from "../adapters/sqlite/catalog-repository.js";
-import { AppError } from "../application/service.js";
+import { AppError } from "../application/errors.js";
 import { apiError } from "./errors.js";
 
 async function input(context: {

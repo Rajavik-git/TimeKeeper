@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, expect, it, vi } from "vitest";
 import type { ScreenProps } from "../../src/frontend/api/client";
 import { draftInvoice } from "../../src/frontend/calculations/billing";
-import { invoiceRows, sortRows } from "../../src/frontend/features/billing-status/invoiceRows";
+import { invoiceRows, sortRows } from "../../src/frontend/features/billing-status/lib/invoiceRows";
 
 // Server rendering exercises the component without browser effects or an active API.
 vi.stubGlobal("window", {});
@@ -84,12 +84,12 @@ it.each([
 );
 
 it.each([
-  [0, 0],
-  [null, null],
-  [0, null],
-])(
-  "leaves period amounts unknown when there is no positive known duration: %s, %s",
-  (first, second) => {
+  [0, 0, [0, 0]],
+  [null, null, [null, null]],
+  [0, null, [0, null]],
+] as const)(
+  "distinguishes zero amounts from unknown amounts for durations %s, %s",
+  (first, second, expected) => {
     const { state, core } = frontendFixture();
     const sample = core.periods[0];
     core.periods = [first, second].map((duration, index) => ({
@@ -103,7 +103,7 @@ it.each([
     expect(preview.feesCents).toBe(0);
     expect(
       invoiceRows(item, core.periods, [], preview, "2026-10-17").map((row) => row.amountCents),
-    ).toEqual([null, null]);
+    ).toEqual(expected);
   },
 );
 

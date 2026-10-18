@@ -1,7 +1,7 @@
 import { calendarDay, isCalendarDay, isTimeZone, systemTimeZone } from "../../shared/dates.js";
 import type { components } from "../../contracts/generated.js";
 import type { PeriodView } from "../../contracts/index.js";
-import { AppError } from "./service.js";
+import { AppError } from "./errors.js";
 
 type State = components["schemas"]["State"];
 export type SourcePackScope = "invoice" | "case" | "period" | "chosen";

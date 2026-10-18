@@ -61,6 +61,7 @@ async function smoke(page) {
               pageHeight: content.clientHeight,
               shellScroll: shell.scrollHeight,
               shellHeight: shell.clientHeight,
+              zoom: getComputedStyle(document.documentElement).zoom,
             };
           });
           check(
@@ -69,6 +70,64 @@ async function smoke(page) {
               geometry.shellScroll <= geometry.shellHeight + 1,
             `Overflow in ${view}, ${theme}, ${viewport.width}×${viewport.height}: ${JSON.stringify(geometry)}`,
           );
+          check(Number(geometry.zoom) === 1, "The application must not shrink the document");
+          const controlsFit = await page
+            .locator(".btn, .input, .field, .select, .iconbtn")
+            .evaluateAll((controls) =>
+              controls
+                .filter((control) => control.getClientRects().length)
+                .every(
+                  (control) =>
+                    Math.abs(
+                      control.getBoundingClientRect().height -
+                        (control.matches(".sm, .small") ? 32 : 38),
+                    ) < 0.5,
+                ),
+            );
+          check(controlsFit, `Shared controls changed size in ${view}`);
+          if (view === "Cases") {
+            const cardsFit = await page.locator(".client-grid").evaluate((grid) => {
+              const name = grid.querySelector(".client-tile strong");
+              if (!name) return true;
+              const original = name.textContent;
+              try {
+                name.textContent = "A deliberately long client organisation name ".repeat(5);
+                const cards = [...grid.querySelectorAll(".client-tile")];
+                return cards.every((card, index) => {
+                  const bounds = card.getBoundingClientRect();
+                  const facts = card.querySelector(".case-tile-facts").getBoundingClientRect();
+                  return (
+                    facts.bottom <= bounds.bottom + 1 &&
+                    cards.slice(index + 1).every((neighbor) => {
+                      const other = neighbor.getBoundingClientRect();
+                      return (
+                        bounds.right <= other.left ||
+                        other.right <= bounds.left ||
+                        bounds.bottom <= other.top ||
+                        other.bottom <= bounds.top
+                      );
+                    })
+                  );
+                });
+              } finally {
+                name.textContent = original;
+              }
+            });
+            check(cardsFit, "Long client cards must contain their facts and not overlap");
+          }
+          if (view === "Settings") {
+            await page.getByRole("button", { name: "Rates", exact: true }).click();
+            const reachable = await page.locator(".settings-content").evaluate((content) => {
+              content.scrollTop = content.scrollHeight;
+              const last = [...content.querySelectorAll("input")]
+                .filter((input) => input.getClientRects().length)
+                .at(-1);
+              const bounds = content.getBoundingClientRect();
+              return !last || last.getBoundingClientRect().bottom <= bounds.bottom + 1;
+            });
+            check(reachable, "The last rate control must be reachable by scrolling");
+            await page.getByRole("button", { name: "Clients", exact: true }).click();
+          }
           if (view === "My day") {
             await page.locator(".day-table").waitFor();
             const actions = page.getByRole("columnheader", { name: "Actions", exact: true });
@@ -151,6 +210,20 @@ async function smoke(page) {
               "My day table overflows horizontally",
             );
             check(
+              await page.locator(".day-table tbody tr").evaluateAll((rows) =>
+                rows
+                  .filter((row) => row.cells.length === 5)
+                  .every((row) => {
+                    const cell = row.cells[4].getBoundingClientRect();
+                    return [...row.querySelectorAll(".day-actions > *")].every((control) => {
+                      const bounds = control.getBoundingClientRect();
+                      return bounds.left >= cell.left - 1 && bounds.right <= cell.right + 1;
+                    });
+                  }),
+              ),
+              "My day actions overlap another column",
+            );
+            check(
               (await page.getByRole("columnheader", { name: "Amount", exact: true }).count()) === 0,
               "Unexpected Amount column",
             );
@@ -215,11 +288,11 @@ async function smoke(page) {
       "Future day must be disabled",
     );
     check(
-      (await page.getByText("Hatched: no recording", { exact: true }).count()) === 1,
+      (await page.getByText("Hatched: no work periods", { exact: true }).count()) === 1,
       "Missing calendar legend",
     );
     await emptyDay.click();
-    await page.locator(".day-periods .empty b").getByText("No work recorded").waitFor();
+    await page.locator(".day-periods .empty b").getByText("No work periods").waitFor();
     check(
       (await page.locator(".datebadge").innerText()) === "2",
       "Expected two other days to validate",
@@ -301,6 +374,16 @@ async function smoke(page) {
     await page.getByRole("heading", { name: "What will be on the invoice", exact: true }).waitFor();
     await openView("Activity");
     await page.getByRole("heading", { name: "Timeline", exact: true }).waitFor();
+    const periodList = page.getByRole("region", { name: "Work periods", exact: true });
+    await periodList.waitFor();
+    const secondPeriod = periodList.getByRole("button").nth(1);
+    const selectedLabel = await secondPeriod.locator("span").first().locator("span").innerText();
+    await secondPeriod.click();
+    check(
+      (await secondPeriod.getAttribute("aria-pressed")) === "true" &&
+        (await page.locator(".activity-detail h2").innerText()) === selectedLabel,
+      "The accessible period list must select the inspected period",
+    );
     await openView("Settings");
     await page.getByRole("button", { name: "Capture and invoices", exact: true }).click();
     check(
@@ -310,12 +393,19 @@ async function smoke(page) {
     await page.getByRole("button", { name: "Desk pill", exact: true }).click();
     await page.getByRole("button", { name: "Open preview", exact: true }).click();
     await page.getByRole("heading", { name: "No document preview", exact: true }).waitFor();
+    const previewHeight = await page
+      .locator(".work-pill .pill-bar")
+      .evaluate((bar) => bar.getBoundingClientRect().height);
     pill = await page.context().newPage();
     pill.on("pageerror", onPageError);
     pill.on("console", onConsole);
     await pill.setViewportSize({ width: 340, height: 490 });
     await pill.goto(new URL("pill.html", url).href);
     await pill.getByRole("button", { name: "TimeKeeper, toggle panel", exact: true }).waitFor();
+    const pillHeight = await pill
+      .locator(".work-pill .pill-bar")
+      .evaluate((bar) => bar.getBoundingClientRect().height);
+    check(previewHeight === 50 && pillHeight === previewHeight, "Pill preview geometry differs");
     check(errors.length === 0, `Browser errors: ${errors.join("\n")}`);
     return {
       status: "passed",

@@ -1,28 +1,24 @@
 import type { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { SystemTaskCode } from "../../domain/states.js";
 import { migrate } from "./migrate.js";
 import { transaction } from "./transaction.js";
 
 const taskTypes = [
-  ["REDAC", "Drafting", 1, 0],
-  ["ANALY", "Document review", 1, 0],
-  ["RECH", "Legal research", 1, 0],
-  ["MAIL", "Correspondence", 1, 0],
-  ["RDV", "Client meeting", 1, 1],
-  ["APPEL", "Call or video meeting", 1, 0],
-  ["AUD", "Hearing", 1, 1],
-  ["ADMIN", "Administrative", 0, 0],
-  ["ORGA", "Case organization", 0, 0],
-  ["DEPL", "Travel", 1, 1],
+  [SystemTaskCode.Drafting, "Drafting", 1, 0],
+  [SystemTaskCode.DocumentReview, "Document review", 1, 0],
+  [SystemTaskCode.Research, "Legal research", 1, 0],
+  [SystemTaskCode.Correspondence, "Correspondence", 1, 0],
+  [SystemTaskCode.ClientMeeting, "Client meeting", 1, 1],
+  [SystemTaskCode.Call, "Call or video meeting", 1, 0],
+  [SystemTaskCode.Hearing, "Hearing", 1, 1],
+  [SystemTaskCode.Administrative, "Administrative", 0, 0],
+  [SystemTaskCode.CaseOrganization, "Case organization", 0, 0],
+  [SystemTaskCode.Travel, "Travel", 1, 1],
 ] as const;
 
 /** Create the schema and initial preferences without sample business records. */
 export function initializeDatabase(db: DatabaseSync): void {
-  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='firm'").get()) {
-    db.exec(readFileSync(resolve("src/backend/adapters/sqlite/schema.sql"), "utf8"));
-  }
   migrate(db);
   transaction(db, () => {
     const created = db

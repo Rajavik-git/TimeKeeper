@@ -9,7 +9,7 @@ function approvalRevisions(db: { prepare(sql: string): { all(): unknown[] } }) {
   );
 }
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -33,6 +33,8 @@ it("maps each migrated column and preserves existing rows across upgrade and reo
   let db: DatabaseSync | undefined;
   try {
     db = openDb(path);
+    // The isolated upgrade fixture includes optional historical tables; fresh files omit them.
+    db.exec(readFileSync("src/backend/adapters/sqlite/schema.sql", "utf8"));
     for (const [name, table] of Object.entries(tables)) {
       const stored = db
         .prepare(`PRAGMA table_info(${name})`)

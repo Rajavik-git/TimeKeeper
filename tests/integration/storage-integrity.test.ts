@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -135,6 +136,7 @@ it("exposes the canonical period identity separately from its numeric compatibil
 it("projects compatibility fields and booleans independently of the historical SQL schema", () => {
   const db = openDb(":memory:");
   try {
+    db.exec(readFileSync("src/backend/adapters/sqlite/schema.sql", "utf8"));
     // Alter only this isolated database to prove payloads no longer follow old table metadata.
     db.exec(
       "ALTER TABLE client ADD COLUMN obsolete_field TEXT; ALTER TABLE client RENAME COLUMN billing_address TO obsolete_address",

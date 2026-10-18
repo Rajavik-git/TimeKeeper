@@ -1,6 +1,6 @@
 import { systemTimeZone } from "../../shared/dates";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type CoreState } from "./client";
+import { api } from "./client";
 import { Resource, type ResourceState } from "./resource";
 
 const refreshers = new Set<() => Promise<void>>();
@@ -13,6 +13,7 @@ export function useResource<T>(
   key: string,
   load: (signal: AbortSignal) => Promise<T>,
   pollInterval = 5000,
+  enabled = true,
 ) {
   const loader = useRef(load);
   loader.current = load;
@@ -26,6 +27,7 @@ export function useResource<T>(
     [key],
   );
   useEffect(() => {
+    if (!enabled) return;
     const refresh = () => resource.refresh();
     refreshers.add(refresh);
     void refresh().catch(() => undefined);
@@ -44,7 +46,7 @@ export function useResource<T>(
       window.clearInterval(timer);
       resource.dispose();
     };
-  }, [resource, pollInterval]);
+  }, [resource, pollInterval, enabled]);
   const state = snapshot?.key === key ? snapshot.state : resource.state;
   return {
     ...state,
@@ -58,40 +60,16 @@ export function requireData<T>(result: { data?: T; error?: unknown }): T {
   return result.data;
 }
 
+export async function loadCatalog(signal: AbortSignal) {
+  return requireData(await api.GET("/api/catalog", { signal }));
+}
+
+/** Summary inputs share one SQLite read transaction. Auxiliary logs cannot block them. */
 export async function loadApplication(signal: AbortSignal) {
-  const [
-    catalog,
-    active,
-    sessions,
-    periods,
-    sources,
-    questions,
-    billing,
-    auditEvents,
-    coverageGaps,
-    reconstructionConflicts,
-  ] = await Promise.all([
-    api.GET("/api/catalog", { signal }),
-    api.GET("/api/sessions/active", { signal }),
-    api.GET("/api/sessions", { signal }),
-    api.GET("/api/work-periods", { signal, params: { query: { timeZone: systemTimeZone() } } }),
-    api.GET("/api/sources", { signal }),
-    api.GET("/api/questions", { signal, params: { query: { timeZone: systemTimeZone() } } }),
-    api.GET("/api/billing/state", { signal }),
-    api.GET("/api/audit-events", { signal }),
-    api.GET("/api/coverage-gaps", { signal, params: { query: { timeZone: systemTimeZone() } } }),
-    api.GET("/api/reconstruction-conflicts", { signal }),
-  ]);
-  const workspaceState: CoreState = {
-    activeSession: requireData(active),
-    sessions: requireData(sessions),
-    periods: requireData(periods),
-    sources: requireData(sources),
-    questions: requireData(questions),
-    coverageGaps: requireData(coverageGaps),
-    billing: requireData(billing),
-    auditEvents: requireData(auditEvents),
-    reconstructionConflicts: requireData(reconstructionConflicts),
-  };
-  return { catalogState: requireData(catalog), workspaceState };
+  return requireData(
+    await api.GET("/api/workspace", {
+      signal,
+      params: { query: { timeZone: systemTimeZone() } },
+    }),
+  );
 }

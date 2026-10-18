@@ -1,3 +1,5 @@
+import type { AssignmentOrigin } from "./states.js";
+
 export interface PeriodState {
   caseId: string | null;
   detectedDurationMs: number | null;
@@ -6,7 +8,7 @@ export interface PeriodState {
   effectiveRevision: number;
   validatedEffectiveRevision: number | null;
   timeValidatedAt: string | null;
-  assignmentOrigin: "unresolved" | "automatic" | "lawyer";
+  assignmentOrigin: AssignmentOrigin;
 }
 
 export function effectiveDuration(

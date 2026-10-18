@@ -29,7 +29,7 @@ export function summarize(periods: readonly SummaryPeriod[], filter: SummaryFilt
     if (period.reconstructionCandidate) continue;
     if (filter.caseId !== undefined && period.caseId !== filter.caseId) continue;
     if (filter.clientId !== undefined && period.clientId !== filter.clientId) continue;
-    // Range selection uses whole periods only. Clipping remains an open decision in docs/DESIGN_REVIEW.md.
+    // Range selection uses whole periods only. Clipping remains an open decision in docs/REQUIREMENTS.md.
     if (
       filter.startAt !== undefined &&
       period.endedAt !== null &&
@@ -43,7 +43,7 @@ export function summarize(periods: readonly SummaryPeriod[], filter: SummaryFilt
       (filter.endAt !== undefined &&
         (period.endedAt === null || Date.parse(period.endedAt) > Date.parse(filter.endAt)))
     ) {
-      throw new Error("range clipping is pending a product decision: docs/DESIGN_REVIEW.md");
+      throw new Error("range clipping is pending a product decision: docs/REQUIREMENTS.md");
     }
     const duration = period.durationOverrideMs ?? period.detectedDurationMs;
     if (period.coverage === "incomplete" || duration === null) incompletePeriodIds.push(period.id);

@@ -3,7 +3,7 @@ import {
   buildDayView,
   type DayFilter,
   type MainSortKey,
-} from "../../src/frontend/features/workday/dayView";
+} from "../../src/frontend/features/workday/lib/dayView";
 import type { CoreState } from "../../src/frontend/api/client";
 import { frontendFixture } from "./frontend-fixture";
 
@@ -49,7 +49,7 @@ it("groups review and validation without counting excluded work or hiding unreso
   expect(ids(view.review)).toEqual(["recognized", "unresolved"]);
   expect(ids(view.validated)).toEqual(["validated"]);
   expect(ids(view.unresolved)).toEqual(["unresolved"]);
-  expect(ids(view.recognized)).toEqual(["recognized"]);
+  expect(ids(view.assignedToValidate)).toEqual(["recognized"]);
   expect(ids(view.shown)).toEqual(["recognized"]);
 });
 
@@ -168,4 +168,17 @@ it("orders same-second periods and coverage gaps chronologically with mixed prec
   expect(
     descending.mainRows.map((row) => (row.kind === "gap" ? row.gap.id : row.period.id)),
   ).toEqual(["later", "gap", "first"]);
+});
+
+it("includes assigned periods without application metadata in bulk time validation", () => {
+  const view = buildDayView({
+    ...defaults,
+    periods: [
+      period("no-app", { timeValidated: false, demoApp: undefined }),
+      period("already-validated"),
+      period("unassigned", { caseId: null, timeValidated: false }),
+      period("excluded", { excluded: true, timeValidated: false }),
+    ],
+  });
+  expect(ids(view.assignedToValidate)).toEqual(["no-app"]);
 });

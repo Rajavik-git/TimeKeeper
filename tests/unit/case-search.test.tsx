@@ -2,8 +2,8 @@
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { api, type Client, type Case } from "../../src/frontend/api/client";
-import { CaseSearch } from "../../src/frontend/features/cases/CaseSearch";
-import { useRecentCases } from "../../src/frontend/features/cases/useRecentCases";
+import { CaseSearch } from "../../src/frontend/features/cases/components/CaseSearch/CaseSearch";
+import { useRecentCases } from "../../src/frontend/features/cases/hooks/useRecentCases";
 import { frontendFixture } from "./frontend-fixture";
 
 afterEach(() => {

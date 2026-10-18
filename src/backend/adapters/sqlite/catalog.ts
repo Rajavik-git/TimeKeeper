@@ -1,3 +1,4 @@
+import { AvailabilityStatus, CaseStatus, InvoiceLineOrigin } from "../../domain/states.js";
 import { getTableColumns } from "drizzle-orm";
 import { mappedTable, readRows, writeRow } from "./table-access.js";
 import { displayId } from "./identifiers.js";
@@ -181,10 +182,10 @@ function project(name: string, projection: Projection, row: Row): Row {
     result[external] = result[internal];
     if (external !== internal) delete result[internal];
   }
-  if (name === "matter") result.status = result.status === "archived" ? "closed" : "open";
+  if (name === "matter") result.status = result.status === CaseStatus.Archived ? "closed" : "open";
   if (name === "invoice_line") {
     result.tenths_of_hour = Number(result.tenths_of_hour) / 6;
-    if (result.origin === "work_period") result.origin = "time_entry";
+    if (result.origin === InvoiceLineOrigin.WorkPeriod) result.origin = "time_entry";
     result.origin_id = numericId(result.origin_id);
   }
   return result;
@@ -203,7 +204,7 @@ export function catalogRows(db: DatabaseSync, name: string): Row[] | undefined {
         .get(periodId === null ? null : String(periodId));
       result.block_id = link?.block_id ?? null;
       if (name === "source") {
-        result.available = row.availability_status === "available";
+        result.available = row.availability_status === AvailabilityStatus.Available;
         result.excerpt ??= "";
         result.detected_marker ??= "";
       }
@@ -246,8 +247,8 @@ export function catalogWrite(
     data[field] = input(
       name === "matter" && field === "status"
         ? value === "closed"
-          ? "archived"
-          : "active"
+          ? CaseStatus.Archived
+          : CaseStatus.Active
         : value,
     );
   }

@@ -25,7 +25,7 @@ export interface SourceTags {
   read(instanceId: string, targetType: string, targetId: string): Promise<TagSnapshot>;
   reconcile(target: TagSnapshot, desiredTags: string[]): Promise<void>;
 }
-// Delivery while the backend is closed remains open: docs/DESIGN_REVIEW.md.
+// Delivery while the backend is closed remains open: docs/REQUIREMENTS.md.
 export interface CommandInbox {
   receiveStart(command: StartCommand): Promise<void>;
   receiveEnd(command: EndCommand): Promise<void>;

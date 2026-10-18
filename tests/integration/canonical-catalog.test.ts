@@ -23,9 +23,13 @@ function setup() {
 
 it("reads an empty typed canonical catalog without the historical projection tables", async () => {
   const { db, app } = setup();
-  db.exec(
-    "DROP TABLE marker; DROP TABLE client_rule; DROP TABLE matter; DROP TABLE client; DROP TABLE firm; DROP TABLE setting;",
-  );
+  expect(
+    db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE name IN ('marker','client_rule','matter','client','firm','setting')",
+      )
+      .all(),
+  ).toEqual([]);
   const response = await app.request("/api/catalog");
   expect(response.status).toBe(200);
   const catalog = await response.json();
@@ -77,7 +81,9 @@ it("creates and edits opaque-ID canonical clients and cases without numeric alia
     clients: [{ id: "001", hourlyRateCents: 0 }],
     cases: [{ id: "case-a", clientId: "001", hourlyRateCents: 25000 }],
   });
-  expect(db.prepare("SELECT COUNT(*) AS count FROM client").get()?.count).toBe(0);
+  expect(
+    db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='client'").get(),
+  ).toBeUndefined();
   const search = await (await app.request("/api/cases/search?query=updated")).json();
   expect(search.cases).toMatchObject([{ id: "case-a", clientId: "001" }]);
   expect(search.cases[0]).not.toHaveProperty("client_id");

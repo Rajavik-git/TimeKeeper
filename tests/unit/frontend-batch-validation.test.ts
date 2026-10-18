@@ -30,7 +30,7 @@ it("keeps committed progress when refresh fails and reports recovery", async () 
   );
   expect(result).toEqual({ successful: 1, refreshFailed: true, stale: false });
   expect(validationMessage(result.successful, 1, result.refreshFailed)).toContain(
-    "1 period validated",
+    "Time validated for 1 period",
   );
   expect(validationMessage(result.successful, 1, result.refreshFailed)).toContain(
     "Refresh the view",
@@ -45,6 +45,26 @@ it("does not count a rejected application write as committed", async () => {
     stale: false,
   });
   expect(refresh).not.toHaveBeenCalled();
+});
+
+it("does not count HTTP 202 application errors as validated time and refreshes committed progress", async () => {
+  vi.mocked(api.POST)
+    .mockResolvedValueOnce({ data: {} } as never)
+    .mockResolvedValueOnce({
+      data: { error: "pending", message: "case and effective duration are required" },
+      response: { status: 202 },
+    } as never);
+  const refresh = vi.fn().mockResolvedValue(undefined);
+  const result = await validatePeriods(
+    [
+      { id: "saved", effectiveRevision: 1 },
+      { id: "unknown-duration", effectiveRevision: 2 },
+    ],
+    refresh,
+  );
+  expect(result).toEqual({ successful: 1, refreshFailed: false, stale: false });
+  expect(refresh).toHaveBeenCalledOnce();
+  expect(validationMessage(result.successful, 2, false)).toContain("1 of 2 periods");
 });
 
 it("stops on a stale revision and refreshes before asking for review", async () => {

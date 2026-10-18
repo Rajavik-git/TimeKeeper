@@ -1,11 +1,7 @@
 import { systemTimeZone } from "../../src/shared/dates";
 import { expect, it } from "vitest";
 import { activityPeriods, selectActivityPeriod } from "../../src/frontend/calculations/activity";
-import {
-  clientMetrics,
-  previousMonthMetrics,
-  previousBillingMetrics,
-} from "../../src/frontend/calculations/cases";
+import { clientMetrics } from "../../src/frontend/calculations/cases";
 import { sourcePackRequest } from "../../src/frontend/api/source-pack";
 import { frontendFixture } from "./frontend-fixture";
 
@@ -49,53 +45,6 @@ it("sends canonical source-pack scopes and freezes the desktop timezone", () => 
     timeZone: systemTimeZone(),
     options: [],
     invoiceId: 2,
-  });
-});
-
-it("uses canonical invoice links for historical invoice state", () => {
-  const { state, core } = frontendFixture();
-  state.cases[0].openedOn = "2026-09-01";
-  const template = {
-    ...core.periods[0],
-    startedAt: "2026-09-01T09:00:00Z",
-    endedAt: "2026-09-01T09:01:00Z",
-    detectedDurationMs: 60000,
-    durationOverrideMs: 60000,
-    timeValidatedAt: "2026-09-01T09:02:00Z",
-    invoiceId: null,
-  };
-  core.periods = [
-    { ...template, id: "opaque-period" },
-    { ...template, id: "1" },
-  ];
-  core.periods[0].invoiceId = 17;
-  core.billing.invoices = [
-    {
-      id: 17,
-      caseId: "case",
-      number: "INV-17",
-      date: "2026-09-02",
-      type: "final",
-      subtotalCents: 100,
-      vatCents: 0,
-      expensesCents: 0,
-      disbursementsCents: 0,
-      status: "issued",
-      currency: "USD",
-      vatRate: 0,
-      lawyerName: "Test lawyer",
-      address: "",
-      vatNumber: "",
-      clientName: "Test client",
-      clientBillingAddress: "",
-      caseTitle: "Test case",
-      caseReference: "TEST-001",
-    },
-  ];
-  expect(previousMonthMetrics(state, core, "2026-10-17").previousToBill).toBe(100);
-  expect(previousBillingMetrics(state, core, "2026-10-17")).toMatchObject({
-    toBillCents: 100,
-    readyCents: 100,
   });
 });
 

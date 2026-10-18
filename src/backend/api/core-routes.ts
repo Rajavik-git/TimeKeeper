@@ -1,10 +1,33 @@
+import type { components } from "../../contracts/generated.js";
+import {
+  isState,
+  nonbillableReasons,
+  expenseTypes,
+  assignmentOrigins,
+  AssignmentOrigin,
+  AvailabilityStatus,
+  BillingStatus,
+  CommandStatus,
+  QuestionStatus,
+  ReconstructionStatus,
+  PeriodOpenMode,
+} from "../domain/states.js";
 import type { InvoiceSnapshot } from "../ports/invoice.js";
-import { calendarDay, isCalendarDay, isTimeZone, systemTimeZone } from "../../shared/dates.js";
+import {
+  calendarDay,
+  dayBounds,
+  isCalendarDay,
+  isTimeZone,
+  systemTimeZone,
+} from "../../shared/dates.js";
 import type { DatabaseSync } from "node:sqlite";
 import { Hono } from "hono";
 import { SqliteRepository } from "../adapters/sqlite/core-repository.js";
-import { AppError, TimeKeeperService } from "../application/service.js";
+import { AppError } from "../application/errors.js";
+import { TimeKeeperService } from "../application/service.js";
 import { addExpense, billingState, issueInvoice, removeExpense } from "../application/invoice.js";
+import { catalogRepository } from "../adapters/sqlite/catalog-repository.js";
+import { transaction } from "../adapters/sqlite/transaction.js";
 import { apiError } from "./errors.js";
 import { invoicePort } from "../adapters/sqlite/invoice.js";
 
@@ -44,6 +67,23 @@ function calendarFilters(query: Record<string, string>) {
   };
 }
 
+function periodQuery(query: Record<string, string>) {
+  calendarFilters(query); // Validate calendar inputs before deriving SQL boundaries.
+  const timeZone = query.timeZone ?? systemTimeZone();
+  let from = query.from;
+  let to = query.to;
+  if (query.date) {
+    if (!from || query.date > from) from = query.date;
+    if (!to || query.date < to) to = query.date;
+  }
+  return {
+    startedFrom: from ? dayBounds(from, timeZone).startAt : undefined,
+    startedBefore: to ? dayBounds(to, timeZone).endAt : undefined,
+    clientId: query.clientId,
+    caseId: query.caseId,
+  };
+}
+
 export function coreRoutes(db: DatabaseSync): Hono {
   const router = new Hono();
   const service = new TimeKeeperService(new SqliteRepository(db));
@@ -53,19 +93,41 @@ export function coreRoutes(db: DatabaseSync): Hono {
   router.get("/sessions", (c) => c.json(service.listSessions()));
   router.get("/sessions/:id", (c) => c.json(service.getSession(c.req.param("id"))));
   router.get("/work-periods", (c) => {
-    const query = c.req.query();
-    const matchesDay = calendarFilters(query);
-    const { clientId, caseId } = query;
-    const values = service
-      .allPeriods()
-      .filter(
-        (period) =>
-          matchesDay(period.startedAt) &&
-          (!clientId || period.clientId === clientId) &&
-          (!caseId || period.caseId === caseId),
-      );
+    const values = service.queryPeriods(periodQuery(c.req.query()));
     return c.json(values);
   });
+  router.get("/workspace", (c) =>
+    c.json(
+      transaction<components["schemas"]["WorkspaceSnapshot"]>(db, () => {
+        const query = c.req.query();
+        const periods = service.queryPeriods(periodQuery(query));
+        const matchesDay = calendarFilters(query);
+        const periodIds = new Set(periods.map((period) => period.id));
+        const scoped = ["date", "from", "to", "clientId", "caseId"].some(
+          (key) => query[key] !== undefined,
+        );
+        return {
+          catalogState: catalogRepository(db).state(),
+          workspaceState: {
+            activeSession: service.activeSession(),
+            sessions: service.listSessions(),
+            periods,
+            sources: service
+              .allSources()
+              .filter(
+                (source) =>
+                  !scoped || (source.workPeriodId !== null && periodIds.has(source.workPeriodId)),
+              ),
+            questions: service
+              .allQuestions()
+              .filter((question) => !scoped || periodIds.has(question.periodId)),
+            coverageGaps: service.coverageGaps().filter((gap) => matchesDay(gap.startedAt)),
+            billing: billingState(billing),
+          },
+        };
+      }),
+    ),
+  );
   router.get("/work-periods/:id", (c) => c.json(service.getPeriod(c.req.param("id"))));
   router.get("/work-periods/:id/sources", (c) => c.json(service.listSources(c.req.param("id"))));
   router.get("/reconstruction-conflicts", (c) => c.json(service.reconstructionConflicts()));
@@ -75,12 +137,8 @@ export function coreRoutes(db: DatabaseSync): Hono {
     return c.json(service.coverageGaps().filter((gap) => matchesDay(gap.startedAt)));
   });
   router.get("/questions", (c) => {
-    const matchesDay = calendarFilters(c.req.query());
     const ids = new Set(
-      service
-        .allPeriods()
-        .filter((period) => matchesDay(period.startedAt))
-        .map((period) => period.id),
+      service.queryPeriods(periodQuery(c.req.query())).map((period) => period.id),
     );
     return c.json(service.allQuestions().filter((question) => ids.has(question.periodId)));
   });
@@ -90,7 +148,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
   );
   router.post("/billing/expenses", async (c) => {
     const b = await input(c);
-    if (b.type !== "expense" && b.type !== "disbursement")
+    if (!isState(b.type, expenseTypes))
       throw new AppError("invalid-request", "invalid expense type");
     return c.json(
       addExpense(billing, {
@@ -116,7 +174,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
         ? {}
         : { prerequisiteCommandId: string(b.prerequisiteCommandId, "prerequisiteCommandId") }),
     });
-    return c.json(result, result.status === "pending" ? 202 : 200);
+    return c.json(result, result.status === CommandStatus.Pending ? 202 : 200);
   });
   router.post("/commands/end", async (c) => {
     const b = await input(c);
@@ -129,7 +187,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
         ? {}
         : { prerequisiteCommandId: string(b.prerequisiteCommandId, "prerequisiteCommandId") }),
     });
-    return c.json(result, result.status === "pending" ? 202 : 200);
+    return c.json(result, result.status === CommandStatus.Pending ? 202 : 200);
   });
   router.post("/work-periods", async (c) => {
     const b = await input(c);
@@ -138,20 +196,22 @@ export function coreRoutes(db: DatabaseSync): Hono {
       sessionId: string(b.sessionId, "sessionId"),
       caseId: b.caseId === null ? null : string(b.caseId, "caseId"),
       startedAt: string(b.startedAt, "startedAt"),
-      origin:
-        b.origin === "lawyer" || b.origin === "automatic" || b.origin === "unresolved"
-          ? b.origin
-          : (() => {
-              throw new AppError("invalid-request", "origin required");
-            })(),
+      origin: isState(b.origin, assignmentOrigins)
+        ? b.origin
+        : (() => {
+            throw new AppError("invalid-request", "origin required");
+          })(),
       mode:
-        b.mode === "current" || b.mode === "recovery"
+        b.mode === PeriodOpenMode.Current || b.mode === PeriodOpenMode.Recovery
           ? b.mode
           : (() => {
               throw new AppError("invalid-request", "mode required");
             })(),
     });
-    return c.json(result, "status" in result && result.status === "pending" ? 202 : 200);
+    return c.json(
+      result,
+      "status" in result && result.status === CommandStatus.Pending ? 202 : 200,
+    );
   });
   router.post("/work-periods/manual", async (c) => {
     const b = await input(c);
@@ -168,15 +228,16 @@ export function coreRoutes(db: DatabaseSync): Hono {
   });
   router.patch("/work-periods/:id/details", async (c) => {
     const b = await input(c);
+    const reason = b.nonbillableReason;
+    if (reason !== undefined && reason !== null && !isState(reason, nonbillableReasons))
+      throw new AppError("invalid-request", "invalid nonbillable reason");
     return c.json(
       service.updatePeriodDetails(
         c.req.param("id"),
         {
           ...(b.label === undefined ? {} : { label: string(b.label, "label") }),
           ...(b.billable === undefined ? {} : { billable: b.billable as boolean }),
-          ...(b.nonbillableReason === undefined
-            ? {}
-            : { nonbillableReason: b.nonbillableReason as string | null }),
+          ...(reason === undefined ? {} : { nonbillableReason: reason }),
           ...(b.excluded === undefined ? {} : { excluded: b.excluded as boolean }),
         },
         integer(b.expectedRevision, "expectedRevision"),
@@ -190,10 +251,10 @@ export function coreRoutes(db: DatabaseSync): Hono {
         c.req.param("id"),
         string(b.caseId, "caseId"),
         integer(b.expectedAssignmentRevision, "expectedAssignmentRevision"),
-        b.origin === "automatic"
-          ? "automatic"
-          : b.origin === "lawyer"
-            ? "lawyer"
+        b.origin === AssignmentOrigin.Automatic
+          ? AssignmentOrigin.Automatic
+          : b.origin === AssignmentOrigin.Lawyer
+            ? AssignmentOrigin.Lawyer
             : (() => {
                 throw new AppError("invalid-request", "origin required");
               })(),
@@ -224,7 +285,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
   });
   router.post("/work-periods/:id/billing-status", async (c) => {
     const b = await input(c);
-    if (b.status !== "billed" && b.status !== "unbilled")
+    if (b.status !== BillingStatus.Billed && b.status !== BillingStatus.Unbilled)
       throw new AppError("invalid-request", "status required");
     return c.json(
       service.setBillingStatus(
@@ -245,7 +306,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
         "expectedAssignmentRevision",
       ),
     });
-    return c.json({ status: "pending", questionId }, 202);
+    return c.json({ status: QuestionStatus.Pending, questionId }, 202);
   });
   router.post("/questions/answer", async (c) => {
     const b = await input(c);
@@ -269,11 +330,14 @@ export function coreRoutes(db: DatabaseSync): Hono {
       c.req.param("contentType"),
       c.req.param("externalId"),
     );
-    return c.json({ status: "applied" });
+    return c.json({ status: CommandStatus.Applied });
   });
   router.post("/sources/:instanceId/:contentType/:externalId/availability", async (c) => {
     const b = await input(c);
-    if (b.availability !== "available" && b.availability !== "unavailable")
+    if (
+      b.availability !== AvailabilityStatus.Available &&
+      b.availability !== AvailabilityStatus.Unavailable
+    )
       throw new AppError("invalid-request", "availability required");
     service.setSourceAvailability(
       c.req.param("instanceId"),
@@ -281,7 +345,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
       c.req.param("externalId"),
       b.availability,
     );
-    return c.json({ status: "applied" });
+    return c.json({ status: CommandStatus.Applied });
   });
   router.get("/cases/:id/rate", (c) =>
     c.json({ hourlyRateCents: service.currentRateForCase(c.req.param("id")) }),
@@ -293,7 +357,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
       string(b.currency, "currency"),
       string(b.workspaceId, "workspaceId"),
     );
-    return c.json({ status: "applied" });
+    return c.json({ status: CommandStatus.Applied });
   });
   router.post("/sources/import", async (c) => {
     const b = await input(c);
@@ -305,7 +369,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
       externalId: string(b.externalId, "externalId"),
       recordedAt: string(b.recordedAt, "recordedAt"),
     });
-    return c.json({ status: "applied" });
+    return c.json({ status: CommandStatus.Applied });
   });
   router.post("/reconstruction/propose", async (c) => {
     const b = await input(c);
@@ -317,7 +381,7 @@ export function coreRoutes(db: DatabaseSync): Hono {
       endedAt: b.endedAt === null ? null : string(b.endedAt, "endedAt"),
       sourceReferences: b.sourceReferences as string[],
     });
-    return c.json({ status: "pending" }, 202);
+    return c.json({ status: ReconstructionStatus.Pending }, 202);
   });
   return router;
 }

@@ -1,9 +1,5 @@
 import type { ErrorHandler } from "hono";
-import { AppError } from "../application/service.js";
-
-// Compatibility services use these fixed messages for expected business failures.
-const invalidOperation =
-  /^(?:.+ is required|Billed work period cannot be .+|Block cannot be .+|Case and duration required for approval|Invalid duration|Expense already billed|Case reference is immutable|Client code must be uppercase letters or digits|Invalid type|No periods in source pack scope|Invoice required|Date range required|Period selection required)$/;
+import { AppError } from "../application/errors.js";
 
 /** Drizzle wraps driver failures. Inspect their cause without exposing SQL or parameters. */
 function sqliteError(error: Error): Error | undefined {
@@ -17,18 +13,17 @@ function sqliteError(error: Error): Error | undefined {
   return undefined;
 }
 
+const applicationStatuses = {
+  "not-found": 404,
+  "no-active-session": 404,
+  pending: 202,
+  conflict: 409,
+  "invalid-request": 400,
+} as const;
+
 export const apiError: ErrorHandler = (error, c) => {
   if (error instanceof AppError)
-    return c.json(
-      { error: error.code, message: error.message },
-      error.code === "not-found" || error.code === "no-active-session"
-        ? 404
-        : error.code === "pending"
-          ? 202
-          : error.code === "conflict"
-            ? 409
-            : 400,
-    );
+    return c.json({ error: error.code, message: error.message }, applicationStatuses[error.code]);
   const storageError = sqliteError(error);
   if (storageError) {
     if (
@@ -46,9 +41,5 @@ export const apiError: ErrorHandler = (error, c) => {
         400,
       );
   }
-  if (error.message === "Not found")
-    return c.json({ error: "not-found", message: "resource not found" }, 404);
-  if (invalidOperation.test(error.message))
-    return c.json({ error: "invalid-request", message: "operation rejected" }, 400);
   return c.json({ error: "internal", message: "internal error" }, 500);
 };
