@@ -714,6 +714,62 @@ export const requestContract = {
           }
         }
       }
+    },
+    "/api/recognize": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecognizeWindowRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/periods/switch": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PeriodSwitchRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pill/decision": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PillDecisionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pill/undo": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PillUndoRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2733,6 +2789,248 @@ export const requestContract = {
           "audit"
         ],
         "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "RecognizeWindowRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "windowTitle",
+          "appName"
+        ],
+        "properties": {
+          "windowTitle": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "\\S"
+          },
+          "appName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "PeriodSwitchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "caseId",
+          "windowTitle",
+          "appName",
+          "at"
+        ],
+        "properties": {
+          "caseId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "windowTitle": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "\\S"
+          },
+          "appName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "\\S"
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$",
+            "description": "UTC instant of the observed switch, taken from the PC clock."
+          },
+          "notClientWork": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PillDecisionRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "caseId",
+              "windowTitle",
+              "appName",
+              "at"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "switch"
+                ]
+              },
+              "caseId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": "\\S"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Null records non-client work."
+              },
+              "windowTitle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "pattern": "\\S"
+              },
+              "appName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "pattern": "\\S"
+              },
+              "at": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$",
+                "description": "UTC instant of the observed switch, taken from the PC clock."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "periodId",
+              "caseId",
+              "expectedAssignmentRevision"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "assign"
+                ]
+              },
+              "periodId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              },
+              "caseId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              },
+              "expectedAssignmentRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "periodId",
+              "expectedAssignmentRevision",
+              "expectedEffectiveRevision"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "exclude"
+                ]
+              },
+              "periodId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "\\S"
+              },
+              "expectedAssignmentRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "expectedEffectiveRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "periodIds",
+              "expectedEffectiveRevisions"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "validate"
+                ]
+              },
+              "periodIds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 500,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "\\S"
+                }
+              },
+              "expectedEffectiveRevisions": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PillUndoRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "undoToken"
+        ],
+        "properties": {
+          "undoToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          }
+        }
       }
     }
   }

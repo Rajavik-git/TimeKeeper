@@ -19,9 +19,10 @@
         "url": "pill.html",
         "title": "TimeKeeper",
         "width": 340,
-        "height": 58,
+        "height": 38,
         "resizable": false,
         "decorations": false,
+        "shadow": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
@@ -43,6 +44,10 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "externalBin": ["binaries/timekeeper-api"],
+    "resources": {
+      "../dist/sidecar/api.cjs": "api.cjs"
+    },
     "icon": ["icons/icon.png", "icons/icon.ico"]
   }
 }

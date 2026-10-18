@@ -128,6 +128,8 @@ export interface Repository {
   allPeriods(): PeriodRecord[];
   insertPeriod(period: PeriodRecord, now: string): void;
   savePeriod(period: PeriodRecord, now: string): void;
+  /** Removes an unreferenced period and its questions; dependent records keep it. */
+  deletePeriod(id: string): void;
   sourceRelocatedFrom(sourceId: string, periodId: string): boolean;
   canSplitSources(periodId: string, at: string): boolean;
   moveSplitSources(fromId: string, toId: string, at: string): void;

@@ -8,6 +8,7 @@ import { coreRoutes } from "./core-routes.js";
 import { compatibilityRoutes } from "./compatibility-routes.js";
 import { catalogRoutes } from "./catalog-routes.js";
 import { sourceExportRoutes } from "./source-export-routes.js";
+import { pillRoutes } from "./pill-routes.js";
 
 export function createApp(db: DatabaseSync) {
   const app = new Hono();
@@ -49,6 +50,7 @@ export function createApp(db: DatabaseSync) {
   app.route("/api", sourceExportRoutes(db));
   app.route("/api", catalogRoutes(db));
   app.route("/api", coreRoutes(db));
+  app.route("/api", pillRoutes(db));
   app.route("/api", compatibilityRoutes(db));
   return app;
 }

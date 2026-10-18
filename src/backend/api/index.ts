@@ -14,3 +14,15 @@ const server = serve(
 const close = () => server.close(() => db.close());
 process.on("SIGINT", close);
 process.on("SIGTERM", close);
+// The desktop host passes its PID so an orphaned sidecar exits after a crash or forced kill.
+const parentPid = Number(process.env.TIMEKEEPER_PARENT_PID);
+if (Number.isSafeInteger(parentPid) && parentPid > 0) {
+  setInterval(() => {
+    try {
+      process.kill(parentPid, 0);
+    } catch {
+      db.close();
+      process.exit(0);
+    }
+  }, 2000).unref();
+}

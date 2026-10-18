@@ -2224,6 +2224,277 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suggest an active case for a window title
+         * @description Read-only. Matches case references, markers, opposing parties and client names. Writes nothing.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RecognizeWindowRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WindowRecognition"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/periods/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open the period that follows a confirmed document switch
+         * @description Starts a period in the active session at `at`. A null case opens an unresolved period with a pending question unless `notClientWork` excludes it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PeriodSwitchRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WorkPeriod"];
+                    };
+                };
+                /** @description The transition needs review */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PeriodPending"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Not found or no active session */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Stale or conflicting state */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pill/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a one-click desk pill decision
+         * @description Switch, assign, exclude or validate through the canonical use cases and return a short-lived undo token.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PillDecisionRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PillDecisionResult"];
+                    };
+                };
+                /** @description Case or duration still required */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Not found or no active session */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Stale or conflicting state */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pill/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo a recent desk pill decision
+         * @description Fails with 409 after five seconds or once a later edit, source or invoice depends on the affected periods.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PillUndoRequest"];
+                };
+            };
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PillUndoResult"];
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Stale or conflicting state */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3315,6 +3586,86 @@ export interface components {
          * @enum {string}
          */
         SourcePackOption: "blur" | "personal" | "audio" | "audit";
+        CaseSuggestion: {
+            caseId: string;
+            client: string;
+            title: string;
+            reference: string;
+            /** @description First matched cue, for example `reference: 2025-031-DAWSON`. */
+            reason: string;
+        };
+        WindowRecognition: {
+            suggestion: components["schemas"]["CaseSuggestion"] | null;
+            alternatives: components["schemas"]["CaseSuggestion"][];
+            /**
+             * @description High only for a single top candidate scoring at least 0.8; the pill then counts down before confirming.
+             * @enum {string}
+             */
+            confidence: "high" | "low";
+        };
+        RecognizeWindowRequest: {
+            windowTitle: string;
+            appName: string;
+        };
+        PeriodSwitchRequest: {
+            caseId: string | null;
+            windowTitle: string;
+            appName: string;
+            /** @description UTC instant of the observed switch, taken from the PC clock. */
+            at: string;
+            notClientWork?: boolean;
+        };
+        PeriodPending: {
+            /** @enum {string} */
+            status: "pending";
+            conflictId: string;
+        };
+        PillDecisionRequest: {
+            /** @enum {string} */
+            kind: "switch";
+            /** @description Null records non-client work. */
+            caseId: string | null;
+            windowTitle: string;
+            appName: string;
+            /** @description UTC instant of the observed switch, taken from the PC clock. */
+            at: string;
+        } | {
+            /** @enum {string} */
+            kind: "assign";
+            periodId: string;
+            caseId: string;
+            expectedAssignmentRevision: number;
+        } | {
+            /** @enum {string} */
+            kind: "exclude";
+            periodId: string;
+            expectedAssignmentRevision: number;
+            expectedEffectiveRevision: number;
+        } | {
+            /** @enum {string} */
+            kind: "validate";
+            periodIds: string[];
+            expectedEffectiveRevisions: {
+                [key: string]: number;
+            };
+        };
+        PillDecisionResult: {
+            period: components["schemas"]["WorkPeriod"];
+            /** @description Valid for five seconds while the periods are unchanged. */
+            undoToken: string;
+        };
+        PillUndoRequest: {
+            undoToken: string;
+        };
+        PillUndoResult: {
+            /** @enum {string} */
+            status: "undone";
+        };
+        ApiFailure: {
+            /** @enum {string} */
+            error: "invalid-request" | "not-found" | "no-active-session" | "conflict" | "pending";
+            message: string;
+        };
     };
     responses: never;
     parameters: never;

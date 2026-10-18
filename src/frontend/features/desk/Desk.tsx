@@ -1,14 +1,31 @@
-import { AssignmentOrigin } from "../../../contracts/states.generated";
 import { calendarTime } from "../../../shared/dates";
-import { useState } from "react";
-import { api, type ScreenProps } from "../../api/client";
+import { useEffect, useState, type CSSProperties } from "react";
+import { type ScreenProps } from "../../api/client";
 import { Card } from "../../shared/components/Card/Card";
-import { WorkPill } from "./components/WorkPill/WorkPill";
 import { pillView } from "./lib/pillView";
 
-export function Desk({ catalogState, workspaceState, action, navigate }: ScreenProps) {
-  const [open, setOpen] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+/** The preview embeds the real pill page so file-switch simulation works as on the desktop. */
+const previewFrame: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  border: 0,
+  zIndex: 5,
+};
+
+export function Desk({ catalogState, workspaceState, navigate }: ScreenProps) {
+  const [theme, setTheme] = useState(document.documentElement.dataset.theme ?? "auto");
+  useEffect(() => {
+    const observer = new MutationObserver(() =>
+      setTheme(document.documentElement.dataset.theme ?? "auto"),
+    );
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
   const view = pillView(catalogState, workspaceState);
   const session = view.active;
   const period = view.current;
@@ -37,34 +54,16 @@ export function Desk({ catalogState, workspaceState, action, navigate }: ScreenP
             <p>Document content is not available in this preview.</p>
           </div>
         </div>
-        <div className="desk-pill-preview">
-          <WorkPill
-            view={view}
-            expanded={open}
-            onToggle={() => setOpen(!open)}
-            notice={dismissed ? null : view.notice}
-            onDismiss={() => setDismissed(true)}
-            onOpenDay={() => navigate("myDay")}
-            onAssign={(caseId) => {
-              if (period)
-                void action(
-                  api.POST("/api/work-periods/{id}/assignment", {
-                    params: { path: { id: period.id } },
-                    body: {
-                      caseId,
-                      expectedAssignmentRevision: period.assignmentRevision,
-                      origin: AssignmentOrigin.Lawyer,
-                    },
-                  }),
-                );
-            }}
-          />
-        </div>
+        <iframe
+          title="Interactive desk pill preview"
+          src={`/pill.html?theme=${theme}`}
+          style={previewFrame}
+        />
       </div>
       <Card>
         <span className="small muted">
-          Closing the desktop window leaves the session active. Screenpipe commands start and end
-          it.
+          Simulate a file switch in the pill above. Closing the desktop window leaves the session
+          active. Screenpipe commands start and end it.
         </span>
       </Card>
     </>

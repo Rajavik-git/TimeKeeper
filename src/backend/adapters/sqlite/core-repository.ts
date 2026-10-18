@@ -307,6 +307,14 @@ export class SqliteRepository implements Repository {
       .where(eq(tables.work_periods.id, p.id))
       .run();
   }
+  deletePeriod(id: string): void {
+    const query = orm(this.db);
+    query
+      .delete(tables.pending_questions)
+      .where(eq(tables.pending_questions.work_period_id, id))
+      .run();
+    query.delete(tables.work_periods).where(eq(tables.work_periods.id, id)).run();
+  }
   canSplitSources(periodId: string, at: string): boolean {
     // Provider tag intent is not defined. Preserve any committed delivery until
     // an explicit reconstruction action can recompute and verify the new tags.

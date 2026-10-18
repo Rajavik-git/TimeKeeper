@@ -293,6 +293,21 @@ Object.assign(cases, {
     },
   },
   "GET /api/cases/{id}/rate": { path: "/api/cases/1/rate" },
+  "POST /api/recognize": {
+    body: { windowTitle: "2025-031 Opposition Brief v3.docx", appName: "Word" },
+  },
+  "POST /api/periods/switch": {
+    body: {
+      caseId: "1",
+      windowTitle: "2025-031 Opposition Brief v3.docx",
+      appName: "Word",
+      at: "2026-10-16T16:43:00Z",
+    },
+  },
+  "POST /api/pill/decision": {
+    body: { kind: "assign", periodId: "13", caseId: "5", expectedAssignmentRevision: 0 },
+  },
+  "POST /api/pill/undo": { status: 409, body: { undoToken: "expired-token" } },
 });
 const ajv = new Ajv2020({ strict: false });
 

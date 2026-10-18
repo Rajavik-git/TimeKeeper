@@ -135,6 +135,8 @@ export class TimeKeeperService {
     startedAt: string;
     origin: AssignmentOrigin;
     mode: PeriodOpenMode;
+    /** Observed window that triggered the transition, shown in My day and Activity. */
+    window?: { appName: string; title: string };
   }): PeriodView | { status: typeof ReconstructionStatus.Pending; conflictId: string } {
     return this.repo.transaction(() => {
       assertId(input.id);
@@ -206,6 +208,13 @@ export class TimeKeeperService {
         billingStatus: BillingStatus.Unbilled,
         billedAt: null,
         revision: 0,
+        ...(input.window
+          ? {
+              label: input.window.title,
+              demoApp: input.window.appName,
+              demoWindowTitle: input.window.title,
+            }
+          : {}),
       };
       this.repo.insertPeriod(p, this.clock.now());
       if (active) this.repo.moveSplitSources(active.id, p.id, input.startedAt);

@@ -2592,6 +2592,156 @@
           }
         }
       }
+    },
+    "/api/recognize": {
+      "post": {
+        "summary": "Suggest an active case for a window title",
+        "description": "Read-only. Matches case references, markers, opposing parties and client names. Writes nothing.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RecognizeWindowRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/WindowRecognition" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/periods/switch": {
+      "post": {
+        "summary": "Open the period that follows a confirmed document switch",
+        "description": "Starts a period in the active session at `at`. A null case opens an unresolved period with a pending question unless `notClientWork` excludes it.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/PeriodSwitchRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/WorkPeriod" } }
+            }
+          },
+          "202": {
+            "description": "The transition needs review",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PeriodPending" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "404": {
+            "description": "Not found or no active session",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "409": {
+            "description": "Stale or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/pill/decision": {
+      "post": {
+        "summary": "Apply a one-click desk pill decision",
+        "description": "Switch, assign, exclude or validate through the canonical use cases and return a short-lived undo token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/PillDecisionRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PillDecisionResult" }
+              }
+            }
+          },
+          "202": {
+            "description": "Case or duration still required",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "404": {
+            "description": "Not found or no active session",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "409": {
+            "description": "Stale or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/pill/undo": {
+      "post": {
+        "summary": "Undo a recent desk pill decision",
+        "description": "Fails with 409 after five seconds or once a later edit, source or invoice depends on the affected periods.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/PillUndoRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PillUndoResult" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "409": {
+            "description": "Stale or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4776,6 +4926,211 @@
         "type": "string",
         "enum": ["blur", "personal", "audio", "audit"],
         "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "CaseSuggestion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "client", "title", "reference", "reason"],
+        "properties": {
+          "caseId": { "type": "string" },
+          "client": { "type": "string" },
+          "title": { "type": "string" },
+          "reference": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "description": "First matched cue, for example `reference: 2025-031-DAWSON`."
+          }
+        }
+      },
+      "WindowRecognition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["suggestion", "alternatives", "confidence"],
+        "properties": {
+          "suggestion": {
+            "anyOf": [{ "$ref": "#/components/schemas/CaseSuggestion" }, { "type": "null" }]
+          },
+          "alternatives": {
+            "type": "array",
+            "maxItems": 3,
+            "items": { "$ref": "#/components/schemas/CaseSuggestion" }
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "low"],
+            "description": "High only for a single top candidate scoring at least 0.8; the pill then counts down before confirming."
+          }
+        }
+      },
+      "RecognizeWindowRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["windowTitle", "appName"],
+        "properties": {
+          "windowTitle": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" },
+          "appName": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" }
+        }
+      },
+      "PeriodSwitchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "windowTitle", "appName", "at"],
+        "properties": {
+          "caseId": {
+            "anyOf": [
+              { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+              { "type": "null" }
+            ]
+          },
+          "windowTitle": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" },
+          "appName": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" },
+          "at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$",
+            "description": "UTC instant of the observed switch, taken from the PC clock."
+          },
+          "notClientWork": { "type": "boolean" }
+        }
+      },
+      "PeriodPending": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "conflictId"],
+        "properties": {
+          "status": { "type": "string", "enum": ["pending"] },
+          "conflictId": { "type": "string" }
+        }
+      },
+      "PillDecisionRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "caseId", "windowTitle", "appName", "at"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["switch"] },
+              "caseId": {
+                "anyOf": [
+                  { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+                  { "type": "null" }
+                ],
+                "description": "Null records non-client work."
+              },
+              "windowTitle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000,
+                "pattern": "\\S"
+              },
+              "appName": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" },
+              "at": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$",
+                "description": "UTC instant of the observed switch, taken from the PC clock."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "periodId", "caseId", "expectedAssignmentRevision"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["assign"] },
+              "periodId": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+              "caseId": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+              "expectedAssignmentRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "periodId",
+              "expectedAssignmentRevision",
+              "expectedEffectiveRevision"
+            ],
+            "properties": {
+              "kind": { "type": "string", "enum": ["exclude"] },
+              "periodId": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+              "expectedAssignmentRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "expectedEffectiveRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "periodIds", "expectedEffectiveRevisions"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["validate"] },
+              "periodIds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 500,
+                "uniqueItems": true,
+                "items": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" }
+              },
+              "expectedEffectiveRevisions": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PillDecisionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["period", "undoToken"],
+        "properties": {
+          "period": { "$ref": "#/components/schemas/WorkPeriod" },
+          "undoToken": {
+            "type": "string",
+            "description": "Valid for five seconds while the periods are unchanged."
+          }
+        }
+      },
+      "PillUndoRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["undoToken"],
+        "properties": {
+          "undoToken": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" }
+        }
+      },
+      "PillUndoResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": { "status": { "type": "string", "enum": ["undone"] } }
+      },
+      "ApiFailure": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": ["invalid-request", "not-found", "no-active-session", "conflict", "pending"]
+          },
+          "message": { "type": "string" }
+        }
       }
     }
   }
