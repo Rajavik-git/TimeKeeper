@@ -80,7 +80,7 @@ Show current balances, case counts, and client comparison bars. Historical perce
 
 Monthly recorded time compares assigned, included work across two explicit local calendar ranges. Clamp the previous cutoff to that month's last valid day. Both ranges use current corrected records, not historical snapshots. Calculate change from precise summed durations and round displayed combined totals only. Unknown duration or incomplete source coverage makes the percentage unavailable. A complete empty range is zero. A zero baseline has no percentage. Higher time alone is not a favorable result.
 
-The recorded-time comparison can cover all clients or one explicitly selected client. Apply the same case ownership filter to both ranges. Show the selected scope, both totals, and the date ranges. This selector does not filter workspace balances, case counts, attention figures, or client billing bars. Incomplete records outside the selected client do not make that client's comparison incomplete.
+The recorded-time comparison covers all clients. The Cases summary shows the current total, its scope and date range, and the percentage change when both ranges are complete. There is no client selector for this comparison.
 
 Hourly budget consumption combines frozen invoiced work fees with billable work not linked to an invoice. Include manually billed work at its stored rate and currency. Price unbilled work with the rate cascade. Count each invoice or period once. Exclude VAT, expenses, disbursements, excluded periods, and non-billable work. Cases and Billing use the same calculation and evaluate the 85% warning before rounding.
 

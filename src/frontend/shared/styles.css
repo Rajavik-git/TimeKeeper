@@ -5,8 +5,6 @@
 @import "./legacy.css" layer(legacy);
 @import "./theme.css" layer(base);
 @import "../features/cases/Cases.css" layer(features);
-@import "../features/cases/components/RecordedTimeComparison/RecordedTimeComparison.css"
-  layer(features);
 @import "../features/billing-status/Billing.css" layer(features);
 @import "../features/workday/MyDay.css" layer(features);
 @import "../features/workday/Activity.css" layer(features);

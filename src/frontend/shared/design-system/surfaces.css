@@ -22,13 +22,13 @@ button.card:hover:not(:disabled) {
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
-  padding: var(--space-12) var(--space-16);
+  padding: var(--space-8) var(--space-16);
   border-bottom: 1px solid var(--line);
 }
 .card-h .t {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 2px;
   min-width: 0;
   flex: 1 1 0;
 }
@@ -55,9 +55,10 @@ button.card:hover:not(:disabled) {
   align-items: flex-start;
   justify-content: flex-start;
   min-width: 0;
-  min-height: 124px;
-  gap: var(--space-4);
-  padding: var(--space-16);
+  /* Same height on every screen: fits the tallest tile (time with its comparison note). */
+  min-height: 144px;
+  gap: 2px;
+  padding: var(--space-12) var(--space-16);
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -98,8 +99,12 @@ button.card:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 2px;
   flex-wrap: wrap;
+}
+/* Keep the comparison note on one line so the tile stays compact without clipping it. */
+.metric-value .metric-comparison-empty {
+  max-width: none;
 }
 :is(.stat, .kpi) :is(.s, .tiny) {
   color: inherit;

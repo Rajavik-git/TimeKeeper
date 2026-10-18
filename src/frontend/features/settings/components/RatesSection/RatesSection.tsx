@@ -5,10 +5,13 @@ import type { components } from "../../../../../contracts/generated";
 import { api, type EntityId } from "../../../../api/client";
 import { cardHead, blurOnEnter, currencyAmount } from "../../lib/sectionPresentation";
 import { useAmountFields } from "../../hooks/useAmountFields";
+import { useSettingsSort } from "../../hooks/useSettingsSort";
 import { type SectionProps } from "../../types";
 
-export function RatesSection({ catalogState, action, saved }: SectionProps) {
+export function RatesSection({ catalogState, action, saved, notify }: SectionProps) {
   const { fieldError, setFieldError, commitAmount } = useAmountFields();
+  const { head, sorted } = useSettingsSort("caseRates", notify);
+  const currency = catalogState.settings.currency ?? "USD";
   const dollars = (cents: number) => currencyAmount(catalogState, cents);
   const patchCase = (id: EntityId, body: components["schemas"]["PatchCatalogCaseRequest"]) =>
     saved(
@@ -17,7 +20,7 @@ export function RatesSection({ catalogState, action, saved }: SectionProps) {
   const patchFirm = (body: components["schemas"]["PatchCatalogSettingsRequest"]) =>
     saved(action(api.PATCH("/api/catalog/settings", { body })));
   return (
-    <>
+    <div className="settings-rates-bento">
       <section className="card settings-card settings-rates">
         {cardHead("Which rate applies", "Checked in this order for each work period.")}
         <div className="settings-table">
@@ -126,15 +129,22 @@ export function RatesSection({ catalogState, action, saved }: SectionProps) {
           <table className="data-table">
             <thead>
               <tr>
-                <th scope="col">Case</th>
-                <th scope="col">Mode</th>
-                <th scope="col">Own rate {catalogState.settings.currency ?? "USD"}/h</th>
-                <th scope="col">Flat fee {catalogState.settings.currency ?? "USD"}</th>
-                <th scope="col">Budget {catalogState.settings.currency ?? "USD"}</th>
+                {head(0, "Case")}
+                {head(1, "Mode")}
+                {head(2, `Own rate ${currency}/h`, true)}
+                {head(3, `Flat fee ${currency}`, true)}
+                {head(4, `Budget ${currency}`, true)}
               </tr>
             </thead>
             <tbody>
-              {catalogState.cases.map((item) => (
+              {sorted(catalogState.cases, (item) => [
+                item.title,
+                caseBillingModeLabels[item.mode],
+                // Empty amounts sort after every set amount when sorting from highest.
+                item.hourlyRateCents ?? -1,
+                item.flatFeeCents ?? -1,
+                item.budgetCents ?? -1,
+              ]).map((item) => (
                 <tr key={item.id}>
                   <td title={item.title}>{item.title}</td>
                   <td>
@@ -185,6 +195,6 @@ export function RatesSection({ catalogState, action, saved }: SectionProps) {
           </table>
         </div>
       </section>
-    </>
+    </div>
   );
 }

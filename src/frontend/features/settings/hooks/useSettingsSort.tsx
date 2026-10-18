@@ -5,7 +5,7 @@ type SortState = { column: number; direction: 1 | -1 };
 const rememberedSorts: Partial<Record<string, SortState>> = {};
 
 export function useSettingsSort(
-  table: "clients" | "tasks" | "rules",
+  table: "clients" | "tasks" | "rules" | "caseRates",
   notify: SectionProps["notify"],
 ) {
   const [sort, setSort] = useState(rememberedSorts[table]);

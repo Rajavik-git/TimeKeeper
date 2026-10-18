@@ -17,17 +17,13 @@ import { money as formatMoney, rate as displayRate, shortDate } from "../../../.
 import { CaseReference } from "../../../../shared/components/CaseReference/CaseReference";
 import { MetricComparison } from "../../../../shared/components/MetricComparison/MetricComparison";
 import { monthlyRecordedTime } from "../../../../calculations/comparison";
-import { RecordedTimeComparison } from "../RecordedTimeComparison/RecordedTimeComparison";
 import { CaseStats } from "../CaseStats/CaseStats";
 import { ChevronIcon } from "../CaseIcons/CaseIcons";
-type ClientSort = "toBill" | "name" | "lastActivity" | "cases" | "rate";
-const comparisonClientStorageKey = "timekeeper-comparison-client";
+type ClientSort = "toBill" | "name" | "lastActivity";
 const clientSortStorageKey = "timekeeper-client-sort";
 function storedClientSort(): ClientSort {
   const value = sessionStorage.getItem(clientSortStorageKey);
-  return value === "name" || value === "lastActivity" || value === "cases" || value === "rate"
-    ? value
-    : "toBill";
+  return value === "name" || value === "lastActivity" ? value : "toBill";
 }
 
 type Props = Pick<ScreenProps, "catalogState" | "workspaceState" | "navigate"> & {
@@ -57,9 +53,6 @@ export function CasesOverview({
   const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
   const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency ?? "USD");
   const [clientSort, setClientSort] = useState<ClientSort>(storedClientSort);
-  const [comparisonClientId, setComparisonClientId] = useState<string | null>(() =>
-    sessionStorage.getItem(comparisonClientStorageKey),
-  );
   const [expandedBillingClients, setExpandedBillingClients] = useState<Set<EntityId>>(
     () => new Set(),
   );
@@ -86,18 +79,7 @@ export function CasesOverview({
     ]
       .filter(Boolean)
       .join(" · ");
-  const timeComparison = monthlyRecordedTime(
-    catalogState,
-    workspaceState,
-    today,
-    comparisonClientId,
-  );
-  useEffect(() => {
-    if (timeComparison.clientId === null) sessionStorage.removeItem(comparisonClientStorageKey);
-    else sessionStorage.setItem(comparisonClientStorageKey, String(timeComparison.clientId));
-    if (comparisonClientId !== null && timeComparison.clientId === null)
-      setComparisonClientId(null);
-  }, [comparisonClientId, timeComparison.clientId]);
+  const timeComparison = monthlyRecordedTime(catalogState, workspaceState, today);
   const clients = catalogState.clients.map((item) => ({
     item,
     metrics: clientMetrics(catalogState, workspaceState, item.id),
@@ -116,14 +98,6 @@ export function CasesOverview({
           : b.metrics.latest
             ? 1
             : 0;
-        break;
-      case "cases":
-        comparison = b.metrics.cases.length - a.metrics.cases.length;
-        break;
-      case "rate":
-        comparison =
-          (b.item.hourlyRateCents ?? catalogState.settings.globalHourlyRateCents ?? 0) -
-          (a.item.hourlyRateCents ?? catalogState.settings.globalHourlyRateCents ?? 0);
         break;
       default:
         comparison =
@@ -147,17 +121,9 @@ export function CasesOverview({
           Balances and case counts describe the current workspace. Historical comparisons are
           unavailable because earlier balances and counts are not stored. Recorded time compares{" "}
           {timeComparison.ranges} for {timeComparison.scopeLabel} using current corrected records.
-          The client selector changes only recorded time. Other figures and billing bars cover all
-          clients. Missing durations or sources in the selected scope prevent a percentage
-          comparison.
+          Missing durations or sources prevent a percentage comparison.
         </p>
       </details>
-      <RecordedTimeComparison
-        clients={catalogState.clients}
-        comparison={timeComparison}
-        workspace={workspaceState}
-        onChange={setComparisonClientId}
-      />
       {
         <CaseStats
           items={[
@@ -211,8 +177,6 @@ export function CasesOverview({
                 <option value="toBill">To bill</option>
                 <option value="name">Name</option>
                 <option value="lastActivity">Last activity</option>
-                <option value="cases">Cases</option>
-                <option value="rate">Rate</option>
               </select>
             </label>
           </div>

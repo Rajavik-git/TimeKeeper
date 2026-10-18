@@ -10,15 +10,15 @@ The main navigation contains My day, Cases, Billing, Activity, and Settings. The
 
 ## Screen behavior
 
-| View     | Main tasks and current limits                                                                                                                                                                   |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| My day   | Calendar, coverage, questions, period review, filters, and CSV. Manual entry remains disabled.                                                                                                  |
-| Cases    | Client and case editors, figures, markers, and budgets. The client selector scopes only recorded-time comparisons; balances, counts, attention figures, and billing bars remain workspace-wide. |
-| Billing  | Draft invoices, expenses, VAT, validation blockers, and issued snapshots. Payments and invoice delivery are unavailable.                                                                        |
-| Activity | Stored timeline, keyboard-readable period list, sources, audit, review, and source packs. No live media retrieval or recording control.                                                         |
-| Settings | Clients, rates, work categories, rules, invoices, and pill preferences. Capture exclusions and retention controls remain disabled.                                                              |
+| View     | Main tasks and current limits                                                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| My day   | Calendar, coverage, questions, period review, filters, and CSV. Manual entry remains disabled.                                                                  |
+| Cases    | Client and case editors, figures, markers, and budgets. Balances, counts, attention figures, billing bars, and the recorded-time comparison are workspace-wide. |
+| Billing  | Draft invoices, expenses, VAT, validation blockers, and issued snapshots. Payments and invoice delivery are unavailable.                                        |
+| Activity | Stored timeline, keyboard-readable period list, sources, audit, review, and source packs. No live media retrieval or recording control.                         |
+| Settings | Clients, rates, work categories, rules, invoices, and pill preferences. Capture exclusions and retention controls remain disabled.                              |
 
-My day retains date, month, filters, and sort across navigation. Cases retains client, case, tab, and comparison scope; a removed comparison client falls back to All clients. Source review restores its originating screen and period-action focus. Settings drafts survive section switches only, not leaving Settings or reloading.
+My day retains date, month, filters, and sort across navigation. Cases retains client, case, and tab. Source review restores its originating screen and period-action focus. Settings drafts survive section switches only, not leaving Settings or reloading.
 
 New case uses the initiating client from client detail; overview creation requires explicit selection. The shared client form includes type, name, optional code, billing mode and rate, address, VAT, and active status. Blank rates inherit; explicit zero stays zero. Question controls reset for a new period and retain tentative answers on same-period retries.
 

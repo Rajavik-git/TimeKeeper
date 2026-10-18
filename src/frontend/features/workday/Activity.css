@@ -129,10 +129,10 @@
   background: var(--ink);
 }
 .activity-legend i.ok {
-  box-shadow: inset 3px 0 0 var(--ok-dot);
+  background: var(--ok);
 }
 .activity-legend i.pending {
-  box-shadow: inset 3px 0 0 var(--warn-dot);
+  background: var(--warn);
 }
 .activity-legend i.nonbill {
   background: var(--line-2);
@@ -305,12 +305,10 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
   box-shadow: inset 0 0 0 1px var(--ink);
 }
 .activity-track .activity-segment.ok {
-  box-shadow: inset 4px 0 0 var(--ok-dot);
-  padding-left: 10px;
+  background: var(--ok);
 }
 .activity-track .activity-segment.pending {
-  box-shadow: inset 4px 0 0 var(--warn-dot);
-  padding-left: 10px;
+  background: var(--warn);
 }
 .activity-track .activity-segment.overlap {
   top: auto;

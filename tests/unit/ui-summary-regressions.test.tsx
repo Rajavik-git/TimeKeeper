@@ -142,7 +142,23 @@ it("keeps invoice creation blocked while incomplete coverage links to the affect
   expect(input.openPeriodReview).toHaveBeenCalledWith("period");
 });
 
-it("scopes both monthly time ranges to the selected client and keeps other workspace figures", () => {
+it("compares monthly time across all clients", () => {
+  const input = props();
+  input.workspaceState.periods[0].durationOverrideMs = 7200000;
+  input.workspaceState.periods.push({
+    ...input.workspaceState.periods[0],
+    id: "previous",
+    startedAt: "2026-09-17T09:00:00Z",
+    durationOverrideMs: 3600000,
+  });
+  render(<Cases {...input} />);
+  const time = screen.getByRole("button", { name: /^Time in October/ });
+  expect(within(time).getByText("+100%")).toBeTruthy();
+  expect(within(time).getByText("2h 00m")).toBeTruthy();
+  expect(screen.queryByRole("combobox", { name: "Compare recorded time for" })).toBeNull();
+});
+
+it("makes the monthly time comparison unavailable when any client has an unknown duration", () => {
   const input = props();
   input.catalogState.clients.push({
     ...input.catalogState.clients[0],
@@ -154,50 +170,13 @@ it("scopes both monthly time ranges to the selected client and keeps other works
     id: "other-case",
     clientId: "other",
   });
-  input.workspaceState.periods[0].durationOverrideMs = 7200000;
-  input.workspaceState.periods.push(
-    {
-      ...input.workspaceState.periods[0],
-      id: "previous",
-      startedAt: "2026-09-17T09:00:00Z",
-      durationOverrideMs: 3600000,
-    },
-    {
-      ...input.workspaceState.periods[0],
-      id: "incomplete",
-      caseId: "other-case",
-      durationOverrideMs: null,
-      detectedDurationMs: null,
-    },
-  );
-  const { container, unmount } = render(<Cases {...input} />);
-  const balance = screen.getByRole("button", { name: /^To bill/ }).textContent;
-  const billingBars = container.querySelector(".cases-rail")?.textContent;
-  expect(screen.getByText("Time comparison unavailable")).toBeTruthy();
-  fireEvent.change(screen.getByRole("combobox", { name: "Compare recorded time for" }), {
-    target: { value: "client" },
+  input.workspaceState.periods.push({
+    ...input.workspaceState.periods[0],
+    id: "incomplete",
+    caseId: "other-case",
+    durationOverrideMs: null,
+    detectedDurationMs: null,
   });
-  const time = screen.getByRole("button", { name: /^Time in October/ });
-  expect(within(time).getByText("+100%")).toBeTruthy();
-  expect(within(time).getByText("2h 00m")).toBeTruthy();
-  expect(screen.getByText("1h 00m", { selector: ".recorded-time-comparison strong" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: /^To bill/ }).textContent).toBe(balance);
-  expect(container.querySelector(".cases-rail")?.textContent).toBe(billingBars);
-  expect(sessionStorage.getItem("timekeeper-comparison-client")).toBe("client");
-  unmount();
   render(<Cases {...input} />);
-  expect(screen.getByRole("combobox", { name: "Compare recorded time for" })).toHaveProperty(
-    "value",
-    "client",
-  );
-});
-
-it("replaces an unknown saved comparison client with All clients", () => {
-  sessionStorage.setItem("timekeeper-comparison-client", "removed");
-  render(<Cases {...props()} />);
-  expect(screen.getByRole("combobox", { name: "Compare recorded time for" })).toHaveProperty(
-    "value",
-    "",
-  );
-  expect(sessionStorage.getItem("timekeeper-comparison-client")).toBeNull();
+  expect(screen.getByText("Time comparison unavailable")).toBeTruthy();
 });
