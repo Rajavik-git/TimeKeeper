@@ -36,22 +36,30 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
   const service = new TimeKeeperService(new SqliteRepository(db));
   const billing = invoicePort(db);
   // Errors propagate to the application's single handler (src/backend/api/http.ts).
-  // Readiness for the launcher and Tauri (docs/API.md A1). Answering means the API and its database are open.
+
+  // --- Readiness: the launcher and Tauri wait for this before sending commands (docs/API.md A1) ---
+  // Answering means the API and its database are open, and the inbox commands left while closed are applied (D8).
   router.get('/health',c=>c.json({status:'ok'}));
-  // Canonical catalogue reads for the interface, workflow case lookup, and chat (docs/API.md A13).
+
+  // --- Clients, cases, settings (read-only): used by the screens, the JEV case list, and chat (docs/API.md A13) ---
   router.get('/clients',c=>c.json(service.listClients()));
+  // Filters: clientId, status (active or archived). The JEV workflow calls ?status=active.
   router.get('/cases',c=>{
     const {clientId,status}=c.req.query();
     return c.json(service.listCases({...(clientId ? {clientId} : {}),...(status === undefined ? {} : {status})}));
   });
   router.get('/settings',c=>c.json(service.getSettings()));
-  // Inbox commands that could not be applied, for the interface notice (docs/API.md A14).
+
+  // --- Failed inbox commands: Start/End pressed while TimeKeeper was closed that could not be applied (docs/API.md A14) ---
+  // The lawyer sees them in the interface and dismisses them once handled.
   router.get('/inbox/failed',c=>c.json(listFailedCommands(inbox())));
   router.post('/inbox/failed/:file/dismiss',c=>c.json(dismissFailedCommand(inbox(),c.req.param('file'))));
+
   router.get('/sessions/active',c=>c.json(service.activeSession()));
   router.get('/sessions',c=>c.json(service.listSessions()));
   router.get('/sessions/:id',c=>c.json(service.getSession(c.req.param('id'))));
   router.get('/work-periods',c=>{
+    // Filters (docs/API.md A4): caseId and sessionId were added for the workflow and chat.
     const {date,from,to,clientId,caseId,sessionId}=c.req.query();
     const values=service.allPeriods().filter(p=>
       (!date || p.startedAt.startsWith(date)) && (!from || p.startedAt.slice(0,10)>=from) &&
@@ -61,6 +69,9 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
   });
   router.get('/work-periods/:id',c=>c.json(service.getPeriod(c.req.param('id'))));
   router.get('/work-periods/:id/sources',c=>c.json(service.listSources(c.req.param('id'))));
+
+  // --- Evidence and coverage lists, with optional filters (docs/API.md A4) ---
+  // Sources: periodId. Coverage gaps (time with no recording read, for example while Screenpipe was down): date, from, to, sessionId.
   router.get('/sources',c=>{
     const periodId=c.req.query('periodId');
     return c.json(service.allSources().filter(s=>!periodId || s.workPeriodId===periodId));
@@ -71,7 +82,9 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
       (!date || g.startedAt.startsWith(date)) && (!from || g.startedAt.slice(0,10)>=from) &&
       (!to || g.startedAt.slice(0,10)<=to) && (!sessionId || g.sessionId===sessionId)));
   });
+
   router.get('/questions',c=>{
+    // Filters (docs/API.md A4): status (pending, answered, superseded) and sessionId were added; date was already there.
     const {date,status,sessionId}=c.req.query();
     if (status !== undefined && status !== 'pending' && status !== 'answered' && status !== 'superseded')
       throw new AppError('invalid-request','status must be pending, answered, or superseded');
@@ -109,7 +122,9 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
       mode:b.mode === 'current' || b.mode === 'recovery' ? b.mode : (()=>{throw new AppError('invalid-request','mode required')})()});
     return c.json(result,'status' in result && result.status === 'pending' ? 202 : 200);
   });
-  // Bulk time validation for "approve day" and "approve case" (docs/API.md A3): all or nothing.
+
+  // --- Bulk time validation: "approve day" and "approve case" in one call (docs/API.md A3) ---
+  // All or nothing: if one period cannot be validated, none is, and that period's error is returned.
   router.post('/work-periods/validate-time',async c=>{
     const b=await input(c);
     if (!Array.isArray(b.periods) || b.periods.length === 0 || b.periods.length > 500)
@@ -119,6 +134,7 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
       return {id:string(p.id,'id'),...(p.expectedEffectiveRevision === undefined ? {} : {expectedEffectiveRevision:integer(p.expectedEffectiveRevision,'expectedEffectiveRevision')})};
     })));
   });
+
   router.post('/work-periods/manual',async c=>{
     const b=await input(c);
     return c.json(service.createManualPeriod({sessionId:string(b.sessionId,'sessionId'),caseId:string(b.caseId,'caseId'),
@@ -140,6 +156,10 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
       b.origin === 'automatic' ? 'automatic' : b.origin === 'lawyer' ? 'lawyer' : (()=>{throw new AppError('invalid-request','origin required')})()));
   });
   router.post('/work-periods/:id/detected-duration',async c=>c.json(service.setDetectedDuration(c.req.param('id'),duration((await input(c)).durationMs))));
+
+  // --- Duration correction and time validation of one period ---
+  // Optional expectedEffectiveRevision: refused with 409 if the period changed after the lawyer saw it (docs/API.md A2).
+  // validate-time with {"validated": false} removes the validation (D2); only finished periods of past days can be validated (D9).
   router.post('/work-periods/:id/duration-override',async c=>{
     const b=await input(c);
     return c.json(service.setDurationOverride(c.req.param('id'),duration(b.durationMs),expectedRevision(b)));
@@ -150,6 +170,7 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
       ? service.validatePeriod(c.req.param('id'),expectedRevision(b))
       : service.unvalidatePeriod(c.req.param('id'),expectedRevision(b)));
   });
+
   router.post('/work-periods/:id/billing-status',async c=>{
     const b=await input(c);
     if (b.status !== 'billed' && b.status !== 'unbilled') throw new AppError('invalid-request','status required');
@@ -167,7 +188,10 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
       periodId:string(b.periodId,'periodId'),expectedAssignmentRevision:integer(b.expectedAssignmentRevision,'expectedAssignmentRevision'),
       caseId:string(b.caseId,'caseId'),responseCommandId:string(b.responseCommandId,'responseCommandId')}));
   });
-  // Evidence references from the Screenpipe workflow (docs/API.md A12): one object or an array, applied all or nothing.
+
+  // --- Evidence import: references to Screenpipe recordings, never their content (docs/API.md A12) ---
+  // Used by the workflow and the recording catch-up. One object or an array of up to 500, applied all or nothing;
+  // sending the same reference again changes nothing.
   router.post('/sources',async c=>{
     const body=await readJson(c);
     const items=Array.isArray(body) ? body : [body];
@@ -180,6 +204,8 @@ export function coreRoutes(db: DatabaseSync, inbox: () => CommandInbox): Hono {
     }));
     return c.json(Array.isArray(body) ? results : results[0]);
   });
+
+  // Source validation; {"validated": false} removes it (docs/API.md D2).
   router.post('/sources/:instanceId/:contentType/:externalId/validate',async c=>{
     const identity=[c.req.param('instanceId'),c.req.param('contentType'),c.req.param('externalId')] as const;
     if (validated(await input(c))) service.validateSource(...identity); else service.unvalidateSource(...identity);
