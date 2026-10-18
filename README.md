@@ -158,60 +158,127 @@ With `--screenpipe-link`, the TimeKeeper session follows Screenpipe's recording:
 - The Screenpipe API key stays in TimeKeeper's API process. The MCP server listens on `127.0.0.1` only and requires its own bearer token.
 - Captures appear only when you hover a period; nothing is copied into TimeKeeper's database.
 
-## Try it in five minutes
+## Test TimeKeeper yourself
 
-### 1. Install
+There are two ways to try it. **Path A** is the quickest: fictional clients and an open working session are ready, so the pill reacts within minutes. **Path B** installs the Windows app on your own data.
 
-Use the Node version in [`.nvmrc`](.nvmrc), then from the repository root:
+### Before you start (both paths)
 
-```sh
-nvm install && nvm use
-node install.mjs
-```
+1. **Windows 10 or 11.** macOS is not tested yet.
+2. **Install Screenpipe** from [screenpi.pe](https://screenpi.pe), start it and allow screen recording. Check that it answers: open `http://127.0.0.1:3030/health` in a browser, you should see `"status"`.
+3. **Get Screenpipe's local API token.** Screenpipe protects its API; TimeKeeper needs this token to read what it recorded. In a terminal:
 
-Install and start [Screenpipe](https://screenpi.pe) separately (see the [setup guide](docs/SETUP.md)).
+   ```sh
+   npx --yes screenpipe@latest auth token
+   ```
 
-### 2. Give TimeKeeper read access to Screenpipe
+   It prints a short token. Keep it for the next steps and never commit it.
 
-Screenpipe protects its API with a local token. Print it with Screenpipe's CLI and put it in `.env` at the repository root (this file is ignored by git):
+### Path A: demo from source (about 10 minutes)
 
-```sh
-screenpipe auth token
-```
+1. **Install the tools:** [Git](https://git-scm.com), [Node.js 24](https://nodejs.org) (the version in [`.nvmrc`](.nvmrc)). For the desktop window you also need [Rust](https://rustup.rs) and the Visual Studio C++ Build Tools; the browser version works without them.
+2. **Get the code:**
 
-```dotenv
-SCREENPIPE_URL=http://127.0.0.1:3030
-SCREENPIPE_API_KEY=<the token>
-```
+   ```sh
+   git clone -b thejoyfulist/screenpipe https://github.com/Rajavik-git/TimeKeeper.git
+   cd TimeKeeper
+   npm ci
+   ```
 
-For the installed desktop app, save the token in a file named `screenpipe-api-key` in the app's data folder (`%APPDATA%\com.timekeeper.desktop` on Windows). The app passes that path to its API.
+3. **Connect Screenpipe:** create a file named `.env` in the `TimeKeeper` folder (it is ignored by git) with:
 
-### 3. Start with demo data
+   ```dotenv
+   SCREENPIPE_URL=http://127.0.0.1:3030
+   SCREENPIPE_API_KEY=<the token from step 3 above>
+   ```
 
-Normal startup creates an empty workspace. For a demo, create a separate database with fictional clients and cases (Dawson v Martin, Lumen Inc, Bennett divorce, …):
+4. **Create the demo database** (fictional clients, cases and an open session):
 
-```sh
-TIMEKEEPER_DB=data/demo.db node --import tsx tests/fixtures/create-database.ts
-TIMEKEEPER_DB=data/demo.db npm run dev
-```
+   ```powershell
+   # PowerShell
+   $env:TIMEKEEPER_DB = "data/demo.db"
+   node --import tsx tests/fixtures/create-database.ts
+   ```
 
-Open `http://127.0.0.1:5173`, or run the desktop app with `npm run dev:server` in one terminal and `npx tauri dev` in another.
+   In Git Bash, macOS or Linux: `TIMEKEEPER_DB=data/demo.db node --import tsx tests/fixtures/create-database.ts`.
 
-### 4. Walk through it
+5. **Start TimeKeeper**, in the same terminal (`TIMEKEEPER_DB` still set):
 
-1. **Open a case document.** Create or open any file whose name contains a case reference, for example `2025-031 Opposition Brief v3.docx` or `2026-012 Lumen Bylaws draft v2.docx`, and keep it in front.
-2. **Watch the pill.** Within seconds to about 20 seconds it shows _Switched to … · Dawson v Martin? · reference 2025-031_ with a countdown.
-3. **Confirm in one click.** The bar now shows the case and the fees accruing; **Undo** stays available for five seconds. Try **Later**, ✕ or **Not client work** on the next document.
-4. **Open the pill panel** (chevron): the current period, its amount, today's total and the periods to validate.
-5. **Open My day** to validate today's periods, or answer the question for a document TimeKeeper could not place.
-6. **Open Activity** and hover today's row: the preview shows Screenpipe's capture of that moment. Click a period to see its sources and audit trail.
-7. **Open Cases and Billing** to see recorded time against last month, fees to bill and the invoice draft.
+   ```sh
+   npm run dev
+   ```
 
-## Test it
+   - The app: `http://127.0.0.1:5173`
+   - The pill, in a browser tab: `http://127.0.0.1:5173/pill.html`
+   - Or the real desktop window: keep `npm run dev:server` running in one terminal and run `npx tauri dev` in a second one (`TIMEKEEPER_DB` set in both).
+
+6. **Create test documents.** Any file whose name contains a case reference is recognised; Word, PDF or a plain `.txt` in Notepad all work:
+
+   | File name to create                 | Case proposed                       |
+   | ----------------------------------- | ----------------------------------- |
+   | `2025-031 Opposition Brief.docx`    | Dawson v Martin (Paul Dawson)       |
+   | `2026-009 Letter to landlord.docx`  | Commercial lease (Paul Dawson)      |
+   | `2026-012 Bylaws draft.docx`        | Articles of association (Lumen Inc) |
+   | `2026-004 Hearing notes.docx`       | Divorce (Sarah Bennett)             |
+   | `Meeting notes.docx` (no reference) | none: the pill asks _Which case?_   |
+
+7. **Walk through it.**
+   1. Open `2026-012 Bylaws draft.docx` and keep it in front. Within a few seconds the pill shows _Switched to … · Articles of association?_ with a 20-second countdown.
+   2. Click **Confirm**: the bar switches to the new case and shows **Undo** for five seconds.
+   3. Open `2026-004 Hearing notes.docx`: the pill proposes _Divorce?_. Try **Choose a case…**, **Not client work**, **Later** or ✕.
+   4. Click the chevron ⌄ on the pill: current case, amount, today's total and the periods to validate.
+   5. In the app, open **My day**: the periods you just created are there. Validate their time once they have a duration.
+   6. Open **Activity** and hover today's row on the timeline: the preview shows Screenpipe's capture of that moment. Click a period for its sources and audit trail.
+   7. Open **Cases** and **Billing** to see recorded time, fees to bill and the invoice draft.
+
+### Path B: install the Windows app
+
+1. **Download the installer.** On GitHub, open **Actions → Windows desktop installer**, pick the latest successful run for `thejoyfulist/screenpipe`, download the artifact **timekeeper-windows-installer** and unzip it. With the GitHub CLI:
+
+   ```sh
+   gh run list -R Rajavik-git/TimeKeeper -w "Windows desktop installer" -b thejoyfulist/screenpipe -L 1
+   gh run download <run id> -R Rajavik-git/TimeKeeper
+   ```
+
+2. **Install.** Double-click `TimeKeeper_0.1.0_x64-setup.exe`. The installer is not signed yet: if Windows SmartScreen appears, click **More info → Run anyway**. It installs for your user only, without administrator rights.
+3. **Connect Screenpipe.** Save the token in the app's data folder (PowerShell):
+
+   ```powershell
+   New-Item -ItemType Directory -Force "$env:APPDATA\com.timekeeper.desktop" | Out-Null
+   npx --yes screenpipe@latest auth token | Set-Content -NoNewline "$env:APPDATA\com.timekeeper.desktop\screenpipe-api-key"
+   ```
+
+4. **Open TimeKeeper** from the Start menu. The pill appears at the top of the screen; the tray icon offers **Open TimeKeeper**, **Show/Hide pill** and **Quit**. Closing the main window keeps TimeKeeper running.
+5. **Add your clients and cases.** The app starts empty. In **Settings → Clients**, use **Add client**; in **Cases**, use **New case** and give each case a reference such as `2026-100-ACME`. Add **markers** (opposing party, keywords) to a case to recognise documents without the reference.
+6. **Start a working session.** Work periods only exist inside a session, which Screenpipe starts. Until then the pill shows _No active session_. To start one by hand (PowerShell):
+
+   ```powershell
+   $body = @{ producerId = "manual"; commandId = [guid]::NewGuid().ToString(); sessionId = [guid]::NewGuid().ToString(); occurredAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ") } | ConvertTo-Json
+   Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8787/api/commands/start -ContentType "application/json" -Body $body
+   ```
+
+   To let Screenpipe start and end sessions on its own, run the MCP server from a source checkout (see [Connect Screenpipe chat](#connect-screenpipe-chat-optional)).
+
+7. **Open a document** whose name contains one of your references: the pill proposes the case, as in Path A.
+
+Good to know: data lives in `%APPDATA%\com.timekeeper.desktop\timekeeper.db`, the API log in `%LOCALAPPDATA%\com.timekeeper.desktop\logs\api.log`. Uninstall from Windows **Settings → Apps**. The installed app and a source checkout both use port 8787: run one at a time.
+
+### If something does not work
+
+| Symptom                                        | Fix                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Pill shows _No active session_                 | Start a session (Path B step 6). The demo database already has one.                                    |
+| Pill dot is amber, _Screenpipe not connected_  | Screenpipe is stopped or the token is missing or wrong; redo the token step and restart TimeKeeper.    |
+| Pill dot is grey, _Paused_                     | Click ▶ on the pill.                                                                                   |
+| No notice after a minute                       | Keep the document in front: Screenpipe must record it first. Check the file name contains a reference. |
+| A pill button does not react                   | The first click focuses the pill; click again.                                                         |
+| _TimeKeeper could not start its local service_ | Another TimeKeeper (or `npm run dev`) already uses port 8787; close it.                                |
+
+## Checks and automated tests
 
 ### Without Screenpipe: the pill simulator
 
-Run the demo (step 3 above) and open `http://127.0.0.1:5173/pill.html` in a browser. Pick a document in **Simulate file switch**: the notice appears at once, without waiting for Screenpipe. Try **Confirm** then **Undo**, **Later**, **Not client work**, and _Program Manager_ (a Windows shell window, ignored).
+Run the demo (Path A) and open `http://127.0.0.1:5173/pill.html` in a browser. Pick a document in **Simulate file switch**: the notice appears at once, without waiting for Screenpipe. Try **Confirm** then **Undo**, **Later**, **Not client work**, and _Program Manager_ (a Windows shell window, ignored).
 
 ### With Screenpipe: check the connection
 
