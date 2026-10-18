@@ -73,7 +73,7 @@ sequenceDiagram
     TK->>MCP: Submit assignment when application is available
 ```
 
-The event wakes retrieval; stored API evidence supports the decision. A signal can precede indexing, so a first empty query must not establish that nothing happened. Retry within a bounded policy. An unknown-folder transition keeps its affected period unresolved until resolved. An ordinary signal with temporarily unavailable evidence preserves the active case and marks retrieval incomplete.
+The event wakes retrieval; stored API evidence supports the decision. A signal can precede indexing, so a first empty query must not establish that nothing happened. Retry within a bounded policy and report incomplete retrieval. Apply the [case and work-period requirements](REQUIREMENTS.md#cases-and-work-periods) when evidence is ambiguous or unavailable.
 
 Subscribe before initial catch-up, coalesce signals while catching up, and deduplicate retrieved observations. After reconnecting, repeat catch-up from saved progress with overlap. Retain low-frequency reconciliation even when event mode works, because this bus is not a durable delivery log.
 
@@ -97,7 +97,7 @@ Return to [integration research](SCREENPIPE_INTEGRATION.md) or the [architecture
 
 ## Assignment after a case-change trigger
 
-The architecture includes a return path after resolution: save the correct case in TimeKeeper, then deliver its association to Screenpipe for the affected activity. This is distinct from subscribing to capture events. No built-in case-change event or durable assignment endpoint has been verified. The [architecture](ARCHITECTURE.md) defines the required delivery, acknowledgement, and revision behavior.
+The [assignment synchronization contract](ARCHITECTURE.md#screenpipe-assignment-synchronization) defines the return path after resolution. This is distinct from subscribing to capture events. No built-in case-change event or durable assignment endpoint has been verified.
 
 ## Can an application switch trigger a skill?
 
@@ -118,7 +118,7 @@ Verified application/context change
 
 Screenpipe documents explicit execution via `POST /pipes/{name}/run`. Calling that operation from a bridge is an implementation option, not an existing automatic app-switch binding. It also adds an automation-control call to Screenpipe beyond the earlier memory-read path. A Screenpipe-side producer could instead emit a supported workflow event. Either option needs implementation, deduplication, execution limits, and a verified event source. [Scheduled tasks](https://docs.screenpipe.com/scheduled-tasks).
 
-Do not run a full agent on every app switch without filtering: app changes often retain the same case. Opening a different folder within the same file-manager application may not change applications at all. Folder identification remains undefined. Ask the lawyer when a folder is unknown. The trigger must wake analysis without implicitly selecting a new case.
+Do not run a full agent on every app switch without filtering: app changes often retain the same case. Opening a different folder within the same file-manager application may not change applications at all. Folder identification remains undefined. The trigger must wake analysis without selecting a case; assignment behavior follows the [requirements](REQUIREMENTS.md#cases-and-work-periods).
 
 This finding is based on source inspection, not a runtime test or installed-release verification. It narrows the previous uncertainty: supported event-triggered pipes exist, but direct app-switch-to-skill wiring is not implemented in the reviewed scheduler.
 

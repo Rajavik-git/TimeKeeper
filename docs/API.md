@@ -468,11 +468,22 @@ This is about the **outgoing** calls TimeKeeper makes to Screenpipe (the Screenp
 - **Flow:** button → Screenpipe pipe run manually → TimeKeeper MCP tools `start_session` / `end_session` ([D6](#d6-screenpipe-reaches-the-api-through-the-timekeeper-mcp-server)) → `POST /api/commands/start` / `POST /api/commands/end`.
 - **Command fields:** each press creates a new `commandId` and records `occurredAt` at the moment of the press. `producerId` identifies the pipe. The end command carries the start's `commandId` as `prerequisiteCommandId`, so an end that arrives first waits as `pending`.
 - **What exists:** both endpoints, with idempotency, one active session, preserved end boundary, and prerequisite ordering, covered by tests.
+- **Start and End buttons (implemented, run from installed Screenpipe pipes on Windows):**
+  - MCP server [`src/mcp/server.ts`](../src/mcp/server.ts), dependency-free, over stdio or loopback HTTP (`--http`, default port 3032, path `/mcp`). Tools: `timekeeper_status` and `list_cases` (read-only), `start_session`, `end_session`, and `record_case_transition` ([D10](#d10-jev-confirmed-tab-changes-become-work-period-transitions)).
+  - `start_session` checks `GET /api/health`, then `GET /api/sessions/active`. If a session is active it does nothing and returns `already_active`. Otherwise it sends `POST /api/commands/start` with a new `commandId` and `sessionId`, `producerId` `screenpipe-start-button`, and `occurredAt` set to the press time. A start that another caller won returns that session as `already_active`. This is up to three API requests, not one as D6 describes; each is an existing endpoint. Whenever a session is then running, it also starts tab detection ([architecture](ARCHITECTURE.md#start-and-end-buttons-and-tab-detection)).
+  - `end_session` reads `GET /api/sessions/active` and sends `POST /api/commands/end` for that session, with `producerId` `screenpipe-end-button` and `occurredAt` set to the press time. The target session is already applied, so it sends no `prerequisiteCommandId`. No active session returns `no_active_session` and sends nothing. Tab detection stops by itself within 10 seconds.
+  - If the API does not answer, both return `timekeeper_not_running` without changing anything. With `TIMEKEEPER_LAUNCH_COMMAND` set, start first runs that command and waits up to 60 seconds for `GET /api/health`; the press time remains the start boundary. A command whose answer is lost returns `unconfirmed`, never success.
+  - Button pipes [`start-timekeeper`](../integrations/screenpipe/pipes/start-timekeeper/pipe.md) and [`end-timekeeper`](../integrations/screenpipe/pipes/end-timekeeper/pipe.md) (`schedule: manual`) and skill [`timekeeper`](../integrations/screenpipe/timekeeper/SKILL.md). If a pipe cannot reach MCP tools, it runs the same logic through [`src/mcp/start-session.ts`](../src/mcp/start-session.ts) or [`src/mcp/end-session.ts`](../src/mcp/end-session.ts), configured as `TIMEKEEPER_START_COMMAND` / `TIMEKEEPER_END_COMMAND` in the pipe's `.env` (D6 fallback).
+  - Verified: unit tests, `tests/integration/mcp-workflow.test.ts` against the real application services, one full Windows loop with the Node API, Screenpipe, and JEV (see D9), and the installed pipes below. Not verified: a Screenpipe MCP connection, macOS, and `TIMEKEEPER_LAUNCH_COMMAND` with the packaged app.
+- **Installed in Screenpipe 2.7.109 on Windows (2026-10-17):** both pipes appear in the pipe list and run through the `.env` fallback (no TimeKeeper MCP connection registered). Verified from Screenpipe at 23:26–23:31: Start with a session active returned `already_active`; End ended it and the watcher stopped 10 seconds later; Start then started a new session and a watcher that kept running after the pipe run ended. Findings:
+  - The pipe agent improvises how it reads `.env`. One run sourced it with bash and succeeded; another extracted the value with `cut`, kept the quotes, and failed. Each `pipe.md` therefore prescribes the exact line `. ./.env && eval "$TIMEKEEPER_START_COMMAND"` (or `_END_`), and the value is one single-quoted string with forward slashes (see each `.env.example`).
+  - A pipe run kills its whole process tree when it ends, which killed the background tab-detection watcher. On Windows, `start_session` starts the watcher through `Win32_Process.Create`, outside that tree, and passes the API address as `--api`.
+  - Pipes require a local workaround for a Screenpipe agent bug ([design review](DESIGN_REVIEW.md)).
+  - Two runs, each the first after its `pipe.md` was replaced, timed out at 120 seconds with no output; the next runs succeeded. The cause is unknown.
 - **What is missing:**
-  1. The MCP tools `start_session` and `end_session` (`src/mcp/` is empty).
-  2. The Screenpipe pipe the lawyer runs as the button. Screenpipe documents manual runs for pipes (`schedule: manual`, run from the app, `pipe run <name>`, or `POST /pipes/<name>/run`; [scheduled tasks](https://docs.screenpipe.com/scheduled-tasks.md)), and Michel's JEV pipe (`feat/jev-implementation`) already runs manually. How the manual run appears to the lawyer must still be checked on an installed Screenpipe.
-  3. The launcher (`integrations/screenpipe/launcher/`): on start, open TimeKeeper if it is closed and wait for `GET /api/health` ([A1](#missing-endpoints-and-rules)) before sending the command. Since `mvp` at `d335885`, opening the installed app also starts the API (Tauri sidecar), so the launcher only needs to open the app.
-  4. Pressing end while TimeKeeper is closed: handled by [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder).
+  1. A Screenpipe release whose pipe agent works without the local workaround, and a registered TimeKeeper MCP connection instead of the `.env` fallback.
+  2. A launch command for the packaged app (`integrations/screenpipe/launcher/`); today it is a configurable shell command. Opening the installed app also starts the API (Tauri sidecar), so the launcher only needs to open the app.
+  3. Pressing end while TimeKeeper is closed: the TimeKeeper side of [D8](#d8-synchronization-at-startup-through-a-local-inbox-folder) is built (the inbox is applied at startup and every 30 seconds), but `end_session` does not write the inbox file yet. Until it does, it reports `timekeeper_not_running` and the session stays active.
 
 ### D8. Synchronization at startup through a local inbox folder
 
@@ -557,7 +568,7 @@ Built on `mprifti42tech/api`:
 
 Not built yet:
 
-- **The pipe side:** the `end_session` tool and pipe must write the file when the API does not answer (Rajavik-git, with `end_session`). The format is section 2; write `.tmp`, then rename.
+- **The pipe side:** `end_session` exists ([D7](#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe)) but must still write the file when the API does not answer (Rajavik-git). The format is section 2; write `.tmp`, then rename.
 - **Checking against an installed Screenpipe:** step 4 below is tested only with stand-ins.
 
 Step 4, catching up missed recordings, **built on `mprifti42tech/api` (2026-10-17):**
@@ -584,6 +595,21 @@ Decided by the team leader on 2026-10-17. This is a business rule: [requirements
 - **Demo:** the demo data is dated 2026-10-16, which is in the past, so demo periods can still be validated.
 - **For the interface:** disable or hide "validate" and "approve day" for today and for running periods, so the lawyer does not hit the `409`.
 - **Tests:** `tests/integration/validation-day.test.ts` (today refused, next day accepted, a period crossing midnight, a running period, bulk, undo). `tests/integration/service.test.ts` now uses a clock on the day after its periods and ends a period before validating it.
+
+### D10. JEV-confirmed tab changes become work-period transitions
+
+Written on `feat/screenpipe-start-session` as D9 and renumbered D10 when merged, since D9 was already taken.
+
+
+- **Decision (2026-10-17):** while a session is active, the tab-detection watcher ([`jev-check --session-bound`](../integrations/screenpipe/jev-check/README.md)) sends JEV's result to the session through the TimeKeeper MCP tool `record_case_transition`. It replaces the earlier rule that identified matches stay in Screenpipe with `applied: false`.
+- **When a command is sent:** only when JEV answers `yes` to "did the user really change tab?" (confidence at least `JEV_MIN_CONFIDENCE`, default 0.7) and the analysed context is still current. Then:
+  - JEV selects an existing case different from the open period's case: a transition to that case (`origin: automatic`);
+  - JEV answers "no unique candidate" with enough confidence: a transition with `caseId: null` (`origin: unresolved`). The service opens an unresolved period and its question `period:<id>` for the lawyer;
+  - anything else (no change, uncertain, low confidence, same case, stale context): nothing is sent and the active case is kept.
+- **Command:** `record_case_transition { sessionId, transitionAt, caseId }` → `POST /api/work-periods` with `mode: current` and `startedAt` set to the capture time of the new context, never the model response time. The period ID is `auto-<sessionId>-<epoch ms>`, so a retry has no further effect. The service closes the open period at that time, checks the case, the session boundaries, and protected periods (a protected split returns `202 pending`).
+- **Guards in the tool:** nothing is written for a session that is no longer active, for a time before the open period's start (a delayed result), for the open period's own case, or twice for an unresolved period. Candidates come from `GET /api/cases` and the open period from `GET /api/work-periods`; JEV never sees real IDs.
+- **Not changed:** automatic periods still need the lawyer's time validation; a manual assignment is never overwritten, because a transition opens a new period instead of reassigning the open one. Folder identification as a product rule, duration derivation, and source evidence import remain open ([design review](DESIGN_REVIEW.md)).
+- **Verified (Windows, 2026-10-17):** Start button → session → watcher → real Notepad tab changes recorded by Screenpipe → Screenpipe MCP → JEV (`jev-1.13.0`) → `record_case_transition` → real Node API and SQLite: a period on case `2026-009-DAWSON`, then an unresolved period with its question, then End button → session ended and watcher stopped. JEV received window titles only. One run with fictional documents; accuracy on real work is not established.
 
 ## Open questions
 

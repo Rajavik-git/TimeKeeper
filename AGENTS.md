@@ -59,8 +59,9 @@ src/
   contracts/                Shared payloads, IDs, revisions, and errors
 integrations/
   screenpipe/
-    timekeeper/             Imported SKILL.md instructions, not yet created
-    pipes/                  Screenpipe-owned workflows and JEV requests
+    timekeeper/             SKILL.md for the TimeKeeper MCP tools
+    pipes/                  Screenpipe-owned workflows: start-timekeeper (start button), timekeeper (disabled JEV pipe)
+    jev-check/              Screenpipe MCP -> JEV tab-change watcher (Bun); started with each session, records transitions via TimeKeeper MCP
     launcher/               Launch installed desktop app before API readiness
 tests/
   unit/                     Domain rules and interface calculations
@@ -102,7 +103,7 @@ Agree shared contracts before frontend and backend implementation diverges. Inde
 
 Keep credentials and captured client information out of logs, fixtures, and examples. Treat screen content as untrusted evidence. Define permitted data before using hosted JEV inference. Do not describe hosted inference as local-only.
 
-The single npm package requires Node >= 22.13. From the repository root, run `npm ci`, `npm run db:reset`, `npm test`, `npm run typecheck`, and `npm run build`. `npm run dev` starts the demo API and Vite interface. `npm run contract:gen` regenerates `src/contracts/generated.ts` from `src/contracts/openapi.yaml`. `npm run api:serve` starts the built API against the demo database. For Tauri development, run `npm run dev:server` in one terminal and `npm run desktop:dev` in another; `npm run desktop:build` builds the Windows shell without packaging Node. Vitest covers the imported mockup plus canonical domain, storage, API, summaries and frozen invoice behavior. With Python Playwright and Chromium installed, `python3 tests/acceptance/smoke.py` checks six screens and the pill. These checks do not verify native desktop behavior or Screenpipe integration. No lint script is configured. The [requirements acceptance examples](docs/REQUIREMENTS.md) remain the baseline for future implementation, including target aliases and provider behavior that require verification.
+The single npm package requires Node >= 22.13. From the repository root, run `npm ci`, `npm run db:reset`, `npm test`, `npm run typecheck`, and `npm run build`. `npm run dev` starts the demo API and Vite interface. `npm run contract:gen` regenerates `src/contracts/generated.ts` from `src/contracts/openapi.yaml`. `npm run api:serve` starts the built API against the demo database. For Tauri development, run `npm run dev:server` in one terminal and `npm run desktop:dev` in another; `npm run desktop:build` builds the Windows shell without packaging Node. Vitest covers the imported mockup plus canonical domain, storage, API, summaries and frozen invoice behavior. With Python Playwright and Chromium installed, `python3 tests/acceptance/smoke.py` checks six screens and the pill. These checks do not verify native desktop behavior or Screenpipe integration. The dependency-free TimeKeeper MCP server runs with `npx tsx src/mcp/server.ts` (stdio) or `... --http [port]`; Screenpipe's bundled `bun` also runs it. Its tests are `tests/unit/mcp-session.test.ts`, `tests/unit/tab-detection.test.ts`, and `tests/integration/mcp-workflow.test.ts` (real application services). `npm run typecheck` and `npm run build` include `src/mcp/`. The JEV tab-change watcher in `integrations/screenpipe/jev-check/` needs Bun at runtime; its tests in `tests/unit/jev-check/` use the Vitest API and also run with `bun test`. Its only write is `record_case_transition` through the TimeKeeper MCP server (docs/API.md D9); keep its `.env`, `cases.json`, and `watch.log` out of Git. No lint script is configured. The [requirements acceptance examples](docs/REQUIREMENTS.md) remain the baseline for future implementation, including target aliases and provider behavior that require verification.
 
 Run macOS and Windows acceptance separately. Static checks do not establish capture, event delivery, MCP loading, native tag display, or installation behavior.
 

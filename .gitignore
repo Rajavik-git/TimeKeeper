@@ -32,6 +32,9 @@ playwright-report/
 test-results/
 *.log
 
+# Local case catalogue for the JEV check (may contain client information)
+/integrations/screenpipe/jev-check/cases.json
+
 # Local application data
 /data/
 /recordings/
@@ -49,3 +52,6 @@ test-results/
 *.db-shm
 *.db-journal
 .env.local
+
+# JEV tab-detection watcher lock (watch.log is covered by *.log)
+integrations/screenpipe/jev-check/.watch.pid
