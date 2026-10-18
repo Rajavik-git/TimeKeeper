@@ -89,7 +89,7 @@ export function buildDayView({
         return `${details.clientName} ${details.title}`;
       }
       if (key === "work") return period.label;
-      if (key === "application") return period.demoApp ?? "";
+      if (key === "application") return period.observedAppName ?? "";
       return period.startedAt;
     };
     return compareText(label(a), label(b)) * (direction === "ascending" ? 1 : -1);

@@ -1,4 +1,15 @@
 /* Activity timeline, review details and evidence. */
+.activity-views {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.activity-views button[aria-pressed="true"] {
+  background: var(--active);
+  color: var(--ink);
+  border-color: var(--line-2);
+}
 .activity-filters {
   display: flex;
   gap: 8px;
@@ -670,6 +681,10 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
   text-overflow: ellipsis;
   overflow: visible;
   white-space: nowrap;
+}
+.activity-source-row > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .activity-source-row .meta,
 .activity-audit .meta {

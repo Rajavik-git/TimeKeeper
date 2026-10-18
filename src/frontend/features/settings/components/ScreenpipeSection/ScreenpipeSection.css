@@ -1,0 +1,53 @@
+.screenpipe-settings-body {
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+.screenpipe-settings h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+.screenpipe-settings p {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.screenpipe-settings [role="status"] {
+  display: grid;
+  gap: 8px;
+}
+.screenpipe-note {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.screenpipe-warning {
+  color: var(--bad);
+}
+.screenpipe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.screenpipe-run {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.screenpipe-facts {
+  margin: 4px 0;
+  display: grid;
+  gap: 8px;
+}
+.screenpipe-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  justify-content: space-between;
+}
+.screenpipe-facts dt {
+  color: var(--ink-2);
+}
+.screenpipe-facts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}

@@ -58,3 +58,27 @@ it("keeps a pending cost form open and blocks invoice creation until its write c
   expect(screen.queryByRole("textbox", { name: "Cost description" })).toBeNull();
   expect(post).toHaveBeenCalledTimes(1);
 });
+it("uses workspace EUR for the case hourly-rate label", () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  const { state, core } = frontendFixture();
+  state.settings.currency = "EUR";
+  render(
+    <PreInvoices
+      catalogState={state}
+      workspaceState={core}
+      selectedCase="case"
+      action={async (request) => (await request).data}
+      navigate={vi.fn()}
+      openPeriodActivity={vi.fn()}
+      refresh={vi.fn()}
+    />,
+  );
+  expect(screen.getAllByText(/€60.00\/h/).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/\$60.00\/h/)).toBeNull();
+});

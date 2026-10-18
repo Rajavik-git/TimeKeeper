@@ -10,6 +10,7 @@ import { changePeriod, resolveRate, timeIsValidated, validateTime } from "../dom
 import type { Clock } from "../ports/index.js";
 import type { PeriodRecord, Repository } from "../ports/repository.js";
 import { AppError } from "./errors.js";
+import { calendarDay } from "../../shared/dates.js";
 import { periodView as view } from "./period-view.js";
 function assertDuration(value: number | null): void {
   if (value !== null && (!Number.isSafeInteger(value) || value < 0))
@@ -44,13 +45,35 @@ export class PeriodReviewService {
       expectedAssignmentRevision: number;
     }) => string,
   ) {}
+  /** Restores validation metadata only if the decision's effective state is unchanged. */
+  restoreValidation(prior: PeriodRecord, expectedRevision: number): void {
+    this.repo.transaction(() => {
+      const current = this.repo.period(prior.id);
+      if (
+        !current ||
+        current.revision !== expectedRevision ||
+        current.effectiveRevision !== prior.effectiveRevision ||
+        current.billingStatus === BillingStatus.Billed
+      )
+        throw new AppError("conflict", "period changed since the decision");
+      this.repo.savePeriod(
+        {
+          ...current,
+          validatedEffectiveRevision: prior.validatedEffectiveRevision,
+          timeValidatedAt: prior.timeValidatedAt,
+          revision: current.revision + 1,
+        },
+        this.clock.now(),
+      );
+    });
+  }
   setDetectedDuration(id: string, durationMs: number | null): PeriodView {
     assertDuration(durationMs);
     return this.repo.transaction(() => {
       const p = this.repo.period(id);
       if (!p) throw new AppError("not-found", "period not found");
       if (p.billingStatus === BillingStatus.Billed && durationMs !== p.detectedDurationMs)
-        throw new AppError("pending", "billed-period edit policy is open");
+        throw new AppError("rule-not-decided", "billed-period edit policy is open");
       const next = {
         ...changePeriod(p, { detectedDurationMs: durationMs }),
         revision: p.revision + 1,
@@ -71,7 +94,7 @@ export class PeriodReviewService {
       if (expectedRevision !== undefined && p.revision !== expectedRevision)
         throw new AppError("conflict", "stale period revision");
       if (p.billingStatus === BillingStatus.Billed)
-        throw new AppError("pending", "billed-period edit policy is open");
+        throw new AppError("rule-not-decided", "billed-period edit policy is open");
       const next = {
         ...changePeriod(p, { durationOverrideMs: durationMs }),
         revision: p.revision + 1,
@@ -138,9 +161,13 @@ export class PeriodReviewService {
         p.effectiveRevision !== expectedEffectiveRevision
       )
         throw new AppError("conflict", "stale effective revision");
+      if (p.endedAt === null)
+        throw new AppError("conflict", "a running period cannot be validated");
+      if (calendarDay(p.startedAt) >= calendarDay(this.clock.now()))
+        throw new AppError("conflict", "only past days can be validated");
       if (p.caseId === null || (p.durationOverrideMs ?? p.detectedDurationMs) === null)
         throw new AppError(
-          "pending",
+          "conflict",
           "case and effective duration are required before time validation",
         );
       const next = { ...validateTime(p, this.clock.now()), revision: p.revision + 1 };
@@ -155,7 +182,7 @@ export class PeriodReviewService {
       if (expectedRevision !== undefined && p.revision !== expectedRevision)
         throw new AppError("conflict", "stale period revision");
       if (status === BillingStatus.Unbilled && p.invoiceId != null)
-        throw new AppError("pending", "issued invoice reversal is not defined");
+        throw new AppError("rule-not-decided", "issued invoice reversal is not defined");
       if (status === BillingStatus.Billed && (p.caseId === null || !timeIsValidated(p)))
         throw new AppError("conflict", "time validation and a case are required before billing");
       const snapshot =
@@ -167,7 +194,7 @@ export class PeriodReviewService {
           ? this.repo.rateForCase(p.caseId)?.currency
           : null;
       if (status === BillingStatus.Billed && !p.appliedCurrency && !currency)
-        throw new AppError("pending", "currency is not configured");
+        throw new AppError("conflict", "currency is not configured");
       const next: PeriodRecord = {
         ...p,
         billingStatus: status,
@@ -183,12 +210,30 @@ export class PeriodReviewService {
     });
   }
 
-  clearTimeValidation(id: string): PeriodView {
+  validatePeriods(inputs: { id: string; expectedEffectiveRevision: number }[]): PeriodView[] {
+    if (
+      inputs.length < 1 ||
+      inputs.length > 500 ||
+      new Set(inputs.map((input) => input.id)).size !== inputs.length
+    )
+      throw new AppError("invalid-request", "expected 1 to 500 distinct periods");
+    return this.repo.transaction(() =>
+      inputs.map((input) => this.validatePeriod(input.id, input.expectedEffectiveRevision)),
+    );
+  }
+  clearTimeValidation(id: string, expectedEffectiveRevision?: number): PeriodView {
     return this.repo.transaction(() => {
       const period = this.repo.period(id);
       if (!period) throw new AppError("not-found", "period not found");
+      if (
+        expectedEffectiveRevision !== undefined &&
+        period.effectiveRevision !== expectedEffectiveRevision
+      )
+        throw new AppError("conflict", "stale effective revision");
       if (period.billingStatus === BillingStatus.Billed || period.invoiceId != null)
         throw new AppError("conflict", "billed period must be unbilled before editing");
+      if (period.validatedEffectiveRevision === null && period.timeValidatedAt === null)
+        return view(period);
       const next = {
         ...period,
         validatedEffectiveRevision: null,
@@ -207,7 +252,7 @@ export class PeriodReviewService {
       rates.globalRateCents,
       rates.clientRateCents ?? null,
     );
-    if (rate === null) throw new AppError("pending", "global hourly rate is not configured");
+    if (rate === null) throw new AppError("conflict", "global hourly rate is not configured");
     return rate;
   }
 }

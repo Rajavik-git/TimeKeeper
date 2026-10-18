@@ -1,3 +1,4 @@
+import { resolveHourlyRate } from "../../shared/rate-policy";
 import {
   AvailabilityStatus,
   BillingStatus,
@@ -8,7 +9,7 @@ import {
   RateOrigin,
 } from "../../contracts/states.generated";
 import { invoiceAmounts } from "../../shared/invoice-math";
-import type { CoreState, State, EntityId } from "../api/client";
+import type { CoreState, State, EntityId, Client } from "../api/client";
 import { summarize, type Summary } from "./summary";
 
 export type Period = CoreState["periods"][number];
@@ -44,7 +45,7 @@ export const effectiveMs = (
 ): number | null => period.durationOverrideMs ?? period.detectedDurationMs;
 
 export {
-  duration as formatPreciseDuration,
+  nearestMinuteDuration as formatNearestMinuteDuration,
   minutes as formatRoundedMinutes,
 } from "../shared/format";
 
@@ -74,19 +75,29 @@ export function summarizeWork(periods: readonly Period[], sources: CoreState["so
   );
 }
 
+export function configuredClientRate(state: State, client: Client): number {
+  return (
+    resolveHourlyRate({
+      clientRateCents: client.hourlyRateCents,
+      globalRateCents: state.settings.globalHourlyRateCents,
+    }).rateCents ?? 0
+  );
+}
+
 export function configuredRate(
   state: State,
   caseId: EntityId,
 ): { rateCents: number; origin: RateOrigin } {
   const item = state.cases.find((m) => String(m.id) === String(caseId));
   if (!item) throw Error("Case not found");
-  if (item.mode === CaseBillingMode.FlatFee) return { rateCents: 0, origin: RateOrigin.FlatFee };
-  const client = state.clients.find((c) => String(c.id) === String(item.clientId));
-  if (item.hourlyRateCents !== null)
-    return { rateCents: item.hourlyRateCents, origin: RateOrigin.Case };
-  if (typeof client?.hourlyRateCents === "number")
-    return { rateCents: client.hourlyRateCents, origin: RateOrigin.Client };
-  return { rateCents: state.settings.globalHourlyRateCents ?? 0, origin: RateOrigin.Base };
+  const client = state.clients.find((candidate) => String(candidate.id) === String(item.clientId));
+  const resolved = resolveHourlyRate({
+    flatFee: item.mode === CaseBillingMode.FlatFee,
+    caseRateCents: item.hourlyRateCents,
+    clientRateCents: client?.hourlyRateCents,
+    globalRateCents: state.settings.globalHourlyRateCents,
+  });
+  return { rateCents: resolved.rateCents ?? 0, origin: resolved.origin };
 }
 
 export { dayFees, type FeeEstimate } from "./fees";

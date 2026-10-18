@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { api } from "../../src/frontend/api/client";
+import { refreshApplication } from "../../src/frontend/api/queries";
 import { Pill } from "../../src/frontend/features/desk/pill/Pill";
 import { frontendFixture } from "./frontend-fixture";
 
@@ -38,7 +39,7 @@ function mockReads() {
   const reads: Record<string, unknown> = {
     "/api/workspace": {
       catalogState: state,
-      workspaceState: { ...core, sources: [], questions: [], coverageGaps: [] },
+      workspaceState: core,
     },
   };
   vi.spyOn(api, "GET").mockImplementation((async (path: string) => ({
@@ -63,92 +64,176 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("shows the active case and offers the browser file-switch simulator", async () => {
+it("shows accepted API periods without native recognition, fictional simulation or local pause", async () => {
   mockReads();
+  const post = vi.spyOn(api, "POST");
   render(<Pill />);
   expect(await screen.findByText("Test case")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "TimeKeeper, toggle panel" })).toBeTruthy();
-  expect(screen.getByRole("combobox", { name: "Simulate file switch" })).toBeTruthy();
-  expect(screen.getByRole("option", { name: "Program Manager (non-document)" })).toBeTruthy();
+  expect(screen.queryByRole("combobox", { name: "Simulate file switch" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Pause/ })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "TimeKeeper, toggle panel" }));
+  expect(screen.getByRole("button", { name: "Validate" })).toHaveProperty("disabled", true);
+  expect(post).not.toHaveBeenCalled();
 });
 
-it("recognizes a simulated switch, confirms it in one click and offers Undo", async () => {
-  const user = userEvent.setup();
-  mockReads();
+it("reflects a JEV-created period on refresh without producing another transition", async () => {
+  const { core } = mockReads();
+  const post = vi.spyOn(api, "POST");
+  render(<Pill />);
+  await screen.findByText("Test case");
+  core.periods = [
+    { ...core.periods[0], endedAt: "2026-10-18T09:00:00Z" },
+    { ...core.periods[0], id: "jev-period", startedAt: "2026-10-18T09:00:00Z" },
+  ];
+  await act(async () => {
+    await refreshApplication();
+  });
+  expect(await screen.findByRole("status", { name: "New work period" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Validate" })).toHaveProperty("disabled", true);
+  expect(post).not.toHaveBeenCalled();
+});
+
+it("assigns an unresolved API period with its revision and preserves Undo", async () => {
+  const { core, state } = mockReads();
+  state.settings.notifications = true;
+  core.periods[0].caseId = null;
+  core.questions = [
+    {
+      questionId: "question",
+      sessionId: "session",
+      periodId: "open",
+      status: "pending",
+      expectedAssignmentRevision: 1,
+    } as (typeof core.questions)[number],
+  ];
   const post = vi.spyOn(api, "POST").mockImplementation((async (path: string) => {
-    if (path === "/api/recognize")
+    if (path === "/api/pill/decision")
       return {
         data: {
-          suggestion: {
-            caseId: "case",
-            client: "Test client",
-            title: "Test case",
-            reference: "TEST-001",
-            reason: "reference: TEST-001",
-          },
-          alternatives: [],
-          confidence: "high",
+          period: core.periods[0],
+          undoToken: "token-1",
+          undoExpiresAt: new Date(Date.now() + 5000).toISOString(),
         },
       };
-    if (path === "/api/pill/decision")
-      return { data: { period: { id: "next" }, undoToken: "token-1" } };
     if (path === "/api/pill/undo") return { data: { status: "undone" } };
     throw Error(`Unexpected ${path}`);
   }) as never);
   render(<Pill />);
-  await screen.findByText("Test case");
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "Simulate file switch" }),
-    "2025-031 Opposition Brief v3.docx",
+  await userEvent.selectOptions(
+    await screen.findByRole("combobox", { name: "Choose a case for this period" }),
+    "case",
   );
-  expect(await screen.findByText("Switched to 2025-031 Opposition Brief v3.docx")).toBeTruthy();
-  expect(post).toHaveBeenCalledWith("/api/recognize", {
-    body: { windowTitle: "2025-031 Opposition Brief v3.docx", appName: "Demo documents" },
+  expect(post).toHaveBeenCalledWith("/api/pill/decision", {
+    body: { kind: "assign", periodId: "open", caseId: "case", expectedAssignmentRevision: 1 },
   });
-  await user.click(screen.getByRole("button", { name: /^Confirm/ }));
-  const decision = post.mock.calls.find(([path]) => path === "/api/pill/decision");
-  expect(decision?.[1]).toMatchObject({
-    body: { kind: "switch", caseId: "case", windowTitle: "2025-031 Opposition Brief v3.docx" },
-  });
-  // The switch instant comes from the PC clock, not from a fixed demo day.
-  const at = (decision?.[1] as { body: { at: string } }).body.at;
-  expect(Math.abs(Date.parse(at) - Date.now())).toBeLessThan(60000);
-  await user.click(await screen.findByRole("button", { name: "Undo last choice" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Undo last choice" }));
   await waitFor(() =>
     expect(post).toHaveBeenCalledWith("/api/pill/undo", { body: { undoToken: "token-1" } }),
   );
 });
 
-it("pauses file-switch detection locally without writing to the server", async () => {
-  const user = userEvent.setup();
-  mockReads();
-  const post = vi.spyOn(api, "POST");
+it("keeps a failed manual answer visible and allows retry", async () => {
+  const { core, state } = mockReads();
+  state.settings.notifications = true;
+  core.periods[0].caseId = null;
+  core.questions = [
+    {
+      questionId: "question",
+      sessionId: "session",
+      periodId: "open",
+      status: "pending",
+      expectedAssignmentRevision: 1,
+    } as (typeof core.questions)[number],
+  ];
+  vi.spyOn(api, "POST").mockResolvedValue({
+    error: { message: "This period changed. Review it again." },
+  } as never);
   render(<Pill />);
-  await screen.findByText("Test case");
-  await user.click(screen.getByRole("button", { name: "Pause file-switch detection" }));
-  expect(screen.getByText("Paused")).toBeTruthy();
-  expect(
-    (screen.getByRole("combobox", { name: "Simulate file switch" }) as HTMLSelectElement).disabled,
-  ).toBe(true);
-  expect(localStorage.getItem("timekeeper:pill-paused:session")).not.toBeNull();
-  expect(post).not.toHaveBeenCalled();
-  await user.click(screen.getByRole("button", { name: "Resume file-switch detection" }));
-  expect(screen.queryByText("Paused")).toBeNull();
+  await userEvent.selectOptions(
+    await screen.findByRole("combobox", { name: "Choose a case for this period" }),
+    "case",
+  );
+  expect(await screen.findByRole("alert")).toHaveProperty(
+    "textContent",
+    "This period changed. Review it again.",
+  );
+  expect(screen.getByRole("combobox", { name: "Choose a case for this period" })).toHaveProperty(
+    "disabled",
+    false,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Retry assignment" }));
+  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(2));
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("status", { name: "Which case" })).toBeNull();
 });
 
-it("dismisses a switch notice with Escape", async () => {
-  const user = userEvent.setup();
-  mockReads();
-  vi.spyOn(api, "POST").mockResolvedValue({
-    data: { suggestion: null, alternatives: [], confidence: "low" },
+it("validates a finished past-day period from an ended session while today's period stays unready", async () => {
+  const { core } = mockReads();
+  const past = {
+    ...core.periods[0],
+    id: "past",
+    sessionId: "ended-session",
+    startedAt: "2026-10-17T08:00:00Z",
+    endedAt: "2026-10-17T09:00:00Z",
+    durationOverrideMs: 3600000,
+  };
+  core.periods.push(past);
+  const post = vi.spyOn(api, "POST").mockResolvedValue({
+    data: {
+      period: past,
+      undoToken: "validation",
+      undoExpiresAt: new Date(Date.now() + 5000).toISOString(),
+    },
   } as never);
   render(<Pill />);
   await screen.findByText("Test case");
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "Simulate file switch" }),
-    "Meeting request - new matter.eml",
+  await userEvent.click(screen.getByRole("button", { name: "TimeKeeper, toggle panel" }));
+  await userEvent.click(screen.getByRole("button", { name: "Validate all 1" }));
+  expect(post).toHaveBeenCalledWith("/api/pill/decision", {
+    body: {
+      kind: "validate",
+      periodIds: ["past"],
+      expectedEffectiveRevisions: { past: past.effectiveRevision },
+    },
+  });
+});
+
+it("does not turn elapsed session time into fees when duration is unknown", async () => {
+  const { state } = mockReads();
+  state.settings.pillDisplay = "fees";
+  render(<Pill />);
+  await screen.findByText("Test case");
+  await userEvent.click(screen.getByRole("button", { name: "TimeKeeper, toggle panel" }));
+  const kpis = document.querySelector(".pill-kpis")!;
+  expect(kpis.textContent).toContain("This periodUnknown");
+  expect(kpis.textContent).toContain("Amount—");
+  expect(kpis.textContent).toContain("Today—");
+});
+
+it("expires undo at the server deadline after a delayed decision response", async () => {
+  const { core } = mockReads();
+  const past = {
+    ...core.periods[0],
+    id: "past",
+    startedAt: "2026-10-17T08:00:00Z",
+    endedAt: "2026-10-17T09:00:00Z",
+    durationOverrideMs: 3600000,
+  };
+  core.periods.push(past);
+  vi.spyOn(api, "POST").mockResolvedValue({
+    data: {
+      period: past,
+      undoToken: "short",
+      undoExpiresAt: new Date(Date.now() + 600).toISOString(),
+    },
+  } as never);
+  render(<Pill />);
+  await screen.findByText("Test case");
+  await userEvent.click(screen.getByRole("button", { name: "TimeKeeper, toggle panel" }));
+  await userEvent.click(screen.getByRole("button", { name: "Validate all 1" }));
+  expect(await screen.findByRole("button", { name: "Undo last choice" })).toBeTruthy();
+  await waitFor(
+    () => expect(screen.queryByRole("button", { name: "Undo last choice" })).toBeNull(),
+    { timeout: 1200 },
   );
-  expect(await screen.findByText("Which case is this?")).toBeTruthy();
-  await user.keyboard("{Escape}");
-  expect(screen.queryByText("Which case is this?")).toBeNull();
 });

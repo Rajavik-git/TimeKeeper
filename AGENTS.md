@@ -18,20 +18,20 @@ Update the owning document when a decision changes. Link to it instead of repeat
 ## Product constraints
 
 - Screenpipe owns recording and workflow execution. Read evidence through its API, never its database. Do not add another recorder.
-- Explicit Screenpipe commands start and end sessions. Allow one active session per workspace. Repeated starts return it; repeated ends preserve its original end boundary. Application exit does not end it.
+- Screenpipe recording boundaries and explicit Screenpipe commands start and end sessions. Allow one active session per workspace. Repeated starts return it; repeated ends preserve its original end boundary. Application exit does not end it.
 - A work period owns case assignment, correction, time validation, and billing status. Derive its client from its case.
 - Unknown folders require an unresolved period and a lawyer answer guarded by target period and assignment revision. Closure or evidence import must not invalidate the guard. A delayed answer must not change a newer active case. Folder identification remains undefined.
 - Preserve manual corrections through replay. Reconcile ended sessions only inside their recorded boundaries. Do not automatically split corrected or validated periods; flag a reconstruction proposal without counting extra time.
 - Screenshots prove observations, not continuous duration. Do not invent duration rules or add inactivity subtraction.
 - React sums precise effective durations and rounds only the combined total upward to whole minutes. Never sum rounded periods or subtotals.
-- Time validation, source validation, and billing status remain separate. Effective case or duration changes require time validation again. Identical replay and detected changes masked by an unchanged override preserve it.
+- Time validation requires a finished period whose local start day is in the past. Source validation, time validation, and billing status remain separate. Effective case or duration changes require time validation again. Identical replay and detected changes masked by an unchanged override preserve it.
 - Retain the agreed invoice, rate, fixed-fee, and budget extensions. Do not infer capture or billing rules from them.
 
 ## Intended code organization
 
 Use the [implemented modules](docs/ARCHITECTURE.md#implemented-modules) for ownership. Frontend screen entries stay at feature roots; child components use named folders, hooks use `hooks/`, and helpers use `lib/`.
 
-Tauri does not manage or package Node. Screenpipe adapters contain types only; workers, MCP tools, skills, pipes, and launcher integrations remain planned. Do not present placeholders or setup checks as working integrations.
+The Windows Tauri host launches the API sidecar and preserves its readiness and parent-process safeguards. MCP, JEV scripts, Screenpipe reads, and inbox/catch-up consumers exist; their installed workflow and both-platform acceptance remain incomplete. JEV replaces active native recognition; its source backup is under `backups/native-recognition-d575502/`. Bun is not required. Use [API contracts](docs/API.md) for integration behavior. Broad SOLID cleanup is deferred.
 
 ### Dependency rules
 

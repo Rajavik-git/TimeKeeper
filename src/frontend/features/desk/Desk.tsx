@@ -2,9 +2,10 @@ import { calendarTime } from "../../../shared/dates";
 import { useEffect, useState, type CSSProperties } from "react";
 import { type ScreenProps } from "../../api/client";
 import { Card } from "../../shared/components/Card/Card";
-import { pillView } from "./lib/pillView";
+import { nativePillView } from "./lib/nativePillView";
+import { useToday } from "../../shared/hooks/useToday";
 
-/** The preview embeds the real pill page so file-switch simulation works as on the desktop. */
+/** The preview embeds the same pill page as the desktop window. */
 const previewFrame: CSSProperties = {
   position: "absolute",
   inset: 0,
@@ -14,7 +15,11 @@ const previewFrame: CSSProperties = {
   zIndex: 5,
 };
 
-export function Desk({ catalogState, workspaceState, navigate }: ScreenProps) {
+export function Desk({
+  catalogState,
+  workspaceState,
+  navigate,
+}: Pick<ScreenProps, "catalogState" | "workspaceState" | "navigate">) {
   const [theme, setTheme] = useState(document.documentElement.dataset.theme ?? "auto");
   useEffect(() => {
     const observer = new MutationObserver(() =>
@@ -26,7 +31,7 @@ export function Desk({ catalogState, workspaceState, navigate }: ScreenProps) {
     });
     return () => observer.disconnect();
   }, []);
-  const view = pillView(catalogState, workspaceState);
+  const view = nativePillView(catalogState, workspaceState, useToday(), null);
   const session = view.active;
   const period = view.current;
   return (
@@ -46,7 +51,7 @@ export function Desk({ catalogState, workspaceState, navigate }: ScreenProps) {
       <div className="desk">
         <div className="docwin">
           <div className="row between dochead">
-            <span>{period?.demoWindowTitle ?? period?.label ?? "No active period"}</span>
+            <span>{period?.observedWindowTitle ?? period?.label ?? "No active period"}</span>
             <span className="num">{session ? calendarTime(session.startedAt) : "—"}</span>
           </div>
           <div className="docpage">
@@ -62,7 +67,7 @@ export function Desk({ catalogState, workspaceState, navigate }: ScreenProps) {
       </div>
       <Card>
         <span className="small muted">
-          Simulate a file switch in the pill above. Closing the desktop window leaves the session
+          The pill shows accepted work periods. Closing the desktop window leaves the session
           active. Screenpipe commands start and end it.
         </span>
       </Card>

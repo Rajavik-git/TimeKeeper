@@ -23,14 +23,14 @@ export type SourceExportScope = SourceExportRequest["scope"];
 export type SourceExportReceipt = components["schemas"]["SourceExportReceipt"];
 export type SourceExportResponse = components["schemas"]["CanonicalSourcePackResponse"];
 export interface SourceExportSnapshot {
-  catalog: CatalogState;
+  catalog: Pick<CatalogState, "settings" | "clients" | "cases">;
   periods: PeriodView[];
   sources: SourceRecord[];
   auditEvents: CatalogAuditEvent[];
 }
 export interface SourceExportPort {
   transaction<T>(work: () => T): T;
-  snapshot(): SourceExportSnapshot;
+  snapshot(caseId: string, includeAudit: boolean): SourceExportSnapshot;
   invoiceCaseId(id: number): string | undefined;
   saveReceipt(value: Omit<SourceExportReceipt, "id">): SourceExportReceipt;
   auditExport(hash: string, at: string): void;

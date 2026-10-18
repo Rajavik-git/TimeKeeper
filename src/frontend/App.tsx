@@ -168,7 +168,10 @@ export function App() {
       )
         return;
       const next = primaryViews.find((item) => item[3] === event.key);
-      if (next) navigate(next[0]);
+      if (next) {
+        if (next[0] === "source") setActivityPeriodId("");
+        navigate(next[0]);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -239,7 +242,10 @@ export function App() {
                 key={key}
                 aria-current={view === key ? "page" : undefined}
                 aria-label={title}
-                onClick={() => navigate(key)}
+                onClick={() => {
+                  if (key === "source") setActivityPeriodId("");
+                  navigate(key);
+                }}
               >
                 <Icon name={icon} />
                 <span className="tab-label">{title}</span>

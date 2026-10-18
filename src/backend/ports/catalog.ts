@@ -12,6 +12,10 @@ export type CatalogAuditEvent = components["schemas"]["AuditEvent"];
 export interface CatalogPort {
   transaction<T>(work: () => T): T;
   state(): CatalogState;
+  listClients(): CatalogClient[];
+  listCases(): CatalogCase[];
+  getSettings(): CatalogSettings;
+  listTaskTypes(): CatalogTaskType[];
   client(id: string): CatalogClient | undefined;
   /** Unvalidated audit preimage permits explicit repair of historical invalid enums. */
   auditSnapshot(

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { PeriodView } from "../../contracts/index.js";
-import { changePeriod } from "../domain/rules.js";
 import type { PeriodRecord, Repository } from "../ports/repository.js";
-import { AppError, TimeKeeperService } from "./service.js";
+import type { TimeKeeperService } from "./service.js";
+import { AppError } from "./errors.js";
 
 export type PillDecision =
   | { kind: "switch"; caseId: string | null; windowTitle: string; appName: string; at: string }
@@ -33,8 +33,21 @@ export const pillUndoWindowMs = 5000;
 export class PillService {
   private readonly undos = new Map<string, UndoAction>();
   constructor(
-    private readonly repo: Repository,
-    private readonly service: TimeKeeperService,
+    private readonly repo: Pick<
+      Repository,
+      "transaction" | "activeSession" | "activePeriod" | "period" | "allQuestions"
+    >,
+    private readonly service: Pick<
+      TimeKeeperService,
+      | "openPeriod"
+      | "updatePeriodDetails"
+      | "assignPeriod"
+      | "answerQuestion"
+      | "validatePeriod"
+      | "undoPeriodSwitch"
+      | "restorePeriodAssignment"
+      | "restorePeriodValidation"
+    >,
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -67,7 +80,7 @@ export class PillService {
     });
   }
 
-  decision(input: PillDecision): { period: PeriodView; undoToken: string } {
+  decision(input: PillDecision): { period: PeriodView; undoToken: string; undoExpiresAt: string } {
     for (const [token, action] of this.undos)
       if (this.now() > action.expiresAt) this.undos.delete(token);
     const before: PeriodRecord[] = [];
@@ -79,7 +92,7 @@ export class PillService {
         const prior = this.repo.activePeriod(session.id);
         if (prior) before.push(prior);
         const switched = this.switchPeriod({ ...input, notClientWork: input.caseId === null });
-        if ("status" in switched) throw new AppError("pending", "switch requires review");
+        if ("status" in switched) throw new AppError("conflict", "switch requires review");
         afterIds.push(switched.id);
         return switched;
       }
@@ -137,14 +150,15 @@ export class PillService {
       return last!;
     });
     const undoToken = randomUUID();
+    const expiresAt = this.now() + pillUndoWindowMs;
     this.undos.set(undoToken, {
-      expiresAt: this.now() + pillUndoWindowMs,
+      expiresAt,
       kind: input.kind,
       before,
       afterIds,
       afterRevisions: afterIds.map((id) => this.repo.period(id)!.revision),
     });
-    return { period, undoToken };
+    return { period, undoToken, undoExpiresAt: new Date(expiresAt).toISOString() };
   }
 
   /** Reverses a decision only while none of its periods changed afterwards. */
@@ -154,7 +168,6 @@ export class PillService {
       this.undos.delete(undoToken);
       throw new AppError("conflict", "undo has expired");
     }
-    const at = new Date(this.now()).toISOString();
     try {
       this.repo.transaction(() => {
         const after = action.afterIds.map((id, index) => {
@@ -168,57 +181,16 @@ export class PillService {
           return period;
         });
         if (action.kind === "switch") {
-          const created = after[0];
-          if (
-            this.repo.activePeriod(created.sessionId)?.id !== created.id ||
-            this.repo.listSources(created.id).length
-          )
-            throw new AppError("conflict", "new period changed since the switch");
-          const previous = action.before[0];
-          if (previous) {
-            const current = this.repo.period(previous.id);
-            if (
-              !current ||
-              current.revision !== previous.revision + 1 ||
-              current.endedAt !== created.startedAt
-            )
-              throw new AppError("conflict", "previous period changed since the switch");
-          }
-          this.repo.deletePeriod(created.id);
-          if (previous) this.repo.savePeriod({ ...previous, revision: previous.revision + 2 }, at);
+          this.service.undoPeriodSwitch(after[0].id, after[0].revision, action.before[0]);
         } else if (action.kind === "assign") {
-          const prior = action.before[0];
-          const current = after[0];
-          const restored = {
-            ...changePeriod(current, {
-              caseId: prior.caseId,
-              assignmentOrigin: prior.assignmentOrigin,
-            }),
-            revision: current.revision + 1,
-          };
-          this.repo.savePeriod(restored, at);
-          if (restored.caseId === null)
-            this.service.askQuestion({
-              questionId: `period:${restored.id}:${restored.assignmentRevision}`,
-              sessionId: restored.sessionId,
-              periodId: restored.id,
-              expectedAssignmentRevision: restored.assignmentRevision,
-            });
+          this.service.restorePeriodAssignment(action.before[0], after[0].revision);
         } else if (action.kind === "exclude") {
           this.service.updatePeriodDetails(after[0].id, {
             excluded: action.before[0].excluded ?? false,
           });
         } else {
           after.forEach((period, index) =>
-            this.repo.savePeriod(
-              {
-                ...period,
-                validatedEffectiveRevision: action.before[index].validatedEffectiveRevision,
-                timeValidatedAt: action.before[index].timeValidatedAt,
-                revision: period.revision + 1,
-              },
-              at,
-            ),
+            this.service.restorePeriodValidation(action.before[index], period.revision),
           );
         }
       });

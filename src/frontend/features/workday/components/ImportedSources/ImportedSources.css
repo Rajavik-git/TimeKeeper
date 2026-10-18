@@ -1,0 +1,100 @@
+.imported-sources {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.imported-sources-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding: 16px 16px 8px;
+}
+.imported-sources-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  min-width: 180px;
+}
+.imported-sources-controls label:first-child {
+  flex: 1;
+}
+.imported-sources-controls :is(input, select) {
+  width: 100%;
+}
+.imported-sources-scope,
+.imported-sources-count,
+.imported-sources-empty {
+  margin: 8px 16px;
+  line-height: 1.5;
+}
+.imported-sources-scope {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.imported-sources-table {
+  overflow: auto;
+  min-height: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.imported-sources-table table {
+  min-width: 1200px;
+  width: 100%;
+  table-layout: fixed;
+}
+.imported-sources-table th,
+.imported-sources-table td {
+  vertical-align: top;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.imported-sources-table th:first-child {
+  width: 170px;
+}
+.imported-sources-table th:nth-child(2) {
+  width: 110px;
+}
+.imported-sources-table th:nth-child(3),
+.imported-sources-table th:nth-child(6),
+.imported-sources-table th:nth-child(7) {
+  width: 210px;
+}
+.imported-sources-table small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.imported-sources-table code {
+  font-family: var(--m);
+  font-size: 13px;
+}
+.imported-sources-table summary {
+  cursor: pointer;
+}
+.imported-source-excerpt {
+  white-space: pre-wrap;
+  margin: 8px 0 0;
+}
+.imported-source-no-text {
+  color: var(--muted);
+}
+.imported-sources-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: end;
+  gap: 12px;
+  padding: 12px 16px;
+}
+@media (max-width: 640px) {
+  .imported-sources-controls label {
+    width: 100%;
+    min-width: 0;
+  }
+  .imported-sources-pagination {
+    justify-content: start;
+  }
+}

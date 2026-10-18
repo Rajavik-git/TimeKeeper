@@ -28,6 +28,7 @@ export function comparisonSamplePlan(now = new Date(), timeZone = systemTimeZone
   const priorStart = new Date(dayBounds(previousDay, timeZone).startAt);
   const batch = `${sampleNamespace}:${today.slice(0, 7)}`;
   return {
+    generatedAt: now.toISOString(),
     today,
     previousDay,
     timeZone,

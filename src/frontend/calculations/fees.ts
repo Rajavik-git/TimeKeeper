@@ -1,3 +1,4 @@
+import { resolveHourlyRate } from "../../shared/rate-policy";
 import { BillingStatus, CaseBillingMode } from "../../contracts/states.generated";
 import type { CoreState, State } from "../api/client";
 
@@ -10,11 +11,7 @@ export type FeeEstimate = {
 };
 
 /** An hourly work estimate. Agreed flat fees are not allocated to individual days. */
-export function dayFees(
-  state: State,
-  _workspaceState: CoreState,
-  periods: readonly Period[],
-): FeeEstimate {
+export function dayFees(state: State, periods: readonly Period[]): FeeEstimate {
   const currency = state.settings.currency || null;
   let complete = currency !== null;
   const groups = new Map<string, { durationMs: number; rateCents: number }>();
@@ -34,8 +31,15 @@ export function dayFees(
       rateCents = period.appliedHourlyRateCents;
     } else {
       if (item?.mode === CaseBillingMode.FlatFee) continue;
-      rateCents =
-        item?.hourlyRateCents ?? client?.hourlyRateCents ?? state.settings.globalHourlyRateCents;
+      if (!item || !client) {
+        complete = false;
+        continue;
+      }
+      rateCents = resolveHourlyRate({
+        caseRateCents: item.hourlyRateCents,
+        clientRateCents: client.hourlyRateCents,
+        globalRateCents: state.settings.globalHourlyRateCents,
+      }).rateCents;
     }
     const durationMs = period.durationOverrideMs ?? period.detectedDurationMs;
     if (rateCents == null || durationMs === null) {

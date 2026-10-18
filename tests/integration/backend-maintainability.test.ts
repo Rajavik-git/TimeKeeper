@@ -14,8 +14,9 @@ function setup(fictional = false) {
   const db = fictional ? memoryDb() : openDb(":memory:");
   databases.push(db);
   const repo = new SqliteRepository(db);
-  const core = new TimeKeeperService(repo);
-  const app = createApp(db);
+  const clock = { now: () => "2026-10-18T12:00:00Z" };
+  const core = new TimeKeeperService(repo, clock);
+  const app = createApp(db, { clock });
   const write = (path: string, body: unknown, method = "POST") =>
     app.request(`/api${path}`, {
       method,
@@ -178,7 +179,7 @@ it("supports retained catalogue and period routes on a canonical-only fresh data
   expect(core.getPeriod(period.id).label).toBe("Updated work");
   expect(
     (await write("/pauses", { date: "2026-10-17", start_time: "10:00", reason: "" })).status,
-  ).toBe(202);
+  ).toBe(409);
   expect(
     db
       .prepare(

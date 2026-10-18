@@ -39,6 +39,8 @@ export default defineConfig([
   {
     files: [
       "src/backend/**/*.ts",
+      "src/mcp/**/*.ts",
+      "integrations/screenpipe/jev-check/**/*.ts",
       "scripts/**/*.ts",
       "tests/**/*.ts",
       "src/frontend/vite.config.ts",

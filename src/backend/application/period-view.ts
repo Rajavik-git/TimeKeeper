@@ -24,9 +24,12 @@ export function periodView(p: PeriodRecord): PeriodView {
     billable: p.billable ?? true,
     nonbillableReason: p.nonbillableReason ?? null,
     excluded: p.excluded ?? false,
-    demoApp: p.demoApp ?? null,
-    demoWindowTitle: p.demoWindowTitle ?? null,
-    demoConfidence: p.demoConfidence ?? null,
+    observedAppName: p.observedAppName ?? null,
+    observedWindowTitle: p.observedWindowTitle ?? null,
+    recognitionConfidence: p.recognitionConfidence ?? null,
+    demoApp: p.observedAppName ?? null,
+    demoWindowTitle: p.observedWindowTitle ?? null,
+    demoConfidence: p.recognitionConfidence ?? null,
     invoiceId: p.invoiceId ?? null,
   };
 }

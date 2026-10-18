@@ -1,3 +1,5 @@
+import { resolveHourlyRate } from "../../shared/rate-policy.js";
+export { resolveHourlyRate } from "../../shared/rate-policy.js";
 import { RateOrigin } from "./states/billing.js";
 export type { RateOrigin } from "./states/billing.js";
 
@@ -13,12 +15,14 @@ export function chooseRate(input: {
   matter_cents?: number | null;
   flat_fee?: boolean;
 }): RateChoice {
-  if (input.flat_fee) return { rate_cents: 0, origin: RateOrigin.FlatFee, flat_fee: true };
-  if (input.matter_cents != null)
-    return { rate_cents: input.matter_cents, origin: RateOrigin.Case, flat_fee: false };
-  if (input.client_cents != null)
-    return { rate_cents: input.client_cents, origin: RateOrigin.Client, flat_fee: false };
-  return { rate_cents: input.base_cents, origin: RateOrigin.Base, flat_fee: false };
+  const choice = resolveHourlyRate({
+    globalRateCents: input.base_cents,
+    clientRateCents: input.client_cents,
+    caseRateCents: input.matter_cents,
+    flatFee: input.flat_fee,
+  });
+  // The legacy input requires a base rate, so this result cannot be null.
+  return { rate_cents: choice.rateCents!, origin: choice.origin, flat_fee: choice.flatFee };
 }
 
 export function calculateLine(input: {

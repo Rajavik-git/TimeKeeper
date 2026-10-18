@@ -11,5 +11,10 @@
     "types": ["node"],
     "noEmitOnError": true
   },
-  "include": ["src/backend/**/*.ts", "src/contracts/**/*.ts"]
+  "include": [
+    "src/backend/**/*.ts",
+    "src/contracts/**/*.ts",
+    "src/mcp/**/*.ts",
+    "integrations/screenpipe/jev-check/**/*.ts"
+  ]
 }

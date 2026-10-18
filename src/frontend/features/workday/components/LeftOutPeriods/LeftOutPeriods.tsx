@@ -1,6 +1,10 @@
 import type { Ref } from "react";
 import { calendarTime } from "../../../../../shared/dates";
-import { effectiveMs, formatPreciseDuration, type Period } from "../../../../calculations/billing";
+import {
+  effectiveMs,
+  formatNearestMinuteDuration,
+  type Period,
+} from "../../../../calculations/billing";
 import type { SortState, LeftSortKey } from "../../lib/dayView";
 import { DaySortHeader } from "../DaySortHeader/DaySortHeader";
 type Props = {
@@ -49,9 +53,9 @@ export function LeftOutPeriods({
                 {calendarTime(period.startedAt)}–
                 {(period.endedAt ? calendarTime(period.endedAt) : undefined) ?? "…"}
               </td>
-              <td>{period.demoApp ?? "—"}</td>
-              <td>{period.demoWindowTitle ?? period.label}</td>
-              <td className="r num">{formatPreciseDuration(effectiveMs(period))}</td>
+              <td>{period.observedAppName ?? "—"}</td>
+              <td>{period.observedWindowTitle ?? period.label}</td>
+              <td className="r num">{formatNearestMinuteDuration(effectiveMs(period))}</td>
               <td>
                 <button className="btn sm" onClick={() => void onRestore(period)}>
                   Include in totals

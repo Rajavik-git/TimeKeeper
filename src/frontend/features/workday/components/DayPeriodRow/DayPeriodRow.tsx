@@ -1,3 +1,5 @@
+import { timeValidationUnavailable } from "../../../../shared/lib/timeValidation";
+import { useToday } from "../../../../shared/hooks/useToday";
 import {
   billingStatusLabels,
   nonbillableReasonLabels,
@@ -6,7 +8,11 @@ import {
 import { BillingStatus, ValidationStatus } from "../../../../../contracts/states.generated";
 import { calendarTime } from "../../../../../shared/dates";
 import type { Case } from "../../../../api/client";
-import { effectiveMs, formatPreciseDuration, type Period } from "../../../../calculations/billing";
+import {
+  effectiveMs,
+  formatNearestMinuteDuration,
+  type Period,
+} from "../../../../calculations/billing";
 import { Icon } from "../../../../shared/components/Icon/Icon";
 import { CaseReference } from "../../../../shared/components/CaseReference/CaseReference";
 type Props = {
@@ -36,12 +42,14 @@ export function DayPeriodRow({
   openPeriodReview,
   openPeriodActivity,
 }: Props) {
+  const today = useToday();
+  const validationUnavailable = timeValidationUnavailable(period, today);
   return (
     <tr key={period.id} className={highlighted ? "recently-assigned" : undefined}>
       <td className="num">
         {calendarTime(period.startedAt)}–
         {(period.endedAt ? calendarTime(period.endedAt) : undefined) ?? "…"}
-        <span className="sub">{period.demoApp ?? "Application unavailable"}</span>
+        <span className="sub">{period.observedAppName ?? "Application unavailable"}</span>
       </td>
       <td>
         {item ? (
@@ -90,11 +98,11 @@ export function DayPeriodRow({
           title="Review and correct duration"
           onClick={openPeriodReview}
         >
-          {formatPreciseDuration(effectiveMs(period))}
+          {formatNearestMinuteDuration(effectiveMs(period))}
           <Icon name="edit" small />
         </button>
         {period.durationOverrideMs !== null && (
-          <span className="sub">was {formatPreciseDuration(period.detectedDurationMs)}</span>
+          <span className="sub">was {formatNearestMinuteDuration(period.detectedDurationMs)}</span>
         )}
       </td>
       <td>
@@ -115,7 +123,8 @@ export function DayPeriodRow({
           ) : period.caseId ? (
             <button
               className="btn sm attn"
-              disabled={validating}
+              disabled={validating || validationUnavailable !== null}
+              title={validationUnavailable ?? undefined}
               aria-busy={validating}
               onClick={() => void onValidate()}
             >

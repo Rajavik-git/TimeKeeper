@@ -55,6 +55,6 @@ export function caseLabel(catalogState: State, caseId: EntityId | null) {
   const owner = clientForCase(catalogState, caseId);
   return item && owner ? `${owner.name} · ${item.reference} · ${item.title}` : "Unassigned case";
 }
-export function task(catalogState: State, id: EntityId | null) {
+export function taskTypeLabel(catalogState: State, id: EntityId | null) {
   return catalogState.taskTypes.find((t) => t.id === id)?.label ?? "—";
 }

@@ -1,3 +1,4 @@
+import { resolveHourlyRate } from "../domain/pricing.js";
 import {
   expenseTypes,
   invoiceLineOrigins,
@@ -10,7 +11,6 @@ import {
   ClientRuleType,
   InvoiceLineOrigin,
   InvoiceType,
-  RateOrigin,
   SystemTaskCode,
 } from "../domain/states.js";
 import { researchCapDurationMs } from "../../shared/client-rule-policy.js";
@@ -67,18 +67,13 @@ export function issueInvoice(
       "totalCents",
     ] as const)
       nonnegative(snapshot[key], key);
-    const rate =
-      item.mode === CaseBillingMode.FlatFee
-        ? 0
-        : (item.caseRateCents ?? item.clientRateCents ?? item.globalRateCents);
-    const origin =
-      item.mode === CaseBillingMode.FlatFee
-        ? RateOrigin.FlatFee
-        : item.caseRateCents !== null
-          ? RateOrigin.Case
-          : item.clientRateCents !== null
-            ? RateOrigin.Client
-            : RateOrigin.Base;
+    const { rateCents: rate, origin } = resolveHourlyRate({
+      caseRateCents: item.caseRateCents,
+      clientRateCents: item.clientRateCents,
+      globalRateCents: item.globalRateCents,
+      flatFee: item.mode === CaseBillingMode.FlatFee,
+    });
+    if (rate === null) throw new AppError("conflict", "global hourly rate is not configured");
     if (snapshot.rateCents !== rate || snapshot.rateOrigin !== origin)
       throw new AppError("conflict", "configured rate changed");
     const ids = new Set(snapshot.periodIds);

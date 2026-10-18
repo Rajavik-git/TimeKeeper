@@ -69,7 +69,7 @@ export class SourceExportService {
   exportCase(caseId: string, request: SourceExportRequest): SourceExportResponse {
     const timeZone = validate(request);
     return this.port.transaction(() => {
-      const snapshot = this.port.snapshot();
+      const snapshot = this.port.snapshot(caseId, request.options.includes(SourcePackOption.Audit));
       const item = snapshot.catalog.cases.find((item) => item.id === caseId);
       if (!item) throw new AppError("not-found", "case not found");
       if (
@@ -85,8 +85,10 @@ export class SourceExportService {
         if (period.caseId !== caseId || period.excluded) return false;
         if (
           request.options.includes(SourcePackOption.Personal) &&
-          period.demoApp &&
-          blockedApps.some((app) => period.demoApp!.toLocaleLowerCase("en-US").includes(app))
+          period.observedAppName &&
+          blockedApps.some((app) =>
+            period.observedAppName!.toLocaleLowerCase("en-US").includes(app),
+          )
         )
           return false;
         switch (request.scope) {
@@ -132,12 +134,16 @@ export class SourceExportService {
         periods: periods.map((period) => ({
           ...period,
           label: period.label && redact(period.label),
+          observedAppName: period.observedAppName && redact(period.observedAppName),
+          observedWindowTitle: period.observedWindowTitle && redact(period.observedWindowTitle),
           demoApp: period.demoApp && redact(period.demoApp),
           demoWindowTitle: period.demoWindowTitle && redact(period.demoWindowTitle),
         })),
         sources: sources.map((source) => ({
           ...source,
           excerpt: source.excerpt && redact(source.excerpt),
+          appName: source.appName && redact(source.appName),
+          windowName: source.windowName && redact(source.windowName),
           detectedMarker: source.detectedMarker && redact(source.detectedMarker),
         })),
         auditEvents: auditEvents.map((event) => ({

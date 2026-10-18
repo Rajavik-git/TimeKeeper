@@ -1,3 +1,5 @@
+import { timeValidationUnavailable } from "../../../../shared/lib/timeValidation";
+import { useToday } from "../../../../shared/hooks/useToday";
 import { caseBillingModeLabels } from "../../../../shared/presentation/catalog";
 import {
   billingStatusLabels,
@@ -10,7 +12,7 @@ import {
   ValidationStatus,
 } from "../../../../../contracts/states.generated";
 import type { Case, CoreState, ScreenProps } from "../../../../api/client";
-import { effectiveMs, formatPreciseDuration } from "../../../../calculations/billing";
+import { effectiveMs, formatNearestMinuteDuration } from "../../../../calculations/billing";
 import { calendarDay } from "../../../../../shared/dates";
 import { money as formatMoney, shortDate } from "../../../../shared/format";
 
@@ -49,6 +51,7 @@ export function CaseTimeTable({
   openPeriodReview,
   navigate,
 }: Props) {
+  const today = useToday();
   const validating = validatingIds.length > 0;
   const money = (amount: number) => formatMoney(amount, catalogState.settings.currency);
   const sortedHeading = (label: string, column: number, numeric = false, right = false) => (
@@ -145,7 +148,7 @@ export function CaseTimeTable({
                     "Work period"}
                 </span>
               </td>
-              <td className="r num">{formatPreciseDuration(effectiveMs(line))}</td>
+              <td className="r num">{formatNearestMinuteDuration(effectiveMs(line))}</td>
               <td className="r num">
                 {line.billingStatus === BillingStatus.Billed
                   ? line.invoiceId != null
@@ -208,7 +211,8 @@ export function CaseTimeTable({
                   {!line.timeValidated && (
                     <button
                       className="btn sm attn"
-                      disabled={validating}
+                      disabled={validating || timeValidationUnavailable(line, today) !== null}
+                      title={timeValidationUnavailable(line, today) ?? undefined}
                       onClick={(event) => {
                         event.stopPropagation();
                         void validatePeriods([line.id]);

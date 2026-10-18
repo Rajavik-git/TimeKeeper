@@ -350,6 +350,7 @@ export const processed_commands = sqliteTable("processed_commands", {
 });
 
 export const reconstruction_conflicts = sqliteTable("reconstruction_conflicts", {
+  transition_fingerprint: text("transition_fingerprint"),
   id: text("id").primaryKey(),
   protected_period_id: text("protected_period_id").notNull(),
   expected_revision: integer("expected_revision").notNull(),
@@ -362,6 +363,7 @@ export const reconstruction_conflicts = sqliteTable("reconstruction_conflicts", 
 });
 
 export const retrieval_progress = sqliteTable("retrieval_progress", {
+  content_version: integer("content_version").notNull().default(0),
   id: text("id").primaryKey(),
   session_id: text("session_id").notNull(),
   screenpipe_instance_id: text("screenpipe_instance_id").notNull(),

@@ -1,3 +1,4 @@
+import { timeValidationUnavailable } from "../../shared/lib/timeValidation";
 import { isBudgetWarning } from "../../calculations/case-budget";
 import {
   ActionNotice,
@@ -107,6 +108,14 @@ export function Cases({
   };
   const validatePeriods = async (ids: string[]) => {
     if (validating || !ids.length) return;
+    const unavailable = workspaceState.periods
+      .filter((period) => ids.includes(period.id))
+      .map((period) => timeValidationUnavailable(period))
+      .find(Boolean);
+    if (unavailable) {
+      showNotice(unavailable);
+      return;
+    }
     setValidatingIds(ids);
     showNotice(`Validating ${ids.length} period${ids.length === 1 ? "" : "s"}…`);
     try {

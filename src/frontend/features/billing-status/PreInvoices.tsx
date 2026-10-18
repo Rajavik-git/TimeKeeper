@@ -1,3 +1,4 @@
+import { timeValidationUnavailable } from "../../shared/lib/timeValidation";
 import { researchCapDurationMs, researchCapMinutes } from "../../../shared/client-rule-policy";
 import { issuedFees } from "../../calculations/invoice-fees";
 import {
@@ -42,7 +43,7 @@ import {
 import {
   configuredRate,
   draftInvoice,
-  formatPreciseDuration,
+  formatNearestMinuteDuration,
   formatRoundedMinutes,
   summarizeWork,
 } from "../../calculations/billing";
@@ -76,7 +77,7 @@ export function PreInvoices({
   setSelection,
 }: BillingProps) {
   const today = useToday();
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
+  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency);
 
   const selectedCaseInvoiceType =
     selectedCase &&
@@ -134,6 +135,14 @@ export function PreInvoices({
 
   const validate = async (ids: string[]) => {
     if (pendingAction || !ids.length) return;
+    const unavailable = workspaceState.periods
+      .filter((period) => ids.includes(period.id))
+      .map((period) => timeValidationUnavailable(period))
+      .find(Boolean);
+    if (unavailable) {
+      setNotice(unavailable);
+      return;
+    }
     setPendingAction("validate");
     setNotice(`Validating ${ids.length} period${ids.length === 1 ? "" : "s"}…`);
     try {
@@ -199,6 +208,9 @@ export function PreInvoices({
     .map((period) => ({ period, reasons: coverageProblems(period, workspaceState.sources) }))
     .filter((item) => item.reasons.length > 0);
   const pending = billable.filter((period) => !period.timeValidated);
+  const eligiblePending = pending.filter(
+    (period) => timeValidationUnavailable(period, today) === null,
+  );
   const expenses = workspaceState.billing.expenses.filter(
     (expense) => expense.caseId === String(item.id) && expense.invoiceId === null,
   );
@@ -237,7 +249,7 @@ export function PreInvoices({
         const ms = summarizeWork(day, workspaceState.sources).preciseDurationMs;
         if (ms > researchCapDurationMs(rule.value))
           alerts.push(
-            `${owner.name} asked for at most ${formatRoundedMinutes(researchCapMinutes(rule.value))} of research per day. On ${shortDate(date)} you recorded ${formatPreciseDuration(ms)}. Check this line before you bill.`,
+            `${owner.name} asked for at most ${formatRoundedMinutes(researchCapMinutes(rule.value))} of research per day. On ${shortDate(date)} you recorded ${formatNearestMinuteDuration(ms)}. Check this line before you bill.`,
           );
       }
     }
@@ -323,7 +335,7 @@ export function PreInvoices({
     }
   };
   const downloadCsv = async () => {
-    const csv = invoiceRowsCsv(rows, catalogState.settings.currency ?? "USD");
+    const csv = invoiceRowsCsv(rows, catalogState.settings.currency);
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url;
@@ -379,7 +391,7 @@ export function PreInvoices({
             {item.title} ·{" "}
             {item.mode === CaseBillingMode.FlatFee
               ? caseBillingModeLabels[item.mode]
-              : rateLabel(rate.rateCents)}
+              : rateLabel(rate.rateCents, catalogState.settings.currency)}
             {invoices.length
               ? alreadyBilled.cents === null
                 ? " · Issued fees have missing or different currencies"
@@ -394,8 +406,13 @@ export function PreInvoices({
             </Pill>
             <button
               className="btn attn"
-              disabled={pendingAction !== null}
-              onClick={() => validate(pending.map((period) => period.id))}
+              disabled={pendingAction !== null || !eligiblePending.length}
+              title={
+                !eligiblePending.length
+                  ? "Only finished periods from past local calendar days can be validated."
+                  : undefined
+              }
+              onClick={() => validate(eligiblePending.map((period) => period.id))}
             >
               {pendingAction === "validate" ? (
                 <>
@@ -403,7 +420,7 @@ export function PreInvoices({
                   Validating…
                 </>
               ) : (
-                "Validate them"
+                `Validate eligible (${eligiblePending.length})`
               )}
             </button>
           </div>
@@ -525,7 +542,9 @@ export function PreInvoices({
                         )}
                       </td>
                       <td className={`num${row.durationMs === null ? " muted" : ""}`}>
-                        {row.durationMs === null ? "—" : formatPreciseDuration(row.durationMs)}
+                        {row.durationMs === null
+                          ? "—"
+                          : formatNearestMinuteDuration(row.durationMs)}
                       </td>
                       <td className="num">
                         {row.amountCents !== null
@@ -557,7 +576,7 @@ export function PreInvoices({
           {expenseOpen && (
             <ExpenseForm
               caseId={String(item.id)}
-              currency={catalogState.settings.currency ?? "USD"}
+              currency={catalogState.settings.currency}
               action={action}
               close={() => setExpenseOpen(false)}
               notify={setNotice}
@@ -663,10 +682,11 @@ export function PreInvoices({
               className="btn primary"
               disabled={
                 pendingAction !== null ||
+                (pending.length > 0 && !eligiblePending.length) ||
                 (!pending.length && (!preview.complete || preview.totalCents === 0))
               }
               onClick={() =>
-                pending.length ? validate(pending.map((period) => period.id)) : issue()
+                pending.length ? validate(eligiblePending.map((period) => period.id)) : issue()
               }
             >
               {pendingAction === "validate" ? (
@@ -680,7 +700,7 @@ export function PreInvoices({
                   Creating invoice…
                 </>
               ) : pending.length ? (
-                `Validate ${pending.length} period${pending.length === 1 ? "" : "s"}`
+                `Validate ${eligiblePending.length} eligible period${eligiblePending.length === 1 ? "" : "s"}`
               ) : !preview.complete ? (
                 "Coverage review required"
               ) : preview.totalCents === 0 ? (

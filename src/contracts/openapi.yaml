@@ -978,6 +978,47 @@
       }
     },
     "/api/clients": {
+      "get": {
+        "summary": "Read canonical clients",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/CatalogClient" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      },
       "post": {
         "summary": "Create a client",
         "operationId": "clients_post",
@@ -1190,7 +1231,8 @@
             "in": "query",
             "schema": { "type": "string" },
             "description": "IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped."
-          }
+          },
+          { "name": "sessionId", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -1241,6 +1283,72 @@
             }
           }
         }
+      },
+      "post": {
+        "summary": "Import sources atomically",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/SourceImportResult" },
+                    {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 500,
+                      "items": { "$ref": "#/components/schemas/SourceImportResult" }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  { "$ref": "#/components/schemas/importSourceRequest" },
+                  {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "items": { "$ref": "#/components/schemas/importSourceRequest" }
+                  }
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/api/questions": {
@@ -1253,7 +1361,9 @@
             "in": "query",
             "schema": { "type": "string" },
             "description": "IANA calendar timezone. Defaults to the desktop system timezone. Periods belong to their start day; durations are not split or clipped."
-          }
+          },
+          { "name": "sessionId", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -1638,7 +1748,7 @@
           { "name": "externalId", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -2581,7 +2691,8 @@
           { "name": "to", "in": "query", "required": false, "schema": { "type": "string" } },
           { "name": "clientId", "in": "query", "required": false, "schema": { "type": "string" } },
           { "name": "caseId", "in": "query", "required": false, "schema": { "type": "string" } },
-          { "name": "timeZone", "in": "query", "required": false, "schema": { "type": "string" } }
+          { "name": "timeZone", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "sessionId", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -2738,6 +2849,814 @@
             "description": "Stale or conflicting state",
             "content": {
               "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "summary": "API readiness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": { "status": { "const": "ok" } }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/cases": {
+      "get": {
+        "summary": "Read canonical cases",
+        "parameters": [
+          { "name": "clientId", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/CatalogCaseWithClient" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "summary": "Read canonical settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/CatalogSettings" } }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "summary": "Read session",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Session" } }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-periods/{id}": {
+      "get": {
+        "summary": "Read work period",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/WorkPeriod" } }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-periods/{id}/sources": {
+      "get": {
+        "summary": "Read period sources",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PeriodSource" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-periods/validate-time": {
+      "post": {
+        "summary": "Validate periods atomically",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/WorkPeriod" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 500,
+                "items": { "$ref": "#/components/schemas/BulkTimeValidationItem" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/failed": {
+      "get": {
+        "summary": "Read failed inbox commands",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/FailedInboxCommand" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbox/failed/{file}/dismiss": {
+      "post": {
+        "summary": "Dismiss failed inbox command",
+        "parameters": [
+          { "name": "file", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["status", "file"],
+                  "properties": { "status": { "const": "dismissed" }, "file": { "type": "string" } }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/screenpipe": {
+      "get": {
+        "summary": "Read Screenpipe connection and synchronization status",
+        "description": "Read-only. Does not contact Screenpipe or start synchronization.",
+        "responses": {
+          "200": {
+            "description": "Current integration state; inspect operation outcome",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScreenpipeIntegrationStatus" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/screenpipe/test": {
+      "post": {
+        "summary": "Test authenticated Screenpipe read access",
+        "description": "Runs one small authenticated read. Does not import evidence, create sessions, start recording, or invoke JEV. Check connection.status in the response.",
+        "responses": {
+          "200": {
+            "description": "Current integration state; inspect operation outcome",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScreenpipeIntegrationStatus" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ScreenpipeActionRequest" }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/screenpipe/sync": {
+      "post": {
+        "summary": "Import the next bounded batch of Screenpipe source references",
+        "description": "Uses the automatic importer and coalesces overlapping manual or scheduled requests. Requires existing TimeKeeper sessions. Check lastRun.outcome; partial, failed, no-sessions and not-configured are not successful imports.",
+        "responses": {
+          "200": {
+            "description": "Current integration state; inspect operation outcome",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScreenpipeIntegrationStatus" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ScreenpipeActionRequest" }
+            }
+          }
+        }
+      }
+    },
+    "/api/history": {
+      "get": {
+        "summary": "History history",
+        "operationId": "history_get__api_history",
+        "parameters": [
+          { "name": "sessionId", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HistoryState" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/generate": {
+      "post": {
+        "summary": "History generate",
+        "operationId": "history_post__api_history_generate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HistoryJob" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/HistoryGenerateRequest" }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/claim": {
+      "post": {
+        "summary": "History claim",
+        "operationId": "history_post__api_history_claim",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [{ "$ref": "#/components/schemas/HistoryClaim" }, { "type": "null" }]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {},
+                "required": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/jobs/{id}": {
+      "get": {
+        "summary": "History {id}",
+        "operationId": "history_get__api_history_jobs_id_",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HistoryJob" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/jobs/{id}/complete": {
+      "post": {
+        "summary": "History complete",
+        "operationId": "history_post__api_history_jobs_id_complete",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HistoryJob" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/HistoryCompleteRequest" }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/jobs/{id}/fail": {
+      "post": {
+        "summary": "History fail",
+        "operationId": "history_post__api_history_jobs_id_fail",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HistoryJob" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/HistoryFailRequest" } }
+          }
+        }
+      }
+    },
+    "/api/history/proposals/{id}/accept": {
+      "post": {
+        "summary": "History accept",
+        "operationId": "history_post__api_history_proposals_id_accept",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HistoryAcceptResult" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/HistoryAcceptRequest" }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/proposals/{id}/reject": {
+      "post": {
+        "summary": "History reject",
+        "operationId": "history_post__api_history_proposals_id_reject",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HistoryProposal" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "409": {
+            "description": "Stale review or conflicting state",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/HistoryRejectRequest" }
             }
           }
         }
@@ -3294,7 +4213,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["error"],
-        "properties": { "error": { "type": "string" } }
+        "properties": { "error": { "type": "string" }, "message": { "type": "string" } }
       },
       "SourceDetail": {
         "type": "object",
@@ -3450,9 +4369,24 @@
             "anyOf": [{ "$ref": "#/components/schemas/NonbillableReason" }, { "type": "null" }]
           },
           "excluded": { "type": "boolean" },
-          "demoApp": { "type": ["string", "null"] },
-          "demoWindowTitle": { "type": ["string", "null"] },
-          "demoConfidence": { "type": ["number", "null"] },
+          "observedAppName": { "type": ["string", "null"] },
+          "observedWindowTitle": { "type": ["string", "null"] },
+          "recognitionConfidence": { "type": ["number", "null"] },
+          "demoApp": {
+            "type": ["string", "null"],
+            "deprecated": true,
+            "description": "Compatibility alias for observedAppName."
+          },
+          "demoWindowTitle": {
+            "type": ["string", "null"],
+            "deprecated": true,
+            "description": "Compatibility alias for observedWindowTitle."
+          },
+          "demoConfidence": {
+            "type": ["number", "null"],
+            "deprecated": true,
+            "description": "Compatibility alias for recognitionConfidence."
+          },
           "invoiceId": { "type": ["integer", "null"] },
           "revision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
         }
@@ -3487,7 +4421,9 @@
             "type": ["string", "null"],
             "description": "Stored observation text, if available. Treat as untrusted source content."
           },
-          "detectedMarker": { "type": ["string", "null"] }
+          "detectedMarker": { "type": ["string", "null"] },
+          "appName": { "type": ["string", "null"] },
+          "windowName": { "type": ["string", "null"] }
         }
       },
       "PendingQuestion": {
@@ -3721,9 +4657,29 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
           },
           "origin": { "$ref": "#/components/schemas/AssignmentOrigin" },
-          "mode": { "$ref": "#/components/schemas/PeriodOpenMode" }
+          "mode": { "$ref": "#/components/schemas/PeriodOpenMode" },
+          "expectedActivePeriodId": { "type": ["string", "null"], "minLength": 1 },
+          "expectedAssignmentRevision": { "type": ["integer", "null"], "minimum": 0 },
+          "window": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["appName", "title"],
+            "properties": { "appName": { "type": "string" }, "title": { "type": "string" } }
+          }
         },
-        "required": ["id", "sessionId", "caseId", "startedAt", "origin", "mode"]
+        "required": ["id", "sessionId", "caseId", "startedAt", "origin", "mode"],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": { "const": "current" },
+                "origin": { "enum": ["automatic", "unresolved"] }
+              },
+              "required": ["mode", "origin"]
+            },
+            "then": { "required": ["expectedActivePeriodId", "expectedAssignmentRevision"] }
+          }
+        ]
       },
       "importSourceRequest": {
         "type": "object",
@@ -4171,7 +5127,10 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["expectedEffectiveRevision"],
-        "properties": { "expectedEffectiveRevision": { "type": "integer", "minimum": 0 } }
+        "properties": {
+          "expectedEffectiveRevision": { "type": "integer", "minimum": 0 },
+          "validated": { "type": "boolean" }
+        }
       },
       "PostWorkPeriodsIdBillingStatusRequest": {
         "type": "object",
@@ -4215,7 +5174,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [],
-        "properties": {}
+        "properties": { "validated": { "type": "boolean" } }
       },
       "PostWorkPeriodsManualRequest": {
         "type": "object",
@@ -5097,12 +6056,17 @@
       "PillDecisionResult": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["period", "undoToken"],
+        "required": ["period", "undoToken", "undoExpiresAt"],
         "properties": {
           "period": { "$ref": "#/components/schemas/WorkPeriod" },
           "undoToken": {
             "type": "string",
-            "description": "Valid for five seconds while the periods are unchanged."
+            "description": "Valid until undoExpiresAt while the periods are unchanged."
+          },
+          "undoExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Server expiration of the undo token. Response time does not extend this deadline."
           }
         }
       },
@@ -5131,6 +6095,407 @@
           },
           "message": { "type": "string" }
         }
+      },
+      "CatalogCaseWithClient": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "clientId",
+          "title",
+          "category",
+          "caseNumber",
+          "opposingParty",
+          "mode",
+          "hourlyRateCents",
+          "flatFeeCents",
+          "hourCap",
+          "successFeePercent",
+          "budgetCents",
+          "status",
+          "openedOn",
+          "reference",
+          "clientName"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "clientId": { "type": "string" },
+          "title": { "type": "string" },
+          "category": { "type": "string" },
+          "caseNumber": { "type": "string" },
+          "opposingParty": { "type": "string" },
+          "mode": { "$ref": "#/components/schemas/CaseBillingMode" },
+          "hourlyRateCents": { "anyOf": [{ "type": "integer" }, { "type": "null" }] },
+          "flatFeeCents": { "anyOf": [{ "type": "integer" }, { "type": "null" }] },
+          "hourCap": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
+          "successFeePercent": { "anyOf": [{ "type": "number" }, { "type": "null" }] },
+          "budgetCents": { "anyOf": [{ "type": "integer" }, { "type": "null" }] },
+          "status": { "$ref": "#/components/schemas/CaseStatus" },
+          "openedOn": { "type": ["string", "null"] },
+          "reference": { "type": "string" },
+          "clientName": { "type": "string" }
+        }
+      },
+      "SourceImportResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "type": "string", "enum": ["imported", "unchanged"] }
+        }
+      },
+      "BulkTimeValidationItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "expectedEffectiveRevision"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "expectedEffectiveRevision": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "FailedInboxCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "kind", "sessionId", "occurredAt", "error", "message"],
+        "properties": {
+          "file": { "type": "string" },
+          "kind": { "type": ["string", "null"], "enum": ["start", "end", null] },
+          "sessionId": { "type": ["string", "null"] },
+          "occurredAt": { "type": ["string", "null"] },
+          "error": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "ScreenpipeSyncRun": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Most recent bounded import batch since backend startup. Success does not prove complete provider history.",
+        "required": [
+          "outcome",
+          "startedAt",
+          "finishedAt",
+          "windows",
+          "imported",
+          "unchanged",
+          "preserved",
+          "error"
+        ],
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": ["succeeded", "partial", "failed", "no-sessions", "not-configured"]
+          },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "finishedAt": { "type": "string", "format": "date-time" },
+          "windows": { "type": "integer", "minimum": 0 },
+          "imported": { "type": "integer", "minimum": 0 },
+          "unchanged": { "type": "integer", "minimum": 0 },
+          "preserved": { "type": "integer", "minimum": 0 },
+          "error": {
+            "type": ["string", "null"],
+            "enum": [
+              "authentication-failed",
+              "unavailable",
+              "incomplete",
+              "internal",
+              "not-configured",
+              null
+            ]
+          },
+          "updated": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "ScreenpipeIntegrationStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Runtime diagnostics since backend startup. Configuration is server-owned. No credentials or recording content are returned.",
+        "required": [
+          "configured",
+          "configurationIssue",
+          "automaticSync",
+          "intervalSeconds",
+          "syncing",
+          "testing",
+          "connection",
+          "lastRun",
+          "lastSuccessfulSyncAt"
+        ],
+        "properties": {
+          "configured": { "type": "boolean" },
+          "configurationIssue": {
+            "type": ["string", "null"],
+            "enum": ["missing-api-key", "invalid-url", null]
+          },
+          "automaticSync": {
+            "type": "boolean",
+            "description": "Whether automatic import is enabled. Authentication failure pauses retries."
+          },
+          "intervalSeconds": { "type": "integer", "minimum": 1 },
+          "syncing": { "type": "boolean" },
+          "testing": { "type": "boolean" },
+          "connection": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "checkedAt", "message"],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "not-tested",
+                  "not-configured",
+                  "connected",
+                  "authentication-failed",
+                  "unavailable",
+                  "error"
+                ]
+              },
+              "checkedAt": { "type": ["string", "null"], "format": "date-time" },
+              "message": {
+                "type": ["string", "null"],
+                "description": "Sanitized explanation. Never contains credentials or provider response bodies."
+              }
+            }
+          },
+          "lastRun": {
+            "anyOf": [{ "$ref": "#/components/schemas/ScreenpipeSyncRun" }, { "type": "null" }]
+          },
+          "lastSuccessfulSyncAt": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "ScreenpipeActionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {}
+      },
+      "HistoryFailure": {
+        "type": "string",
+        "enum": [
+          "dispatch-failed",
+          "workflow-failed",
+          "inference-failed",
+          "stale-snapshot",
+          "expired",
+          "not-configured",
+          "history-too-large"
+        ]
+      },
+      "HistoryJob": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "startAt": { "type": "string", "format": "date-time" },
+          "endAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "finishedAt": { "type": ["string", "null"], "format": "date-time" },
+          "status": {
+            "type": "string",
+            "enum": [
+              "dispatching",
+              "dispatched",
+              "dispatch-unconfirmed",
+              "running",
+              "ready",
+              "failed",
+              "expired"
+            ]
+          },
+          "error": {
+            "type": ["string", "null"],
+            "enum": [
+              null,
+              "dispatch-failed",
+              "workflow-failed",
+              "inference-failed",
+              "stale-snapshot",
+              "expired",
+              "not-configured",
+              "history-too-large"
+            ]
+          },
+          "sourceCount": { "type": "integer", "minimum": 0 },
+          "proposalCount": { "type": "integer", "minimum": 0 }
+        },
+        "required": [
+          "id",
+          "sessionId",
+          "startAt",
+          "endAt",
+          "createdAt",
+          "finishedAt",
+          "status",
+          "error",
+          "sourceCount",
+          "proposalCount"
+        ]
+      },
+      "HistoryProposalInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "caseId": { "type": ["string", "null"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "endedAt": { "type": "string", "format": "date-time" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "sourceIds": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1,
+            "maxItems": 10000,
+            "uniqueItems": true
+          },
+          "hasGaps": { "type": "boolean" }
+        },
+        "required": [
+          "caseId",
+          "startedAt",
+          "endedAt",
+          "label",
+          "confidence",
+          "sourceIds",
+          "hasGaps"
+        ]
+      },
+      "HistoryProposal": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "caseId": { "type": ["string", "null"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "endedAt": { "type": "string", "format": "date-time" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "sourceIds": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1,
+            "maxItems": 10000,
+            "uniqueItems": true
+          },
+          "hasGaps": { "type": "boolean" },
+          "id": { "type": "string" },
+          "jobId": { "type": "string" },
+          "sessionId": { "type": "string" },
+          "revision": { "type": "integer", "minimum": 0 },
+          "status": { "type": "string", "enum": ["draft", "accepted", "rejected"] },
+          "acceptedPeriodId": { "type": ["string", "null"] }
+        },
+        "required": [
+          "caseId",
+          "startedAt",
+          "endedAt",
+          "label",
+          "confidence",
+          "sourceIds",
+          "hasGaps",
+          "id",
+          "jobId",
+          "sessionId",
+          "revision",
+          "status",
+          "acceptedPeriodId"
+        ]
+      },
+      "HistoryCase": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "clientId": { "type": "string" },
+          "reference": { "type": "string" },
+          "title": { "type": "string" },
+          "clientName": { "type": "string" }
+        },
+        "required": ["id", "clientId", "reference", "title", "clientName"]
+      },
+      "HistoryState": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "configured": { "type": "boolean" },
+          "jobs": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryJob" } },
+          "proposals": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/HistoryProposal" }
+          }
+        },
+        "required": ["configured", "jobs", "proposals"]
+      },
+      "HistoryGenerateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sessionId": { "type": "string", "minLength": 1 },
+          "startAt": { "type": "string", "format": "date-time" },
+          "endAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["sessionId", "startAt", "endAt"]
+      },
+      "HistoryClaim": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "job": { "$ref": "#/components/schemas/HistoryJob" },
+          "claimId": { "type": "string" },
+          "session": { "$ref": "#/components/schemas/Session" },
+          "sources": { "type": "array", "items": { "$ref": "#/components/schemas/PeriodSource" } },
+          "cases": { "type": "array", "items": { "$ref": "#/components/schemas/HistoryCase" } }
+        },
+        "required": ["job", "claimId", "session", "sources", "cases"]
+      },
+      "HistoryCompleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claimId": { "type": "string", "minLength": 1 },
+          "proposals": {
+            "type": "array",
+            "maxItems": 100,
+            "items": { "$ref": "#/components/schemas/HistoryProposalInput" }
+          }
+        },
+        "required": ["claimId", "proposals"]
+      },
+      "HistoryFailRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claimId": { "type": "string", "minLength": 1 },
+          "error": { "$ref": "#/components/schemas/HistoryFailure" }
+        },
+        "required": ["claimId", "error"]
+      },
+      "HistoryAcceptRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": { "type": "integer", "minimum": 0 },
+          "caseId": { "type": ["string", "null"] },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "endedAt": { "type": "string", "format": "date-time" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "durationMs": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+        },
+        "required": ["expectedRevision", "caseId", "startedAt", "endedAt", "label", "durationMs"]
+      },
+      "HistoryAcceptResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "proposal": { "$ref": "#/components/schemas/HistoryProposal" },
+          "period": { "$ref": "#/components/schemas/WorkPeriod" }
+        },
+        "required": ["proposal", "period"]
+      },
+      "HistoryRejectRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "expectedRevision": { "type": "integer", "minimum": 0 } },
+        "required": ["expectedRevision"]
       }
     }
   }

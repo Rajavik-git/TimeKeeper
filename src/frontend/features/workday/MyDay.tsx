@@ -1,3 +1,4 @@
+import { timeValidationUnavailable } from "../../shared/lib/timeValidation";
 import { csvCell } from "../../../shared/csv";
 import { PageHeader } from "../../shared/components/PageHeader/PageHeader";
 import { rateOriginLabels } from "../../shared/presentation/billing";
@@ -39,7 +40,7 @@ import {
   dayFees,
   configuredRate,
   effectiveMs,
-  formatPreciseDuration,
+  formatNearestMinuteDuration,
   formatRoundedMinutes,
   summarizeWork,
   type Period,
@@ -176,11 +177,7 @@ export function MyDay({
     },
   });
   const summary = summarizeWork(included, data?.sources ?? workspaceState.sources);
-  const fees = dayFees(
-    data?.state ?? catalogState,
-    data ? { ...workspaceState, ...data } : workspaceState,
-    included,
-  );
+  const fees = dayFees(data?.state ?? catalogState, included);
   const feeValue =
     fees.cents !== null && fees.currency ? formatMoney(fees.cents, fees.currency) : null;
   const feeDetail = !data
@@ -194,6 +191,9 @@ export function MyDay({
   const coverageGapMs = coverageGaps.reduce(
     (total, gap) => total + Math.max(0, Date.parse(gap.endedAt) - Date.parse(gap.startedAt)),
     0,
+  );
+  const eligibleToValidate = assignedToValidate.filter(
+    (period) => timeValidationUnavailable(period, today) === null,
   );
   const { assign, validate, validating } = useDayCommands({
     data,
@@ -235,11 +235,11 @@ export function MyDay({
     }
     const caseId = period.caseId;
     if (!caseId)
-      return `${rateOriginLabels[RateOrigin.Base]} ${formatRate(catalogState.settings.globalHourlyRateCents ?? 0, catalogState.settings.currency ?? "USD")}`;
+      return `${rateOriginLabels[RateOrigin.Base]} ${formatRate(catalogState.settings.globalHourlyRateCents, catalogState.settings.currency)}`;
     const { rateCents, origin } = configuredRate(catalogState, caseId);
     if (origin === RateOrigin.FlatFee) return rateOriginLabels[origin];
     const label = rateOriginLabels[origin];
-    return `${label} ${formatRate(rateCents, catalogState.settings.currency ?? "USD")}`;
+    return `${label} ${formatRate(rateCents, catalogState.settings.currency)}`;
   };
   return (
     <>
@@ -378,15 +378,20 @@ export function MyDay({
           {assignedToValidate.length > 0 ? (
             <button
               className="btn attn"
-              disabled={validating}
+              disabled={validating || !eligibleToValidate.length}
+              title={
+                eligibleToValidate.length > 0
+                  ? undefined
+                  : "Only finished periods from past local calendar days can be validated."
+              }
               aria-busy={validating}
-              onClick={() => void validate(assignedToValidate, true)}
+              onClick={() => void validate(eligibleToValidate, true)}
             >
               {validating
                 ? "Validating…"
-                : assignedToValidate.length === 1
+                : eligibleToValidate.length === 1
                   ? "Validate assigned time"
-                  : `Validate time for ${assignedToValidate.length} assigned periods`}
+                  : `Validate time for ${eligibleToValidate.length} eligible periods`}
             </button>
           ) : included.length > 0 && !review.length ? (
             <button className="btn ghost sm" onClick={() => navigate("preInvoices")}>
@@ -440,7 +445,7 @@ export function MyDay({
                   clientForCase(catalogState, period.caseId)?.name ?? "",
                   caseById(catalogState, period.caseId)?.title ?? "",
                   period.label,
-                  formatPreciseDuration(effectiveMs(period)),
+                  formatNearestMinuteDuration(effectiveMs(period)),
                   period.excluded
                     ? "Excluded from totals"
                     : timeValidationLabels[

@@ -1,3 +1,5 @@
+import { configuredClientRate } from "../../../../calculations/billing";
+import { timeValidationUnavailable } from "../../../../shared/lib/timeValidation";
 import { isBudgetWarning } from "../../../../calculations/case-budget";
 import { budgetPercent } from "../../../../shared/presentation/budget";
 import { caseBillingModeLabels, clientTypeLabels } from "../../../../shared/presentation/catalog";
@@ -50,8 +52,8 @@ export function CasesOverview({
   validatePeriods,
 }: Props) {
   const validating = validatingIds.length > 0;
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
-  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency ?? "USD");
+  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency);
+  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency);
   const [clientSort, setClientSort] = useState<ClientSort>(storedClientSort);
   const [expandedBillingClients, setExpandedBillingClients] = useState<Set<EntityId>>(
     () => new Set(),
@@ -101,13 +103,15 @@ export function CasesOverview({
         break;
       default:
         comparison =
-          b.metrics.toBill - a.metrics.toBill ||
-          (a.metrics.toBill === 0 ? Number(!!b.metrics.latest) - Number(!!a.metrics.latest) : 0);
+          b.metrics.toBillCents - a.metrics.toBillCents ||
+          (a.metrics.toBillCents === 0
+            ? Number(!!b.metrics.latest) - Number(!!a.metrics.latest)
+            : 0);
     }
     return comparison || a.item.name.localeCompare(b.item.name, "en-US");
   });
-  const toBill = clients.reduce((sum, row) => sum + row.metrics.toBill, 0);
-  const maxToBill = Math.max(1, ...clients.map((row) => row.metrics.toBill));
+  const toBill = clients.reduce((sum, row) => sum + row.metrics.toBillCents, 0);
+  const maxToBill = Math.max(1, ...clients.map((row) => row.metrics.toBillCents));
   const budgetAlerts = attentionRows.filter((row) => isBudgetWarning(row.metrics.budgetPercent));
   const pendingAlerts = attentionRows.reduce((sum, row) => sum + row.metrics.pending, 0);
   const attentionCount = budgetAlerts.length + pendingAlerts;
@@ -200,15 +204,11 @@ export function CasesOverview({
                     </div>
                     <div>
                       <dt>Rate</dt>
-                      <dd>
-                        {formatRate(
-                          item.hourlyRateCents ?? catalogState.settings.globalHourlyRateCents ?? 0,
-                        )}
-                      </dd>
+                      <dd>{formatRate(configuredClientRate(catalogState, item))}</dd>
                     </div>
                     <div>
                       <dt>To bill</dt>
-                      <dd className="case-to-bill-value">{money(metrics.toBill)}</dd>
+                      <dd className="case-to-bill-value">{money(metrics.toBillCents)}</dd>
                     </div>
                     <div>
                       <dt>Last activity</dt>
@@ -241,7 +241,10 @@ export function CasesOverview({
                     sameId(owner.id, item.clientId),
                   );
                   const pendingIds = metrics.periods
-                    .filter((period) => !period.timeValidated)
+                    .filter(
+                      (period) =>
+                        !period.timeValidated && timeValidationUnavailable(period, today) === null,
+                    )
                     .map((period) => period.id);
                   return (
                     <div key={item.id}>
@@ -295,7 +298,7 @@ export function CasesOverview({
             </div>
             <div className="case-scroll bar-list">
               {[...clients]
-                .sort((a, b) => b.metrics.toBill - a.metrics.toBill)
+                .sort((a, b) => b.metrics.toBillCents - a.metrics.toBillCents)
                 .map(({ item, metrics }) => {
                   const expanded = expandedBillingClients.has(item.id);
                   const cases = metrics.cases
@@ -319,7 +322,7 @@ export function CasesOverview({
                     })
                     .sort(
                       (a, b) =>
-                        b.metrics.toBill - a.metrics.toBill ||
+                        b.metrics.toBillCents - a.metrics.toBillCents ||
                         a.caseItem.title.localeCompare(b.caseItem.title, "en-US"),
                     );
                   const unbilledClientMinutes = metrics.unbilledSummary.roundedMinutes;
@@ -352,10 +355,14 @@ export function CasesOverview({
                         >
                           <strong className="bar-client-name">{item.name}</strong>
                           <span className="bar">
-                            <span style={{ width: `${(metrics.toBill * 100) / maxToBill}%` }} />
+                            <span
+                              style={{ width: `${(metrics.toBillCents * 100) / maxToBill}%` }}
+                            />
                           </span>
-                          <span className={`bar-amount${metrics.toBill === 0 ? " case-zero" : ""}`}>
-                            {metrics.toBill === 0 ? "—" : money(metrics.toBill)}
+                          <span
+                            className={`bar-amount${metrics.toBillCents === 0 ? " case-zero" : ""}`}
+                          >
+                            {metrics.toBillCents === 0 ? "—" : money(metrics.toBillCents)}
                           </span>
                           <span className="bar-time">
                             {formatRoundedMinutes(unbilledClientMinutes)}
@@ -385,13 +392,15 @@ export function CasesOverview({
                               </span>
                               <span className="bar">
                                 <span
-                                  style={{ width: `${(caseTotals.toBill * 100) / maxToBill}%` }}
+                                  style={{
+                                    width: `${(caseTotals.toBillCents * 100) / maxToBill}%`,
+                                  }}
                                 />
                               </span>
                               <span className="bar-amount">
                                 {caseItem.mode === CaseBillingMode.FlatFee
                                   ? caseBillingModeLabels[CaseBillingMode.FlatFee]
-                                  : money(caseTotals.toBill)}
+                                  : money(caseTotals.toBillCents)}
                               </span>
                               <span className="bar-time">
                                 {formatRoundedMinutes(unbilledMinutes)}

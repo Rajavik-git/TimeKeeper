@@ -193,7 +193,7 @@ it("displays no charge independently from unbilled and validates assigned time w
     nonbillableReason: "offered",
     billingStatus: "unbilled",
     timeValidated: false,
-    demoApp: undefined,
+    observedAppName: undefined,
   };
   vi.spyOn(api, "GET").mockResolvedValue({
     data: { catalogState: state, workspaceState: core },

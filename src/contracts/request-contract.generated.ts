@@ -323,6 +323,32 @@ export const requestContract = {
         }
       }
     },
+    "/api/sources": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/importSourceRequest"
+                  },
+                  {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "items": {
+                      "$ref": "#/components/schemas/importSourceRequest"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/questions": {
       "post": {
         "requestBody": {
@@ -452,7 +478,7 @@ export const requestContract = {
     "/api/sources/{instanceId}/{contentType}/{externalId}/validate": {
       "post": {
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
@@ -765,6 +791,140 @@ export const requestContract = {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PillUndoRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-periods/validate-time": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 500,
+                "items": {
+                  "$ref": "#/components/schemas/BulkTimeValidationItem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/screenpipe/test": {
+      "post": {
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenpipeActionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/screenpipe/sync": {
+      "post": {
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenpipeActionRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/generate": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryGenerateRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/claim": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {},
+                "required": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/jobs/{id}/complete": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryCompleteRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/jobs/{id}/fail": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryFailRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/proposals/{id}/accept": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryAcceptRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/history/proposals/{id}/reject": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryRejectRequest"
               }
             }
           }
@@ -1684,6 +1844,36 @@ export const requestContract = {
           },
           "mode": {
             "$ref": "#/components/schemas/PeriodOpenMode"
+          },
+          "expectedActivePeriodId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          },
+          "expectedAssignmentRevision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "window": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "appName",
+              "title"
+            ],
+            "properties": {
+              "appName": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
           }
         },
         "required": [
@@ -1693,6 +1883,33 @@ export const requestContract = {
           "startedAt",
           "origin",
           "mode"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "current"
+                },
+                "origin": {
+                  "enum": [
+                    "automatic",
+                    "unresolved"
+                  ]
+                }
+              },
+              "required": [
+                "mode",
+                "origin"
+              ]
+            },
+            "then": {
+              "required": [
+                "expectedActivePeriodId",
+                "expectedAssignmentRevision"
+              ]
+            }
+          }
         ]
       },
       "AssignmentOrigin": {
@@ -1711,6 +1928,56 @@ export const requestContract = {
           "recovery"
         ],
         "description": "Generated from backend/domain/states.ts. Run npm run contract:gen."
+      },
+      "importSourceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "periodId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "instanceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "contentType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "externalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
+          }
+        },
+        "required": [
+          "id",
+          "periodId",
+          "instanceId",
+          "contentType",
+          "externalId",
+          "recordedAt"
+        ]
       },
       "createQuestionRequest": {
         "type": "object",
@@ -1907,6 +2174,9 @@ export const requestContract = {
           "expectedEffectiveRevision": {
             "type": "integer",
             "minimum": 0
+          },
+          "validated": {
+            "type": "boolean"
           }
         }
       },
@@ -1988,7 +2258,11 @@ export const requestContract = {
         "type": "object",
         "additionalProperties": false,
         "required": [],
-        "properties": {}
+        "properties": {
+          "validated": {
+            "type": "boolean"
+          }
+        }
       },
       "PostWorkPeriodsManualRequest": {
         "type": "object",
@@ -2173,56 +2447,6 @@ export const requestContract = {
             "description": "IANA timezone for calendar dates. Stored with the new snapshot or export."
           }
         }
-      },
-      "importSourceRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200,
-            "pattern": "\\S"
-          },
-          "periodId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 1,
-            "maxLength": 200,
-            "pattern": "\\S"
-          },
-          "instanceId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200,
-            "pattern": "\\S"
-          },
-          "contentType": {
-            "type": "string",
-            "minLength": 1
-          },
-          "externalId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200,
-            "pattern": "\\S"
-          },
-          "recordedAt": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$"
-          }
-        },
-        "required": [
-          "id",
-          "periodId",
-          "instanceId",
-          "contentType",
-          "externalId",
-          "recordedAt"
-        ]
       },
       "proposeReconstructionRequest": {
         "type": "object",
@@ -3031,6 +3255,213 @@ export const requestContract = {
             "pattern": "\\S"
           }
         }
+      },
+      "BulkTimeValidationItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "expectedEffectiveRevision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedEffectiveRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ScreenpipeActionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {}
+      },
+      "HistoryGenerateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "startAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "sessionId",
+          "startAt",
+          "endAt"
+        ]
+      },
+      "HistoryCompleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claimId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "proposals": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/HistoryProposalInput"
+            }
+          }
+        },
+        "required": [
+          "claimId",
+          "proposals"
+        ]
+      },
+      "HistoryProposalInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "caseId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "confidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "sourceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 10000,
+            "uniqueItems": true
+          },
+          "hasGaps": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "caseId",
+          "startedAt",
+          "endedAt",
+          "label",
+          "confidence",
+          "sourceIds",
+          "hasGaps"
+        ]
+      },
+      "HistoryFailRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "claimId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "error": {
+            "$ref": "#/components/schemas/HistoryFailure"
+          }
+        },
+        "required": [
+          "claimId",
+          "error"
+        ]
+      },
+      "HistoryFailure": {
+        "type": "string",
+        "enum": [
+          "dispatch-failed",
+          "workflow-failed",
+          "inference-failed",
+          "stale-snapshot",
+          "expired",
+          "not-configured",
+          "history-too-large"
+        ]
+      },
+      "HistoryAcceptRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "caseId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "caseId",
+          "startedAt",
+          "endedAt",
+          "label",
+          "durationMs"
+        ]
+      },
+      "HistoryRejectRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "expectedRevision"
+        ]
       }
     }
   }

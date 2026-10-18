@@ -2,7 +2,15 @@ import { describe, it, expect } from "vitest";
 import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
 import { memoryDb } from "../fixtures/database.js";
-import { createApp } from "../../src/backend/api/app";
+import { createApp, createHttpApp } from "../../src/backend/api/app";
+import { createApplicationServices } from "../../src/backend/bootstrap.js";
+import type { ApplicationServices } from "../../src/backend/bootstrap.js";
+import type {
+  HistoryClaim,
+  HistoryJob,
+  HistoryProposalInput,
+  HistoryState,
+} from "../../src/contracts/history.js";
 
 const spec = JSON.parse(readFileSync("src/contracts/openapi.yaml", "utf8")) as {
   paths: Record<
@@ -16,7 +24,42 @@ const spec = JSON.parse(readFileSync("src/contracts/openapi.yaml", "utf8")) as {
   >;
   components: object;
 };
-const cases: Record<string, { path?: string; body?: unknown; status?: number }> = {
+type ResponseFixture = { path?: string; body?: unknown; status?: number };
+const cases: Record<string, ResponseFixture> = {
+  "GET /api/history": {},
+  "POST /api/history/generate": {},
+  "POST /api/history/claim": { body: {} },
+  "GET /api/history/jobs/{id}": {},
+  "POST /api/history/jobs/{id}/complete": {},
+  "POST /api/history/jobs/{id}/fail": {},
+  "POST /api/history/proposals/{id}/accept": {},
+  "POST /api/history/proposals/{id}/reject": {},
+  "GET /api/clients": {},
+  "GET /api/cases": {},
+  "GET /api/settings": {},
+  "GET /api/health": {},
+  "GET /api/inbox/failed": {},
+  "GET /api/integrations/screenpipe": {},
+  "POST /api/integrations/screenpipe/test": { body: {} },
+  "POST /api/integrations/screenpipe/sync": { body: {} },
+  "GET /api/sessions/{id}": { path: "/api/sessions/demo-2026-10-16" },
+  "GET /api/work-periods/{id}": { path: "/api/work-periods/14" },
+  "GET /api/work-periods/{id}/sources": { path: "/api/work-periods/14/sources" },
+  "POST /api/inbox/failed/{file}/dismiss": {
+    path: "/api/inbox/failed/absent.json/dismiss",
+    status: 404,
+  },
+  "POST /api/work-periods/validate-time": { body: [{ id: "14", expectedEffectiveRevision: 0 }] },
+  "POST /api/sources": {
+    body: {
+      id: "batch-new",
+      periodId: "14",
+      instanceId: "fixture",
+      contentType: "screen",
+      externalId: "batch-new",
+      recordedAt: "2026-10-16T09:00:00Z",
+    },
+  },
   "GET /api/catalog": {},
   "GET /api/workspace": {},
   "GET /api/audit-events": {},
@@ -256,7 +299,7 @@ Object.assign(cases, {
       caseId: "1",
       startedAt: "2026-10-16T17:30:00Z",
       origin: "automatic",
-      mode: "current",
+      mode: "recovery",
     },
   },
   "POST /api/sources/import": {
@@ -309,6 +352,84 @@ Object.assign(cases, {
   },
   "POST /api/pill/undo": { status: 409, body: { undoToken: "expired-token" } },
 });
+/** Exercise real successful workflow stages against a dedicated session and source. */
+async function prepareHistoryFixture(
+  app: ReturnType<typeof createHttpApp>,
+  services: ApplicationServices,
+  key: string,
+): Promise<ResponseFixture> {
+  const startAt = "2026-10-17T09:00:00.000Z";
+  const endAt = "2026-10-17T09:30:00.000Z";
+  services.repository.insertSession(
+    { id: "history-contract", startedAt: startAt, endedAt: endAt, revision: 0 },
+    services.clock.now(),
+  );
+  services.core.importSource({
+    id: "history-source",
+    periodId: null,
+    instanceId: "history-fixture",
+    contentType: "ocr",
+    externalId: "frame-1",
+    recordedAt: "2026-10-17T09:05:00.000Z",
+  });
+  const input = { sessionId: "history-contract", startAt, endAt };
+  if (key === "POST /api/history/generate") return { body: input };
+  async function post(path: string, body: unknown) {
+    const response = await app.request(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    expect(response.status, await response.clone().text()).toBe(200);
+    return response.json();
+  }
+  const job = (await post("/api/history/generate", input)) as HistoryJob;
+  if (key === "GET /api/history/jobs/{id}") return { path: `/api/history/jobs/${job.id}` };
+  if (key === "POST /api/history/claim") return { body: {} };
+  const claim = (await post("/api/history/claim", {})) as HistoryClaim;
+  const proposal: HistoryProposalInput = {
+    caseId: null,
+    startedAt: startAt,
+    endedAt: endAt,
+    label: "Review recorded documents",
+    confidence: null,
+    sourceIds: ["history-source"],
+    hasGaps: true,
+  };
+  if (key === "POST /api/history/jobs/{id}/complete")
+    return {
+      path: `/api/history/jobs/${job.id}/complete`,
+      body: { claimId: claim.claimId, proposals: [proposal] },
+    };
+  if (key === "POST /api/history/jobs/{id}/fail")
+    return {
+      path: `/api/history/jobs/${job.id}/fail`,
+      body: { claimId: claim.claimId, error: "history-too-large" },
+    };
+  await post(`/api/history/jobs/${job.id}/complete`, {
+    claimId: claim.claimId,
+    proposals: [proposal],
+  });
+  if (key === "GET /api/history") return { path: "/api/history?sessionId=history-contract" };
+  const state = (await (
+    await app.request("/api/history?sessionId=history-contract")
+  ).json()) as HistoryState;
+  const id = state.proposals[0].id;
+  if (key === "POST /api/history/proposals/{id}/accept")
+    return {
+      path: `/api/history/proposals/${id}/accept`,
+      body: {
+        expectedRevision: 0,
+        caseId: null,
+        startedAt: startAt,
+        endedAt: endAt,
+        label: proposal.label,
+        durationMs: 60_000,
+      },
+    };
+  return { path: `/api/history/proposals/${id}/reject`, body: { expectedRevision: 0 } };
+}
+
 const ajv = new Ajv2020({ strict: false });
 
 describe("OpenAPI response contract", () => {
@@ -319,8 +440,16 @@ describe("OpenAPI response contract", () => {
         expect(cases[key]).toBeDefined();
         const db = memoryDb();
         try {
-          const app = createApp(db),
-            fixture = cases[key];
+          const historyOperation = path.startsWith("/api/history");
+          const services = historyOperation
+            ? createApplicationServices(
+                db,
+                { now: () => "2026-10-18T12:00:00.000Z" },
+                { configured: true, dispatch: async () => "started" },
+              )
+            : undefined;
+          const app = services ? createHttpApp(services) : createApp(db);
+          const fixture = services ? await prepareHistoryFixture(app, services, key) : cases[key];
           if (key === "POST /api/day/approve" || key === "POST /api/matters/{id}/approve") {
             (fixture.body as Record<string, unknown>).expected_effective_revisions =
               Object.fromEntries(

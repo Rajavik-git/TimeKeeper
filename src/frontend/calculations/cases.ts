@@ -8,14 +8,14 @@ export function caseMetrics(state: State, workspaceState: CoreState, item: Case)
     (period) => period.caseId === String(item.id) && !period.excluded,
   );
   const summary = summarizeWork(periods, workspaceState.sources);
-  const time = summary.roundedMinutes;
-  const nonBillable = summarizeWork(
+  const recordedMinutes = summary.roundedMinutes;
+  const nonBillableMinutes = summarizeWork(
     periods.filter((period) => !period.billable),
     workspaceState.sources,
   ).roundedMinutes;
   // The Cases "To bill" view tracks unbilled hourly work. A flat fee is shown
-  // as its pricing mode on the case, not as unbilled time in this overview.
-  const toBill =
+  // as its pricing mode on the case, not as unbilled recordedMinutes in this overview.
+  const toBillCents =
     item.mode === CaseBillingMode.FlatFee
       ? 0
       : draftInvoice(state, workspaceState, item.id, InvoiceType.Final).feesCents;
@@ -25,11 +25,11 @@ export function caseMetrics(state: State, workspaceState: CoreState, item: Case)
   return {
     complete: summary.complete,
     periods,
-    time,
-    nonBillable,
-    toBill,
-    spent: budget.spentCents,
-    budget: budget.limitCents,
+    recordedMinutes,
+    nonBillableMinutes,
+    toBillCents,
+    spentCents: budget.spentCents,
+    budgetCents: budget.limitCents,
     budgetPercent: budget.percent,
     budgetComplete: budget.complete,
     pending,
@@ -43,11 +43,11 @@ export function clientMetrics(state: State, workspaceState: CoreState, clientId:
     (period) => cases.some((item) => String(item.id) === period.caseId) && !period.excluded,
   );
   const summary = summarizeWork(periods, workspaceState.sources);
-  const time = summary.roundedMinutes;
+  const recordedMinutes = summary.roundedMinutes;
   const hourlyCaseIds = new Set(
     cases.filter((item) => item.mode !== CaseBillingMode.FlatFee).map((item) => String(item.id)),
   );
-  const hourlyTime = summarizeWork(
+  const hourlyMinutes = summarizeWork(
     periods.filter((period) => period.caseId !== null && hourlyCaseIds.has(period.caseId)),
     workspaceState.sources,
   ).roundedMinutes;
@@ -61,8 +61,8 @@ export function clientMetrics(state: State, workspaceState: CoreState, clientId:
     ),
     workspaceState.sources,
   );
-  const toBill = cases.reduce(
-    (sum, item) => sum + caseMetrics(state, workspaceState, item).toBill,
+  const toBillCents = cases.reduce(
+    (sum, item) => sum + caseMetrics(state, workspaceState, item).toBillCents,
     0,
   );
   const pending = periods.filter((period) => !period.timeValidated).length;
@@ -74,10 +74,10 @@ export function clientMetrics(state: State, workspaceState: CoreState, clientId:
   return {
     complete: summary.complete,
     cases,
-    time,
-    hourlyTime,
+    recordedMinutes,
+    hourlyMinutes,
     unbilledSummary,
-    toBill,
+    toBillCents,
     pending,
     latest,
   };

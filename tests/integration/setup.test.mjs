@@ -17,8 +17,15 @@ async function fixture({ configured = false, installed = false } = {}) {
   const rootDir = await mkdtemp(join(tmpdir(), "timekeeper-setup-"));
   directories.push(rootDir);
   await writeFile(join(rootDir, ".nvmrc"), "24.22.0\n");
-  await writeFile(join(rootDir, ".env.example"), "SCREENPIPE_API_URL=http://127.0.0.1:3030\n");
-  if (configured) await writeFile(join(rootDir, ".env"), "TIMEKEEPER_DB=keep-this.db\n");
+  await writeFile(
+    join(rootDir, ".env.example"),
+    "SCREENPIPE_API_URL=http://127.0.0.1:3030\nSCREENPIPE_API_KEY=sp-fixture\n",
+  );
+  if (configured)
+    await writeFile(
+      join(rootDir, ".env"),
+      "TIMEKEEPER_DB=keep-this.db\nSCREENPIPE_API_KEY=sp-fixture\n",
+    );
   if (installed) {
     await mkdir(join(rootDir, "node_modules"));
     await writeFile(join(rootDir, "node_modules", ".package-lock.json"), "{}\n");
@@ -34,6 +41,11 @@ describe("environment setup", () => {
   it("runs the CLI from another directory and installs an offline fixture through npm ci", async () => {
     const { rootDir } = await fixture({ configured: true });
     await copyFile(new URL("../../install.mjs", import.meta.url), join(rootDir, "install.mjs"));
+    await mkdir(join(rootDir, "scripts"));
+    await copyFile(
+      new URL("../../scripts/screenpipe-auth.mjs", import.meta.url),
+      join(rootDir, "scripts", "screenpipe-auth.mjs"),
+    );
     await mkdir(join(rootDir, "fixture-package"));
     await writeFile(
       join(rootDir, "fixture-package", "package.json"),
@@ -80,14 +92,18 @@ describe("environment setup", () => {
     );
     expect(check.stdout).toContain("Selected environment checks passed");
     expect(check.stdout).not.toContain("[install]");
-    expect(await readFile(join(rootDir, ".env"), "utf8")).toBe("TIMEKEEPER_DB=keep-this.db\n");
+    expect(await readFile(join(rootDir, ".env"), "utf8")).toBe(
+      "TIMEKEEPER_DB=keep-this.db\nSCREENPIPE_API_KEY=sp-fixture\n",
+    );
   }, 20000);
 
   it("installs dependencies in the repository without touching existing configuration or data", async () => {
     const { options, rootDir, run, fetchHealth } = await fixture({ configured: true });
     await writeFile(join(rootDir, "keep-this.db"), "existing workspace");
     expect(await install({ ...options, args: [] })).toBe(0);
-    expect(await readFile(join(rootDir, ".env"), "utf8")).toBe("TIMEKEEPER_DB=keep-this.db\n");
+    expect(await readFile(join(rootDir, ".env"), "utf8")).toBe(
+      "TIMEKEEPER_DB=keep-this.db\nSCREENPIPE_API_KEY=sp-fixture\n",
+    );
     expect(await readFile(join(rootDir, "keep-this.db"), "utf8")).toBe("existing workspace");
     expect(run.mock.calls.map(([command, args]) => [command, args])).toEqual([
       ["npm", ["--version"]],
@@ -106,11 +122,35 @@ describe("environment setup", () => {
     expect(await readFile(join(rootDir, ".env"), "utf8")).toBe(
       await readFile(join(rootDir, ".env.example"), "utf8"),
     );
-    await writeFile(join(rootDir, ".env"), "SCREENPIPE_API_URL=http://localhost:4040\n");
+    await writeFile(
+      join(rootDir, ".env"),
+      "SCREENPIPE_API_URL=http://localhost:4040\nSCREENPIPE_API_KEY=sp-fixture\n",
+    );
     expect(await install({ ...options, args: [] })).toBe(0);
     expect(await readFile(join(rootDir, ".env"), "utf8")).toBe(
-      "SCREENPIPE_API_URL=http://localhost:4040\n",
+      "SCREENPIPE_API_URL=http://localhost:4040\nSCREENPIPE_API_KEY=sp-fixture\n",
     );
+  });
+
+  it("retrieves a missing API key during normal setup and skips npm for auth-only", async () => {
+    const { options, rootDir, run } = await fixture();
+    await writeFile(join(rootDir, ".env"), "SCREENPIPE_API_KEY=\n");
+    run.mockReturnValue({ status: 0, stdout: "sp-from-cli\n" });
+    expect(await install({ ...options, args: ["--auth-only"] })).toBe(0);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0][0]).toBe("screenpipe");
+    expect(await readFile(join(rootDir, ".env"), "utf8")).toBe(
+      "SCREENPIPE_API_KEY=\nSCREENPIPE_API_KEY=sp-from-cli\n",
+    );
+  });
+
+  it("reports missing auth in check mode without credential discovery", async () => {
+    const { options, rootDir, run, output } = await fixture({ installed: true });
+    await writeFile(join(rootDir, ".env"), "SCREENPIPE_API_KEY=\n");
+    expect(await install({ ...options, args: ["--check"] })).toBe(2);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(output()).toContain("API key is missing");
+    expect(await readFile(join(rootDir, ".env"), "utf8")).toBe("SCREENPIPE_API_KEY=\n");
   });
 
   it("reports missing prerequisites in check mode without creating files or installing packages", async () => {
@@ -131,7 +171,10 @@ describe("environment setup", () => {
 
   it("uses exported configuration before the local file", async () => {
     const { options, rootDir, fetchHealth } = await fixture({ configured: true });
-    await writeFile(join(rootDir, ".env"), "SCREENPIPE_API_URL=http://localhost:4040\n");
+    await writeFile(
+      join(rootDir, ".env"),
+      "SCREENPIPE_API_URL=http://localhost:4040\nSCREENPIPE_API_KEY=sp-fixture\n",
+    );
     expect(
       await install({ ...options, args: [], env: { SCREENPIPE_API_URL: "http://[::1]:5050" } }),
     ).toBe(0);

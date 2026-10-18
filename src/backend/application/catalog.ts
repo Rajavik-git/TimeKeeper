@@ -149,6 +149,30 @@ export class CatalogService {
     private readonly port: CatalogPort,
     private readonly now = () => new Date().toISOString(),
   ) {}
+  listClients() {
+    return this.port.listClients();
+  }
+  listCases(query: { clientId?: string; status?: string } = {}) {
+    if (query.status && !caseStatuses.includes(query.status as (typeof caseStatuses)[number]))
+      throw new AppError("invalid-request", "invalid case status");
+    return this.port.transaction(() => {
+      const clients = new Map(this.port.listClients().map((client) => [client.id, client]));
+      return this.port
+        .listCases()
+        .filter(
+          (item) =>
+            (!query.clientId || item.clientId === query.clientId) &&
+            (!query.status || item.status === query.status),
+        )
+        .map((item) => ({
+          ...item,
+          clientName: clients.get(item.clientId)?.name ?? "",
+        }));
+    });
+  }
+  getSettings() {
+    return this.port.getSettings();
+  }
   getCatalog() {
     return this.port.transaction(() => this.port.state());
   }
@@ -163,20 +187,22 @@ export class CatalogService {
         .toLocaleLowerCase("en-US");
     const needle = normalized(query.trim());
     if (!needle) return { clients: [], cases: [] };
-    const catalog = this.getCatalog();
-    const clientsById = new Map(catalog.clients.map((client) => [client.id, client]));
-    return {
-      clients: catalog.clients.filter((client) => normalized(client.name).includes(needle)),
-      cases: catalog.cases.filter((item) =>
-        [
-          item.title,
-          item.reference,
-          item.category,
-          item.opposingParty,
-          clientsById.get(item.clientId)?.name ?? "",
-        ].some((value) => normalized(value).includes(needle)),
-      ),
-    };
+    return this.port.transaction(() => {
+      const catalog = { clients: this.port.listClients(), cases: this.port.listCases() };
+      const clientsById = new Map(catalog.clients.map((client) => [client.id, client]));
+      return {
+        clients: catalog.clients.filter((client) => normalized(client.name).includes(needle)),
+        cases: catalog.cases.filter((item) =>
+          [
+            item.title,
+            item.reference,
+            item.category,
+            item.opposingParty,
+            clientsById.get(item.clientId)?.name ?? "",
+          ].some((value) => normalized(value).includes(needle)),
+        ),
+      };
+    });
   }
   private change<T>(action: string, before: unknown, work: (at: string) => T): T {
     return this.port.transaction(() => {
@@ -297,7 +323,7 @@ export class CatalogService {
         label: values.label!,
         billableByDefault: true,
         offScreen: false,
-        sortOrder: this.port.state().taskTypes.length + 1,
+        sortOrder: this.port.listTaskTypes().length + 1,
         ...values,
       }),
     );

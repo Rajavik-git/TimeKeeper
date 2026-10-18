@@ -35,9 +35,9 @@ export interface PeriodRecord extends PeriodState {
   billable?: boolean;
   nonbillableReason?: NonbillableReason | null;
   excluded?: boolean;
-  demoApp?: string | null;
-  demoWindowTitle?: string | null;
-  demoConfidence?: number | null;
+  observedAppName?: string | null;
+  observedWindowTitle?: string | null;
+  recognitionConfidence?: number | null;
   invoiceId?: number | null;
 }
 export interface QuestionRecord {
@@ -61,6 +61,8 @@ export interface CommandRecord {
   resultJson: string | null;
 }
 export interface SourceRecord {
+  appName?: string | null;
+  windowName?: string | null;
   excerpt?: string | null;
   detectedMarker?: string | null;
   id: string;
@@ -164,6 +166,8 @@ export interface Repository {
   coverageGaps(): CoverageGap[];
   insertSource(source: SourceRecord): void;
   saveSource(source: SourceRecord): void;
+  /** Undefined means no proposal; null identifies a legacy proposal without a replay identity. */
+  reconstructionFingerprint(id: string): string | null | undefined;
   insertConflict(
     id: string,
     periodId: string,
@@ -171,5 +175,6 @@ export interface Repository {
     startedAt: string,
     endedAt: string | null,
     sourceReferencesJson: string,
+    transitionFingerprint?: string,
   ): void;
 }

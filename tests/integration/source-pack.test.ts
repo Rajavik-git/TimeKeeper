@@ -83,6 +83,8 @@ it("keeps unattached sources separate from a period whose opaque ID is null", as
         startedAt: "2026-10-17T09:00:00Z",
         origin: "automatic",
         mode: "current",
+        expectedActivePeriodId: null,
+        expectedAssignmentRevision: null,
       })
     ).status,
   ).toBe(200);

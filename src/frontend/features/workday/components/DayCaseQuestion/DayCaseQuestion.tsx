@@ -36,7 +36,7 @@ export function DayCaseQuestion({
         <p>
           {calendarTime(period.startedAt)}–
           {period.endedAt ? calendarTime(period.endedAt) : "Open period"} ·{" "}
-          {period.demoWindowTitle ?? period.label}
+          {period.observedWindowTitle ?? period.label}
         </p>
       </div>
       <div className="row">

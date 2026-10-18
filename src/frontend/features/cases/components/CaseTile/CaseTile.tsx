@@ -16,8 +16,8 @@ export function CaseTile({
   item: Case;
   onOpen: (item: Case) => void;
 }) {
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
-  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency ?? "USD");
+  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency);
+  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency);
   const m = caseMetrics(catalogState, workspaceState, item);
   return (
     <button
@@ -51,14 +51,14 @@ export function CaseTile({
         </div>
         <div>
           <dt>Time</dt>
-          <dd>{`${formatRoundedMinutes(m.time)}${m.complete ? "" : " · partial"}`}</dd>
+          <dd>{`${formatRoundedMinutes(m.recordedMinutes)}${m.complete ? "" : " · partial"}`}</dd>
         </div>
         <div>
           <dt>To bill</dt>
           <dd className="case-to-bill-value">
             {item.mode === CaseBillingMode.FlatFee
               ? caseBillingModeLabels[CaseBillingMode.FlatFee]
-              : money(m.toBill)}
+              : money(m.toBillCents)}
           </dd>
         </div>
         <div>
@@ -71,7 +71,7 @@ export function CaseTile({
             }
           >
             {m.budgetPercent === null
-              ? m.budget !== null && !m.budgetComplete
+              ? m.budgetCents !== null && !m.budgetComplete
                 ? "Unavailable"
                 : "—"
               : budgetPercent(m.budgetPercent)}

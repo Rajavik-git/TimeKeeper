@@ -1,3 +1,5 @@
+import { timeValidationUnavailable } from "../../../../shared/lib/timeValidation";
+import { useToday } from "../../../../shared/hooks/useToday";
 import { billingStatusLabels } from "../../../../shared/presentation/work-period";
 import {
   AssignmentOrigin,
@@ -7,7 +9,7 @@ import {
 import { usePeriodReview } from "../../hooks/usePeriodReview";
 import { calendarDay, calendarTime } from "../../../../../shared/dates";
 import { api, caseLabel, type CoreState, type ScreenProps } from "../../../../api/client";
-import { effectiveMs, formatPreciseDuration } from "../../../../calculations/billing";
+import { effectiveMs, formatNearestMinuteDuration } from "../../../../calculations/billing";
 import { Modal } from "../../../../shared/components/Modal/Modal";
 import { shortDate } from "../../../../shared/format";
 import { durationMinutes, savePeriodDuration } from "../../lib/periodEditing";
@@ -36,6 +38,7 @@ export function PeriodReviewDialog({
   refresh,
   onDraftChange,
 }: Props) {
+  const today = useToday();
   const {
     reviewed,
     caseId,
@@ -64,6 +67,7 @@ export function PeriodReviewDialog({
     reload,
     requestLeave,
   } = usePeriodReview({ period, workspaceState, action, close, onDraftChange });
+  const validationUnavailable = timeValidationUnavailable(reviewed, today);
   if (hidden) return null;
   return (
     <Modal label="Review work period" close={() => requestLeave("close")}>
@@ -229,8 +233,8 @@ export function PeriodReviewDialog({
         <section aria-labelledby="period-review-duration">
           <h3 id="period-review-duration">Duration</h3>
           <p>
-            Detected: {formatPreciseDuration(reviewed.detectedDurationMs)} · Effective:{" "}
-            {formatPreciseDuration(effectiveMs(reviewed))}
+            Detected: {formatNearestMinuteDuration(reviewed.detectedDurationMs)} · Effective:{" "}
+            {formatNearestMinuteDuration(effectiveMs(reviewed))}
           </p>
           <form
             onSubmit={(event) => {
@@ -317,10 +321,7 @@ export function PeriodReviewDialog({
               ? "Validated for this effective case and duration."
               : "Not validated for this effective case and duration."}
           </p>
-          {!reviewed.caseId && <p>Assign a case before validating time.</p>}
-          {effectiveMs(reviewed) === null && (
-            <p>Correct the unknown duration before validating time.</p>
-          )}
+          {validationUnavailable && <p>{validationUnavailable}</p>}
           <button
             className="btn sm attn"
             disabled={
@@ -328,8 +329,7 @@ export function PeriodReviewDialog({
               dirty ||
               changed ||
               reviewed.timeValidated ||
-              !reviewed.caseId ||
-              effectiveMs(reviewed) === null ||
+              validationUnavailable !== null ||
               invoiceLocked
             }
             onClick={() =>

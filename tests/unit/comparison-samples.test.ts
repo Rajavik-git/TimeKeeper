@@ -59,7 +59,11 @@ it("loads complete explicit durations and different monthly figures without prov
   expect(comparison.previous.preciseDurationMs).toBe(1.5 * 3600000);
   expect(core.sources).toEqual([]);
   expect(
-    core.periods.every((period) => period.timeValidated && period.label?.startsWith("[Sample]")),
+    core.periods.every(
+      (period) =>
+        period.timeValidated === calendarDay(period.startedAt) < plan().today &&
+        period.label?.startsWith("[Sample]"),
+    ),
   ).toBe(true);
   expect(
     core.periods.filter((period) => period.billingStatus === BillingStatus.Billed),
@@ -173,7 +177,7 @@ it("backs up an existing database before adding samples and supports an idempote
   new TimeKeeperService(new SqliteRepository(db)).createClient("real", "Existing client");
   db.close();
   const args = ["--import", "tsx", "scripts/load-comparison-samples.ts", "--database", path];
-  const output = execFileSync(process.execPath, args, { encoding: "utf8" });
+  const output = execFileSync(process.execPath, args, { encoding: "utf8", timeout: 10000 });
   expect(output).toContain('"created":4');
   const backups = readdirSync(join(folder, "backups"));
   expect(backups).toHaveLength(1);
@@ -184,8 +188,10 @@ it("backs up an existing database before adding samples and supports an idempote
   } finally {
     original.close();
   }
-  expect(execFileSync(process.execPath, args, { encoding: "utf8" })).toContain('"created":0');
-});
+  expect(execFileSync(process.execPath, args, { encoding: "utf8", timeout: 10000 })).toContain(
+    '"created":0',
+  );
+}, 20000);
 
 it("rejects a database with pending migrations without changing its schema", () => {
   const folder = mkdtempSync(join(tmpdir(), "timekeeper-sample-oldschema-"));

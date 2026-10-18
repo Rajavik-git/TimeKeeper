@@ -10,7 +10,7 @@ export interface MemoryObservation {
   recordedAt: string;
   appName?: string;
   windowName?: string;
-  url?: string;
+  excerpt?: string;
 }
 export interface ScreenpipeMemory {
   read(startAt: string, endAt: string): Promise<MemoryObservation[]>;
@@ -26,7 +26,7 @@ export interface SourceTags {
   reconcile(target: TagSnapshot, desiredTags: string[]): Promise<void>;
 }
 // Delivery while the backend is closed remains open: docs/REQUIREMENTS.md.
-export interface CommandInbox {
+export interface CommandDeliveryWriter {
   receiveStart(command: StartCommand): Promise<void>;
   receiveEnd(command: EndCommand): Promise<void>;
 }

@@ -9,13 +9,15 @@ Follow [setup](../../docs/SETUP.md) with the Node version in [`.nvmrc`](../../.n
 ```sh
 smoke_dir=$(mktemp -d "${TMPDIR:-/tmp}/timekeeper-mcp.XXXXXX")
 export TIMEKEEPER_DB="$smoke_dir/timekeeper.db"
+export TIMEKEEPER_INBOX="$smoke_dir/inbox"
+export SCREENPIPE_API_KEY=''
 export TIMEKEEPER_PORT=8788
 export UI_PORT=5174
 node --import tsx tests/fixtures/create-database.ts
 npm run dev
 ```
 
-The fixture requires an explicit, unused database path. Exported values override `.env`. Use free ports and match them in the browser URL. Never reset the working database or substitute the comparison importer. This procedure does not test Tauri's fixed development URL.
+The fixture requires an explicit, unused database path. Exported values override `.env`. The empty Screenpipe key disables live source import, and the inbox override prevents consumption of working-workspace commands. Use free ports and match them in the browser URL. Never reset the working database or substitute the comparison importer. This procedure does not test Tauri's fixed development URL.
 
 ## Run the MCP check
 
@@ -36,6 +38,8 @@ The function leaves the supplied tab open, closes its temporary pill tab, and re
 
 ## Coverage and limits
 
-The smoke checks five views and the pill in light/dark at 1440×900 and 1280×800. It checks geometry, palette, controls, tables, calendar, sorting, billing expansion, case navigation/search, invoice detail, Desk, and removal of demo reset. Page exceptions and console errors fail. Fixture expectations use a browser clock of 17 October 2026 and My day's selected date of 16 October.
+The smoke checks the five views in both themes at 1440×900 and 1280×800. A separate 340×490 pill check verifies its initial rendering and bar geometry. The checks cover palette, controls, tables, calendar, sorting, billing expansion, case navigation/search, invoice detail, Desk, and removal of demo reset. Page exceptions and console errors fail. Fixture expectations use a browser clock of 17 October 2026 and My day's selected date of 16 October.
+
+The smoke does not verify source synchronization, correction writes, invoice issuance, or native lifecycle. Those need their own acceptance scenarios.
 
 If MCP cannot open or reach the app, report acceptance as blocked. Static checks do not replace it. Native macOS/Windows, recording, and provider integration require separate acceptance.

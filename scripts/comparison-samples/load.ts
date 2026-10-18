@@ -15,7 +15,7 @@ import { sampleClients, sampleNamespace, type ComparisonSamplePlan } from "./pla
 /** Opt-in fixture import. Never runs during normal database initialization. */
 export function loadComparisonSamples(db: DatabaseSync, plan: ComparisonSamplePlan) {
   const repository = new SqliteRepository(db);
-  const now = () => new Date().toISOString();
+  const now = () => plan.generatedAt;
   const catalog = new CatalogService(catalogRepository(db), now);
   const service = new TimeKeeperService(repository, { now });
   return repository.transaction(() => {
@@ -84,7 +84,8 @@ export function loadComparisonSamples(db: DatabaseSync, plan: ComparisonSamplePl
           label: "[Sample] Explicit fictional work for comparison preview",
           billable: true,
         });
-        service.validatePeriod(period.id);
+        // Current-day preview periods stay unvalidated, just like real work.
+        if (period.day < plan.today) service.validatePeriod(period.id);
         if (period.billed) service.setBillingStatus(period.id, BillingStatus.Billed);
         created++;
       }

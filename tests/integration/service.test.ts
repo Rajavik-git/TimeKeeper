@@ -18,7 +18,7 @@ function fixture() {
         "INSERT INTO cases(id,client_id,reference,title,created_at,updated_at) VALUES (?,?,?,?,?,?)",
       )
       .run(id, "client", id, `Fictional ${id}`, now, now);
-  return { repo, service: new TimeKeeperService(repo, { now: () => now }) };
+  return { repo, service: new TimeKeeperService(repo, { now: () => "2026-10-18T12:00:00Z" }) };
 }
 afterEach(() => {
   for (const repo of repos.splice(0)) repo.close();
@@ -191,6 +191,7 @@ it("rejects stale answers, preserves manual corrections, and protects reviewed s
   });
   service.assignPeriod("p", "B", 0, "lawyer");
   service.setDurationOverride("p", 720000);
+  service.end(end());
   service.validatePeriod("p");
   expect(() =>
     service.answerQuestion({
@@ -244,6 +245,7 @@ it("keeps source review, time review and billing separate; marks missing evidenc
   service.validateSource("fake", "ocr", "f1");
   expect(service.getPeriod("p").timeValidated).toBe(false);
   expect(() => service.setBillingStatus("p", "billed")).toThrow(/time validation/);
+  service.end(end());
   service.validatePeriod("p");
   expect(service.getPeriod("p").billingStatus).toBe("unbilled");
   service.setBillingStatus("p", "billed");
@@ -305,9 +307,11 @@ it("invalidates detected-duration changes and preserves identical replay after v
     mode: "current",
   });
   service.setDetectedDuration("p", 720000);
+  service.end(end());
   service.validatePeriod("p");
   service.setDetectedDuration("p", 900000);
   expect(service.getPeriod("p").timeValidated).toBe(false);
+  service.end(end());
   service.validatePeriod("p");
   const revision = service.getPeriod("p").effectiveRevision;
   service.setDetectedDuration("p", 900000);
@@ -350,7 +354,6 @@ it("protects historical splits, permits current transitions, and rejects evidenc
     mode: "current",
   });
   service.setDurationOverride("p1", 600000);
-  service.validatePeriod("p1");
   const current = service.openPeriod({
     id: "p2",
     sessionId: "s1",
@@ -360,6 +363,7 @@ it("protects historical splits, permits current transitions, and rejects evidenc
     mode: "current",
   });
   expect(current).toMatchObject({ id: "p2", caseId: "B" });
+  service.validatePeriod("p1");
   const recovered = service.openPeriod({
     id: "late",
     sessionId: "s1",
@@ -607,6 +611,7 @@ it("snapshots the configured currency when marking a period billed", () => {
     mode: "current",
   });
   service.setDurationOverride("p", 60000);
+  service.end(end());
   service.validatePeriod("p");
   expect(service.setBillingStatus("p", "billed")).toMatchObject({
     appliedCurrency: "EUR",

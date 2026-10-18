@@ -4,19 +4,23 @@ import { access, open, readFile, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
+import { prepareScreenpipeAuth } from "./scripts/screenpipe-auth.mjs";
 
 const HELP = `Prepare the TimeKeeper development environment.
 
-Usage: node install.mjs [--check] [--skip-screenpipe] [--desktop]
+Usage: node install.mjs [--check] [--skip-screenpipe] [--desktop] [--auth-only]
 
   --check             Check prerequisites without changing files or dependencies.
   --skip-screenpipe   Prepare the local app without checking Screenpipe.
   --desktop           Also check Rust and Cargo for Tauri development.
+  --auth-only         Prepare configuration and Screenpipe auth without npm ci.
   --help              Show this help.
 
 Reads .nvmrc and local .env from the repository, regardless of your working directory.
 Exported SCREENPIPE_API_URL overrides .env. Default: http://127.0.0.1:3030.
-Screenpipe checks use only GET /health with a five-second timeout.
+Screenpipe health uses GET /health with a five-second timeout.
+Setup fills a missing API key from exported configuration or screenpipe auth token.
+--check never retrieves credentials or changes files.
 Setup never starts recording, installs workflows, or opens the database.
 
 Exit codes: 0 = selected checks passed; 1 = setup error; 2 = prerequisites incomplete.
@@ -25,9 +29,9 @@ See docs/SETUP.md for installation and recovery steps.
 
 function runCommand(command, args, options) {
   return spawnSync(command, args, {
-    ...options,
     encoding: "utf8",
     shell: process.platform === "win32",
+    ...options,
   });
 }
 
@@ -131,7 +135,7 @@ export async function install({
   fetchHealth = globalThis.fetch,
   log = console.log,
 } = {}) {
-  const supported = new Set(["--check", "--skip-screenpipe", "--desktop", "--help"]);
+  const supported = new Set(["--check", "--skip-screenpipe", "--desktop", "--auth-only", "--help"]);
   if (args.some((arg) => !supported.has(arg))) {
     log("[error] Unknown option. Run node install.mjs --help.");
     return 1;
@@ -151,12 +155,15 @@ export async function install({
     log(`[ok] Node ${expectedNode}.`);
 
     const commandOptions = { cwd: rootDir, env, timeout: 10000 };
-    const npm = run("npm", ["--version"], commandOptions);
-    if (npm.error || npm.status !== 0) {
-      log("[pending] npm is unavailable. Install Node with npm, then rerun setup.");
-      return 2;
+    const authOnly = args.includes("--auth-only");
+    if (!authOnly) {
+      const npm = run("npm", ["--version"], commandOptions);
+      if (npm.error || npm.status !== 0) {
+        log("[pending] npm is unavailable. Install Node with npm, then rerun setup.");
+        return 2;
+      }
+      log("[ok] npm is available.");
     }
-    log("[ok] npm is available.");
 
     const check = args.includes("--check");
     const skipScreenpipe = args.includes("--skip-screenpipe");
@@ -169,7 +176,9 @@ export async function install({
           env.SCREENPIPE_API_URL ?? config?.SCREENPIPE_API_URL ?? "http://127.0.0.1:3030",
         );
 
-    if (check) {
+    if (authOnly) {
+      log("[skipped] npm dependencies for auth-only setup.");
+    } else if (check) {
       if (await exists(join(rootDir, "node_modules", ".package-lock.json"))) {
         log(
           "[ok] npm dependencies found. This does not verify their integrity or lockfile agreement.",
@@ -212,6 +221,8 @@ export async function install({
     if (skipScreenpipe) {
       log("[skipped] Screenpipe readiness. This run prepares local app development only.");
     } else {
+      const auth = await prepareScreenpipeAuth({ rootDir, check, env, run, log });
+      if (!auth.configured) complete = false;
       const healthy = await checkScreenpipe(origin, fetchHealth, log);
       if (!healthy) {
         complete = false;
@@ -228,7 +239,7 @@ export async function install({
         : "Environment preparation is partial. Resolve the pending checks and rerun.",
     );
     log(
-      "Screenpipe workflows, TimeKeeper MCP tools, and tag synchronization remain unimplemented.",
+      "Register TimeKeeper MCP and install its skill separately with npm run screenpipe:install. Provider integration still needs acceptance checks.",
     );
     log("Start the local app with npm run dev. See docs/SETUP.md for desktop development.");
     return complete ? 0 : 2;

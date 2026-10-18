@@ -10,7 +10,7 @@ import { useSourcePackExport } from "../../../../shared/hooks/useSourcePackExpor
 import { Modal } from "../../../../shared/components/Modal/Modal";
 import { useState } from "react";
 import { shortDate, type EntityId, type ScreenProps } from "../../../../api/client";
-import { effectiveMs, formatPreciseDuration } from "../../../../calculations/billing";
+import { effectiveMs, formatNearestMinuteDuration } from "../../../../calculations/billing";
 
 type Scope = SourcePackScope;
 type Props = Pick<ScreenProps, "catalogState" | "workspaceState" | "action"> & {
@@ -113,7 +113,7 @@ export function ActivitySourcePackDialog({
                     {shortDate(entry.date)} · {entry.label}
                   </span>
                   <span className="muted">
-                    {formatPreciseDuration(period ? effectiveMs(period) : null)}
+                    {formatNearestMinuteDuration(period ? effectiveMs(period) : null)}
                   </span>
                 </label>
               );

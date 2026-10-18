@@ -127,5 +127,15 @@
     "after"
   ],
   "source_export": ["id", "time_entry_ids", "options", "sha256", "created_at"],
-  "schema_version": ["version", "applied_on", "description"]
+  "schema_version": ["version", "applied_on", "description"],
+  "reconstruction_conflicts": [
+    "id",
+    "protected_period_id",
+    "expected_revision",
+    "proposed_started_at",
+    "proposed_ended_at",
+    "source_references_json",
+    "status",
+    "transition_fingerprint"
+  ]
 }

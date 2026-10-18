@@ -8,7 +8,9 @@ import { AppError } from "../application/errors.js";
 const addFormats = createRequire(import.meta.url)("ajv-formats") as FormatsPlugin;
 
 type Schema = Record<string, unknown>;
-type Operation = { requestBody?: { content: { "application/json": { schema: Schema } } } };
+type Operation = {
+  requestBody?: { required?: boolean; content: { "application/json": { schema: Schema } } };
+};
 const ajv = new Ajv2020({ strict: false, allErrors: false });
 addFormats(ajv, { mode: "full" });
 const operations = Object.entries(requestContract.paths).flatMap(([path, methods]) =>
@@ -24,6 +26,7 @@ const operations = Object.entries(requestContract.paths).flatMap(([path, methods
     return [
       {
         method: method.toUpperCase(),
+        optional: (operation as Operation).requestBody?.required === false,
         path: new RegExp(`^${path.replace(/\{[^}]+\}/g, "[^/]+")}/?$`),
         validate: ajv.compile({ ...schema, components: requestContract.components }),
         empty:
@@ -42,7 +45,7 @@ export const validateRequest: MiddlewareHandler = async (c, next) => {
   );
   if (operation) {
     const raw = await c.req.text();
-    if (!raw && operation.empty) return next();
+    if (!raw && (operation.empty || operation.optional)) return next();
     if (c.req.header("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json")
       throw new AppError("invalid-request", "application/json required");
     let body: unknown;

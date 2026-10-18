@@ -1,3 +1,4 @@
+import { configuredClientRate } from "../../../../calculations/billing";
 import { clientTypeLabels } from "../../../../shared/presentation/catalog";
 import { CaseStatus } from "../../../../../contracts/states.generated";
 import { calendarDay } from "../../../../../shared/dates";
@@ -5,7 +6,7 @@ import type { Case, Client, ScreenProps } from "../../../../api/client";
 import { clientMetrics } from "../../../../calculations/cases";
 import {
   effectiveMs,
-  formatPreciseDuration,
+  formatNearestMinuteDuration,
   formatRoundedMinutes,
 } from "../../../../calculations/billing";
 import { money as formatMoney, rate as displayRate, shortDate } from "../../../../shared/format";
@@ -29,8 +30,8 @@ export function ClientDetail({
   navigate,
   onNewCase,
 }: Props) {
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
-  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency ?? "USD");
+  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency);
+  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency);
   const m = clientMetrics(catalogState, workspaceState, currentClient.id);
   const clientCases = new Map(m.cases.map((item) => [String(item.id), item]));
   const recentPeriods = workspaceState.periods
@@ -39,7 +40,7 @@ export function ClientDetail({
     )
     .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt) || a.id.localeCompare(b.id))
     .slice(0, 5);
-  const clientDescription = `${clientTypeLabels[currentClient.type]} · ${formatRate(currentClient.hourlyRateCents ?? catalogState.settings.globalHourlyRateCents ?? 0)}${visibleValue(currentClient.billingAddress) ? ` · billing address ${currentClient.billingAddress}` : ""}`;
+  const clientDescription = `${clientTypeLabels[currentClient.type]} · ${formatRate(configuredClientRate(catalogState, currentClient))}${visibleValue(currentClient.billingAddress) ? ` · billing address ${currentClient.billingAddress}` : ""}`;
   return (
     <>
       {header(currentClient.name, clientDescription)}
@@ -53,10 +54,10 @@ export function ClientDetail({
             ],
             [
               "Time recorded",
-              `${formatRoundedMinutes(m.time)}${m.complete ? "" : " · partial"}`,
+              `${formatRoundedMinutes(m.recordedMinutes)}${m.complete ? "" : " · partial"}`,
               "All cases",
             ],
-            ["To bill", money(m.toBill), "Before expenses"],
+            ["To bill", money(m.toBillCents), "Before expenses"],
             ["Time to validate", m.pending, "Periods"],
           ]}
         />
@@ -117,7 +118,7 @@ export function ClientDetail({
                     >
                       {periodLabel(period.label, clientCases.get(period.caseId!)?.reference ?? "")}
                     </td>
-                    <td className="r num">{formatPreciseDuration(effectiveMs(period))}</td>
+                    <td className="r num">{formatNearestMinuteDuration(effectiveMs(period))}</td>
                   </tr>
                 ))}
                 {!recentPeriods.length && (

@@ -32,7 +32,7 @@ export function ActivityPeek({
       <div className="ph2">
         <b>{calendarTime(timestamp, systemTimeZone(), true)}</b>
         <span className="muted">
-          {shortDate(calendarDay(timestamp))} · {period.demoApp ?? "Activity"}
+          {shortDate(calendarDay(timestamp))} · {period.observedAppName ?? "Activity"}
         </span>
       </div>
       <div className="scr">

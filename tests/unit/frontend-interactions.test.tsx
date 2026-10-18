@@ -228,7 +228,7 @@ it("refreshes committed progress in Cases after a later validation request rejec
     .mockResolvedValueOnce({ data: {} } as never)
     .mockRejectedValueOnce(Error("offline"));
   render(<Cases {...input} />);
-  await user.click(screen.getByRole("button", { name: "Validate all (2)" }));
+  await user.click(screen.getByRole("button", { name: "Validate eligible (2)" }));
   await waitFor(() => expect(input.refresh).toHaveBeenCalledOnce());
   expect(post).toHaveBeenCalledTimes(2);
   expect(screen.getByRole("status").textContent).toContain("Time validated for 1 of 2 periods");
@@ -317,4 +317,25 @@ it("distinguishes no-charge work from unbilled work in case time", () => {
   expect(screen.getByText("Unbilled")).toBeTruthy();
   expect(screen.queryByText("Offered")).toBeNull();
   expect(screen.getAllByText("Time validated")).toHaveLength(2);
+});
+
+it("validates only finished past-day periods from a mixed case list", async () => {
+  const user = userEvent.setup();
+  const input = props();
+  input.selectedCase = "case";
+  const base = { ...input.workspaceState.periods[0], timeValidated: false };
+  input.workspaceState.periods = [
+    { ...base, id: "past", startedAt: "2000-01-01T09:00:00", endedAt: "2000-01-01T10:00:00" },
+    { ...base, id: "running", endedAt: null },
+    { ...base, id: "future", startedAt: "2099-01-01T09:00:00", endedAt: "2099-01-01T10:00:00" },
+  ];
+  const post = vi.spyOn(api, "POST").mockResolvedValue({ data: {} } as never);
+  render(<Cases {...input} />);
+  await user.click(screen.getByRole("button", { name: "Validate eligible (1)" }));
+  await waitFor(() => expect(input.refresh).toHaveBeenCalledOnce());
+  expect(post).toHaveBeenCalledOnce();
+  expect(post).toHaveBeenCalledWith("/api/work-periods/{id}/validate-time", {
+    params: { path: { id: "past" } },
+    body: { expectedEffectiveRevision: 1 },
+  });
 });

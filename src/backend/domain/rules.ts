@@ -1,3 +1,4 @@
+import { resolveHourlyRate } from "./pricing.js";
 import type { AssignmentOrigin } from "./states.js";
 
 export interface PeriodState {
@@ -73,5 +74,5 @@ export function resolveRate(
   globalRateCents: number | null,
   clientRateCents: number | null = null,
 ): number | null {
-  return caseRateCents ?? clientRateCents ?? globalRateCents;
+  return resolveHourlyRate({ caseRateCents, globalRateCents, clientRateCents }).rateCents;
 }

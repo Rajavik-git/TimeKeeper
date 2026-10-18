@@ -12,6 +12,7 @@ import type {
   CompatibilityRow,
   CompatibilityTable,
 } from "../ports/compatibility.js";
+import type { Clock } from "../ports/index.js";
 import type { PeriodRecord } from "../ports/repository.js";
 import {
   buildCaseSourcePack,
@@ -23,9 +24,8 @@ import { SourceExportService } from "./source-export.js";
 import { AppError } from "./errors.js";
 import { TimeKeeperService } from "./service.js";
 
-const currentDate = () => calendarDay(new Date());
-const inputDate = (value: unknown) => {
-  if (value === undefined || value === null) return currentDate();
+const inputDate = (value: unknown, at: string) => {
+  if (value === undefined || value === null) return calendarDay(at);
   if (typeof value !== "string" || !isCalendarDay(value))
     throw new AppError("invalid-request", "date must be a valid calendar day");
   return value;
@@ -117,6 +117,7 @@ export class CompatibilityApiService {
     private readonly core: TimeKeeperService,
     private readonly catalog: CatalogService,
     private readonly exports: SourceExportService,
+    private readonly clock: Clock = { now: () => new Date().toISOString() },
   ) {}
 
   private get(table: CompatibilityTable, id: number | string): CompatibilityRow {
@@ -404,7 +405,7 @@ export class CompatibilityApiService {
     return this.port.transaction(() => {
       const item = this.port.insert("expense", {
         matter_id: body.matter_id,
-        date: inputDate(body.date),
+        date: inputDate(body.date, this.clock.now()),
         label: required(body.label, "Label"),
         type: body.type,
         amount_cents: body.amount_cents,
@@ -515,7 +516,7 @@ export class CompatibilityApiService {
   addPause(body: Record<string, unknown>) {
     return this.port.transaction(() => {
       const item = this.port.insert("pause", {
-        date: inputDate(body.date),
+        date: inputDate(body.date, this.clock.now()),
         start_time: required(body.start_time, "Start time"),
         end_time: null,
         origin: "button",

@@ -78,9 +78,9 @@ export function period(value: unknown): PeriodRecord | null {
         nonbillableReason:
           r.nonbillable_reason === null ? null : member(r.nonbillable_reason, nonbillableReasons),
         excluded: flag(r.excluded),
-        demoApp: nullable(r.demo_app),
-        demoWindowTitle: nullable(r.demo_window_title),
-        demoConfidence: nullableNum(r.demo_confidence),
+        observedAppName: nullable(r.demo_app),
+        observedWindowTitle: nullable(r.demo_window_title),
+        recognitionConfidence: nullableNum(r.demo_confidence),
         invoiceId: nullableNum(r.invoice_id),
       }
     : null;
@@ -126,6 +126,8 @@ export function source(value: unknown): SourceRecord | null {
         externalId: str(r.external_id),
         recordedAt: str(r.recorded_at),
         ingestedAt: str(r.ingested_at),
+        appName: nullable(r.app_name),
+        windowName: nullable(r.window_name),
         excerpt: nullable(r.excerpt),
         detectedMarker: nullable(r.detected_marker),
         validationStatus: member(r.validation_status, validationStatuses),

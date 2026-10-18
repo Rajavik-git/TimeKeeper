@@ -11,14 +11,16 @@ import { TasksSection } from "./components/TasksSection/TasksSection";
 import { RulesSection } from "./components/RulesSection/RulesSection";
 import { PillSection } from "./components/PillSection/PillSection";
 import { PreferencesSection } from "./components/PreferencesSection/PreferencesSection";
+import { ScreenpipeSection } from "./components/ScreenpipeSection/ScreenpipeSection";
 
-type Tab = "clients" | "rates" | "tasks" | "rules" | "prefs" | "pill";
+type Tab = "clients" | "rates" | "tasks" | "rules" | "prefs" | "pill" | "screenpipe";
 const tabs: [Tab, string][] = [
   ["clients", "Clients"],
   ["rates", "Rates"],
   ["tasks", "Tasks"],
   ["rules", "Client rules"],
   ["prefs", "Capture and invoices"],
+  ["screenpipe", "Screenpipe"],
   ["pill", "Desk pill"],
 ];
 export function Settings({
@@ -59,7 +61,9 @@ export function Settings({
       <PageHeader
         className="ph settings-head"
         title={<>Settings</>}
-        description={<>Rates, tasks, client rules, invoices, and Desk pill preferences.</>}
+        description={
+          <>Rates, tasks, client rules, invoices, Screenpipe, and Desk pill preferences.</>
+        }
       />
       <nav className="settings-nav" aria-label="Settings sections">
         {tabs.map(([id, label]) => (
@@ -75,6 +79,9 @@ export function Settings({
         ))}
       </nav>
       <div className="settings-content">
+        <div hidden={tab !== "screenpipe"}>
+          <ScreenpipeSection active={tab === "screenpipe"} />
+        </div>
         <div hidden={tab !== "clients"}>
           <ClientsSection {...sectionProps} />
         </div>

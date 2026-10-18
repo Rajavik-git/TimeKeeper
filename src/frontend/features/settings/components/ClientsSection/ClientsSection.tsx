@@ -1,3 +1,4 @@
+import { configuredClientRate } from "../../../../calculations/billing";
 import { clientBillingModeLabels, clientTypeLabels } from "../../../../shared/presentation/catalog";
 import { useState } from "react";
 import { sameId, type EntityId } from "../../../../api/client";
@@ -12,7 +13,7 @@ export function ClientsSection({ catalogState, action, notify }: SectionProps) {
   const [add, setAdd] = useState(false);
   const [editClient, setEditClient] = useState<EntityId | null>(null);
   const { head, sorted } = useSettingsSort("clients", notify);
-  const dollars = (cents: number) => currencyAmount(catalogState, cents);
+  const formatMoney = (cents: number) => currencyAmount(catalogState, cents);
   const selectedClient = catalogState.clients.find((client) => sameId(client.id, editClient));
   return (
     <section className="card settings-card settings-clients">
@@ -48,7 +49,7 @@ export function ClientsSection({ catalogState, action, notify }: SectionProps) {
               client.name,
               client.type,
               client.mode,
-              client.hourlyRateCents ?? catalogState.settings.globalHourlyRateCents ?? 0,
+              configuredClientRate(catalogState, client),
               Number(client.vatApplicable),
             ]).map((client) => (
               <tr key={client.id}>
@@ -56,9 +57,7 @@ export function ClientsSection({ catalogState, action, notify }: SectionProps) {
                 <td className="muted">{clientTypeLabels[client.type]}</td>
                 <td className="muted">{clientBillingModeLabels[client.mode]}</td>
                 <td className="rate">
-                  {dollars(
-                    client.hourlyRateCents ?? catalogState.settings.globalHourlyRateCents ?? 0,
-                  )}
+                  {formatMoney(configuredClientRate(catalogState, client))}
                   /h
                   {client.hourlyRateCents === null && " · base rate"}
                 </td>

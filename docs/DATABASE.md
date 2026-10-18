@@ -2,9 +2,9 @@
 
 This reference distinguishes the agreed logical model from implemented SQLite storage. [Requirements](REQUIREMENTS.md) owns business behavior; [architecture](ARCHITECTURE.md) owns component boundaries. The [original schema](reference/ORIGINAL_DATABASE.md) preserves the earlier task/subtask design and French identifiers.
 
-`src/backend/adapters/sqlite/migrate.ts` owns ten versioned migrations, including constraints and triggers. Drizzle mappings in `src/backend/adapters/sqlite/tables.ts` describe runtime queries over `node:sqlite`. They do not migrate storage. [Storage ownership](ARCHITECTURE.md#storage-and-implementation-gates) defines retained SQL and transactions.
+`src/backend/adapters/sqlite/migrate.ts` owns the versioned migrations, including constraints and triggers. Drizzle mappings in `src/backend/adapters/sqlite/tables.ts` describe runtime queries over `node:sqlite`. They do not migrate storage. [Storage ownership](ARCHITECTURE.md#storage-and-implementation-gates) defines retained SQL and transactions.
 
-API startup initializes or upgrades `TIMEKEEPER_DB`, defaulting to `data/timekeeper.db` relative to the process directory. It creates neutral preferences and ten task types without business records. [Setup](SETUP.md) never opens the database.
+API startup initializes or upgrades `TIMEKEEPER_DB`, defaulting to `data/timekeeper.db` relative to the repository root. It creates neutral preferences and ten task types without business records. [Setup](SETUP.md) never opens the database.
 
 ## Migrations
 
@@ -19,6 +19,9 @@ API startup initializes or upgrades `TIMEKEEPER_DB`, defaulting to `data/timekee
 | 8         | Immutable canonical case references.                                                                             |
 | 9         | Extension-field guards and foreign-key indexes.                                                                  |
 | 10        | Nonempty identities, safe integer money, durations and revisions, currency codes, and versioned export receipts. |
+| 11        | Original transition fingerprints for reconstruction-proposal replay.                                             |
+| 12        | Retrieval content versions for bounded replay of older identity-only checkpoints.                                |
+| 13        | Persisted history-generation jobs, private workflow snapshots, and reviewable proposals.                         |
 
 Historical migrations remain frozen. New migrations preserve existing rows. Mapping, state-parity, upgrade, constraint, and chronological recovery tests cover local storage behavior, not provider integration.
 
@@ -97,6 +100,8 @@ Period details, duration, and billing require `expectedRevision`. Time validatio
 
 ## Data formats in the application
 
+Application records use `observedAppName`, `observedWindowTitle`, and `recognitionConfidence`. SQLite retains its existing `demo_app`, `demo_window_title`, and `demo_confidence` columns through explicit row mappings. HTTP responses also retain deprecated `demoApp`, `demoWindowTitle`, and `demoConfidence` aliases. Source-pack redaction covers both representations. This naming change requires no data migration.
+
 The local API sends JSON to React. Drizzle maps SQL columns. OpenAPI defines payloads and generates types and request validators.
 
 `/api/catalog` independently loads catalogue data. `/api/workspace` reads catalogue and core records in one transaction with optional calendar, client, and case filters. Audit and reconstruction reads expose separate availability. Their failure cannot block Settings. Current screens use canonical tables rather than historical `matter`, `block`, or `time_entry` payloads.
@@ -125,7 +130,7 @@ Day boundaries account for daylight saving: a day can span 23 or 25 elapsed hour
 
 ### Retained compatibility API
 
-`CompatibilityApiService` and `api/compatibility-routes.ts` preserve deprecated response shapes, numeric entry aliases, and upgrade support. Current screens and exports use canonical IDs. The old `tenths_of_hour` projection represents six-minute units without rounding individual periods. Removing historical tables requires a separate migration. Fixture fields such as `demoApp`, `demoWindowTitle`, and `demoConfidence` remain distinct from provider evidence.
+`CompatibilityApiService` and `api/compatibility-routes.ts` preserve deprecated response shapes, numeric entry aliases, and upgrade support. Current screens and exports use canonical IDs. The old `tenths_of_hour` projection represents six-minute units without rounding individual periods. Removing historical tables requires a separate migration. Deprecated `demo*` response fields are aliases for observation metadata; their names do not identify fixture data or establish continuous work duration.
 
 Deprecated writes translate explicit fields into canonical `CatalogService` or `PeriodReviewService` commands within the application transaction. They cannot update arbitrary mapped columns. Approval requires `expected_effective_revision`, or `expected_effective_revisions` keyed by canonical period ID for bulk approval. Missing guards fail validation. Stale guards conflict.
 
@@ -232,12 +237,15 @@ A period reassignment preserves other periods and sources. Historical correction
 | `tag_target_id`                                  | Nullable foreign key to the canonical provider target, once its mapping is verified. |
 | `recorded_at`, `ingested_at`                     | Observation time and local import time.                                              |
 | `app_name`, `window_name`, `url`                 | Optional observed context, stored separately.                                        |
+| `excerpt`                                        | Optional literal source text, limited to 1,000 characters by the search importer.    |
 | `validation_status`, `validated_at`              | Lawyer source-review state and timestamp.                                            |
 | `availability_status`, `availability_checked_at` | Retrieval availability and last check.                                               |
 
 `(screenpipe_instance_id, content_type, external_id)` is unique across imports. Instance identity must distinguish recording stores. Its format remains an adapter contract. External references are not foreign keys into Screenpipe storage.
 
 Record and tag-target identities can differ. Verified `tag_target_id` mappings bind every alias to the target's authoritative owner. Unresolved mapping stays unsynchronized.
+
+The search importer fills missing app/window context and excerpts without replacing stored content. Previously unlinked sources can attach to one existing period under the [source attachment rules](REQUIREMENTS.md#screenpipe-interaction). Identity, review history, and period state remain unchanged.
 
 Recordings are fetched through Screenpipe's API. Unavailable evidence retains its reference and review history without deleting time. A failed fetch alone does not establish deletion, and multiple screenshots cannot multiply duration.
 
@@ -296,7 +304,7 @@ Question guards bind the original session, period, and assignment revision. Clos
 
 Tag mutations and ownership moves serialize per canonical target across all aliases. Check owner, desired tags, and revision before writing. Resolve prior target operations before committing a move, then reconcile its new revision. Remove only obsolete TimeKeeper-owned tags. Acknowledge only verified tags for the same revision. Stale acknowledgements cannot synchronize a new owner.
 
-These tables exist, but assignment writes create no delivery intent and no worker sends or verifies tags. No Screenpipe read loop advances retrieval progress. A stopped Node process cannot receive commands. Off-app delivery remains unresolved.
+Assignment writes create no delivery intent and no worker sends or verifies tags. The Screenpipe catch-up worker advances retrieval progress with committed source references; see [inbox and evidence recovery](ARCHITECTURE.md#inbox-and-evidence-recovery). A stopped Node process cannot receive commands. Off-app delivery remains unresolved.
 
 Local reconstruction protects corrected or validated periods. Source aliases spanning a split boundary or a canonical target with committed delivery produce a conflict instead of an unsafe source move.
 
@@ -329,3 +337,21 @@ Fixtures run only in explicit test setup. `npm run db:reset` recreates an empty 
 `npm run db:samples` invokes `scripts/load-comparison-samples.ts`, with planning and loading in `scripts/comparison-samples/`. It creates labelled fictional clients, cases, closed sessions, and periods with duration overrides for the current and previous months in the selected calendar timezone. It makes no Screenpipe calls.
 
 The importer requires explicit `--database PATH`. Blank or missing paths fail before opening storage. It has no `TIMEKEEPER_DB` or default fallback. `--dry-run` prints the plan without opening a database. Authorized previews use a disposable target. Working-database writes require separate authorization. Existing targets receive a backup; existing sample periods and later edits remain. Setup and startup never call the importer.
+
+## History proposal storage
+
+History-generation source also stores `history_jobs` and `history_proposals` as JSON payloads under migration 13. Jobs retain their session range, snapshot, dispatch state, and private claim. Proposals reference their job and retain review revisions and acceptance results. Public projections omit private claims. Draft proposals contribute no worked time. Explicit acceptance creates a separate period through the application service. See [API D14](API.md#d14-history-proposals-and-explicit-acceptance). This newly connected source still requires runtime acceptance.
+
+## Transition proposal replay
+
+Migration 11 adds nullable `reconstruction_conflicts.transition_fingerprint`. New inferred proposals store a SHA-256 fingerprint of their original session, case, start timestamp, assignment origin, and mode. Mutable expected context revisions are excluded. Identical replay returns the stored proposal; changed payload reuse conflicts.
+
+Existing proposal rows remain intact with a null fingerprint. Their original payload cannot be verified, so reusing their IDs returns a conflict. This migration does not add a reconstruction-apply action or change counted periods.
+
+Retrieval uses the existing `retrieval_progress` table and transaction connection. Its `content_version` starts at zero for legacy identity-only reads. Current-version checkpoints require a successful read with bounded source content. This permits one bounded replay of older history without discarding saved references. Coverage gaps close only when their full requested range has complete reads. Final overlap replays remain bounded and preserve existing source ownership. [API D8](API.md#d8-synchronization-at-startup-through-a-local-inbox-folder) owns recovery behavior; [D13](API.md#d13-source-content-and-late-attachment) owns content replay.
+
+## History generation storage
+
+Migration 13 adds `history_jobs` and `history_proposals`. Jobs retain bounded evidence and catalogue snapshots, a private workflow claim, execution timestamps, completion replay identity and safe failure status. Proposals retain their review revision, source IDs, tentative boundaries, case, observed description and acceptance replay result. Ordinary status reads exclude the private snapshot and claim ID.
+
+Drafts do not populate `work_periods` or calculations. Explicit acceptance inserts a finished canonical period with a lawyer duration override and preserves detected duration as unknown. The period, optional unresolved question, source attachments and proposal acceptance are committed atomically. [Requirements](REQUIREMENTS.md#work-period-proposals-from-history) define the guards.

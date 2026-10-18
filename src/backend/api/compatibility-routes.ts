@@ -1,21 +1,9 @@
-import { CatalogService } from "../application/catalog.js";
-import { catalogRepository } from "../adapters/sqlite/catalog-repository.js";
-import { SourceExportService } from "../application/source-export.js";
-import { sourceExportPort } from "../adapters/sqlite/source-export.js";
 import { Hono } from "hono";
-import type { DatabaseSync } from "node:sqlite";
 import { AppError } from "../application/errors.js";
-import { TimeKeeperService } from "../application/service.js";
-import { CompatibilityApiService } from "../application/compatibility.js";
-import { createCompatibilityPort } from "../adapters/sqlite/compatibility.js";
-import { SqliteRepository } from "../adapters/sqlite/core-repository.js";
+import type { CompatibilityApiService } from "../application/compatibility.js";
 import { apiError } from "./errors.js";
 
-const id = (value: string): number => {
-  const result = Number(value);
-  if (!Number.isInteger(result) || result < 1) throw new AppError("invalid-request", "Invalid ID");
-  return result;
-};
+import { positiveIntegerId } from "./request-fields.js";
 
 const catalogId = (value: string): number | string => {
   if (!value.trim() || value.length > 200)
@@ -25,15 +13,9 @@ const catalogId = (value: string): number | string => {
 };
 
 /** Retained older API contracts. Current screens use the catalogue and period routers. */
-export function compatibilityRoutes(db: DatabaseSync): Hono {
+export function compatibilityRoutes(compatibility: CompatibilityApiService): Hono {
   const routes = new Hono();
   routes.onError(apiError);
-  const compatibility = new CompatibilityApiService(
-    createCompatibilityPort(db),
-    new TimeKeeperService(new SqliteRepository(db)),
-    new CatalogService(catalogRepository(db)),
-    new SourceExportService(sourceExportPort(db)),
-  );
   routes.get("/state", (c) =>
     c.json(
       compatibility.state(c.req.query("date"), c.req.query("clientId"), c.req.query("caseId")),
@@ -66,7 +48,10 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
   });
   routes.patch("/time-entries/:id", async (c) =>
     c.json(
-      compatibility.updateEntry(id(c.req.param("id")), await c.req.json<Record<string, unknown>>()),
+      compatibility.updateEntry(
+        positiveIntegerId(c.req.param("id")),
+        await c.req.json<Record<string, unknown>>(),
+      ),
     ),
   );
   routes.post("/day/approve", async (c) => {
@@ -83,10 +68,10 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
     );
   });
   routes.post("/time-entries/:id/discard", (c) =>
-    c.json(compatibility.discardEntry(id(c.req.param("id")))),
+    c.json(compatibility.discardEntry(positiveIntegerId(c.req.param("id")))),
   );
   routes.post("/blocks/:id/recover", (c) =>
-    c.json(compatibility.recoverBlock(id(c.req.param("id")))),
+    c.json(compatibility.recoverBlock(positiveIntegerId(c.req.param("id")))),
   );
   routes.post("/time-entries/manual", (c) =>
     c.json(
@@ -104,21 +89,25 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
   routes.post("/markers", async (c) =>
     c.json(compatibility.addMarker(await c.req.json<Record<string, unknown>>())),
   );
-  routes.delete("/markers/:id", (c) => c.json(compatibility.removeMarker(id(c.req.param("id")))));
+  routes.delete("/markers/:id", (c) =>
+    c.json(compatibility.removeMarker(positiveIntegerId(c.req.param("id")))),
+  );
   routes.post("/expenses", async (c) =>
     c.json(compatibility.addExpense(await c.req.json<Record<string, unknown>>())),
   );
-  routes.delete("/expenses/:id", (c) => c.json(compatibility.removeExpense(id(c.req.param("id")))));
+  routes.delete("/expenses/:id", (c) =>
+    c.json(compatibility.removeExpense(positiveIntegerId(c.req.param("id")))),
+  );
   routes.get("/blocks/:id/recognition", (c) =>
-    c.json(compatibility.recognition(id(c.req.param("id")))),
+    c.json(compatibility.recognition(positiveIntegerId(c.req.param("id")))),
   );
   routes.get("/sources/:id", (c) =>
-    c.json(compatibility.timeEntrySourceDetails(id(c.req.param("id")))),
+    c.json(compatibility.timeEntrySourceDetails(positiveIntegerId(c.req.param("id")))),
   );
   routes.post("/sources/:id/export", async (c) =>
     c.json(
       compatibility.exportSources(
-        id(c.req.param("id")),
+        positiveIntegerId(c.req.param("id")),
         (await c.req.json<{ options: string[] }>()).options,
       ),
     ),
@@ -129,7 +118,7 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
   routes.patch("/pauses/:id", async (c) =>
     c.json(
       compatibility.closePause(
-        id(c.req.param("id")),
+        positiveIntegerId(c.req.param("id")),
         (await c.req.json<{ end_time: string }>()).end_time,
       ),
     ),
@@ -137,7 +126,7 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
   routes.post("/blocks/:id/close", async (c) =>
     c.json(
       compatibility.closeBlock(
-        id(c.req.param("id")),
+        positiveIntegerId(c.req.param("id")),
         (await c.req.json<{ minutes: number }>()).minutes,
       ),
     ),
@@ -149,7 +138,7 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
           table,
           table === "client" || table === "matter"
             ? catalogId(c.req.param("id"))
-            : id(c.req.param("id")),
+            : positiveIntegerId(c.req.param("id")),
           await c.req.json<Record<string, unknown>>(),
         ),
       ),
@@ -164,7 +153,7 @@ export function compatibilityRoutes(db: DatabaseSync): Hono {
     c.json(compatibility.createClientRule(await c.req.json<Record<string, unknown>>())),
   );
   routes.delete("/client-rules/:id", (c) =>
-    c.json(compatibility.removeClientRule(id(c.req.param("id")))),
+    c.json(compatibility.removeClientRule(positiveIntegerId(c.req.param("id")))),
   );
   return routes;
 }

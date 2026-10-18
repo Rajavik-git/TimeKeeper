@@ -188,28 +188,38 @@ export function catalogRepository(db: DatabaseSync): CatalogPort {
     if (!row) throw Error("workspace settings missing");
     return settings(row);
   };
+  const listClients = () =>
+    query
+      .select()
+      .from(t.clients)
+      .orderBy(asc(t.clients.name), asc(t.clients.id))
+      .all()
+      .map(client);
+  const listCases = () =>
+    query
+      .select()
+      .from(t.cases)
+      .orderBy(asc(t.cases.reference), asc(t.cases.id))
+      .all()
+      .map(legalCase);
+  const listTaskTypes = () =>
+    query
+      .select()
+      .from(t.task_types)
+      .orderBy(asc(t.task_types.sort_order), asc(t.task_types.id))
+      .all()
+      .map(taskType);
   return {
     transaction: (work) => transaction(db, work),
+    listClients,
+    listCases,
+    getSettings: readSettings,
+    listTaskTypes,
     state: () => ({
       settings: readSettings(),
-      clients: query
-        .select()
-        .from(t.clients)
-        .orderBy(asc(t.clients.name), asc(t.clients.id))
-        .all()
-        .map(client),
-      cases: query
-        .select()
-        .from(t.cases)
-        .orderBy(asc(t.cases.reference), asc(t.cases.id))
-        .all()
-        .map(legalCase),
-      taskTypes: query
-        .select()
-        .from(t.task_types)
-        .orderBy(asc(t.task_types.sort_order), asc(t.task_types.id))
-        .all()
-        .map(taskType),
+      clients: listClients(),
+      cases: listCases(),
+      taskTypes: listTaskTypes(),
       markers: query.select().from(t.markers).orderBy(asc(t.markers.id)).all().map(marker),
       clientRules: query
         .select()

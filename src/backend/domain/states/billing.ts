@@ -1,4 +1,6 @@
 import { stateValues, type StateValue } from "./values.js";
+import { RateOrigin } from "../../../shared/rate-policy.js";
+export { RateOrigin } from "../../../shared/rate-policy.js";
 
 export const ExpenseType = {
   Expense: "expense",
@@ -29,11 +31,4 @@ export const InvoiceLineOrigin = {
 export type InvoiceLineOrigin = StateValue<typeof InvoiceLineOrigin>;
 export const invoiceLineOrigins = stateValues(InvoiceLineOrigin);
 
-export const RateOrigin = {
-  Base: "base",
-  Client: "client",
-  Case: "matter",
-  FlatFee: "flat_fee",
-} as const;
-export type RateOrigin = StateValue<typeof RateOrigin>;
 export const rateOrigins = stateValues(RateOrigin);

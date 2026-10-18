@@ -23,7 +23,7 @@ type Props = Pick<ScreenProps, "catalogState" | "workspaceState" | "navigate"> &
 };
 
 export function BillingOverview({ catalogState, workspaceState, navigate, onSelect }: Props) {
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
+  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency);
   const overviewRef = useRef<HTMLDivElement>(null);
   const [moreCases, setMoreCases] = useState(false);
   const [invoiceId, setInvoiceId] = useState<number | null>(null);

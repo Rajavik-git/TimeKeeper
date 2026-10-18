@@ -97,7 +97,7 @@ export function one(db: DatabaseSync, table: Table, id: number | string): Row | 
 }
 export function insert(db: DatabaseSync, table: Table, data: Row): Row {
   if (historicalTableMissing(db, table))
-    throw new AppError("pending", "historical capture controls are unavailable");
+    throw new AppError("rule-not-decided", "historical capture controls are unavailable");
   if (table === "time_entry") return insertEntry(db, data);
   const projected = catalogWrite(db, table, data);
   if (projected) return normalize(projected);

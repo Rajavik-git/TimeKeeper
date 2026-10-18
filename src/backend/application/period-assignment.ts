@@ -1,7 +1,7 @@
 import { AssignmentOrigin, BillingStatus, QuestionStatus } from "../domain/states.js";
 import type { PeriodView, QuestionAnswer } from "../../contracts/index.js";
 import type { Clock } from "../ports/index.js";
-import type { Repository } from "../ports/repository.js";
+import type { PeriodRecord, Repository } from "../ports/repository.js";
 import { canApplyQuestion, changePeriod } from "../domain/rules.js";
 import { AppError } from "./errors.js";
 import { periodView as view } from "./period-view.js";
@@ -41,7 +41,7 @@ export class PeriodAssignmentService {
     const p = this.repo.period(id);
     if (!p) throw new AppError("not-found", "period not found");
     if (p.billingStatus === BillingStatus.Billed)
-      throw new AppError("pending", "billed-period edit policy is open");
+      throw new AppError("rule-not-decided", "billed-period edit policy is open");
     if (p.assignmentRevision !== expected)
       throw new AppError("conflict", "stale assignment revision");
     if (origin === AssignmentOrigin.Automatic && p.assignmentOrigin === AssignmentOrigin.Lawyer)
@@ -57,6 +57,39 @@ export class PeriodAssignmentService {
       .filter((q) => q.periodId === id && q.status === QuestionStatus.Pending))
       this.repo.saveQuestion({ ...question, status: QuestionStatus.Superseded });
     return view(next);
+  }
+  /** Compensates a guarded assignment without rewinding its revision history. */
+  restoreAssignment(prior: PeriodRecord, expectedRevision: number): void {
+    this.repo.transaction(() => {
+      const current = this.repo.period(prior.id);
+      if (
+        !current ||
+        current.revision !== expectedRevision ||
+        current.billingStatus === BillingStatus.Billed
+      )
+        throw new AppError("conflict", "period changed since the decision");
+      if (prior.caseId !== null && !this.repo.caseExists(prior.caseId))
+        throw new AppError("not-found", "case not found");
+      const restored = {
+        ...changePeriod(current, {
+          caseId: prior.caseId,
+          assignmentOrigin: prior.assignmentOrigin,
+        }),
+        revision: current.revision + 1,
+      };
+      this.repo.savePeriod(restored, this.clock.now());
+      for (const question of this.repo
+        .allQuestions()
+        .filter((q) => q.periodId === prior.id && q.status === QuestionStatus.Pending))
+        this.repo.saveQuestion({ ...question, status: QuestionStatus.Superseded });
+      if (restored.caseId === null)
+        this.askQuestion({
+          questionId: `period:${restored.id}:${restored.assignmentRevision}`,
+          sessionId: restored.sessionId,
+          periodId: restored.id,
+          expectedAssignmentRevision: restored.assignmentRevision,
+        });
+    });
   }
   askQuestion(input: {
     questionId: string;

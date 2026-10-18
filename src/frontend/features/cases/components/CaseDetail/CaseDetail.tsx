@@ -1,3 +1,5 @@
+import { timeValidationUnavailable } from "../../../../shared/lib/timeValidation";
+import { useToday } from "../../../../shared/hooks/useToday";
 import { isBudgetWarning, budgetWarningMessage } from "../../../../calculations/case-budget";
 import { budgetPercent } from "../../../../shared/presentation/budget";
 import { caseBillingModeLabels } from "../../../../shared/presentation/catalog";
@@ -53,8 +55,8 @@ export function CaseDetail({
   openPeriodReview,
 }: Props) {
   const validating = validatingIds.length > 0;
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
-  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency ?? "USD");
+  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency);
+  const formatRate = (cents: number) => displayRate(cents, catalogState.settings.currency);
   const [showMarkerForm, setShowMarkerForm] = useState(false);
   const [caseMenuOpen, setCaseMenuOpen] = useState(false);
   const caseMenuRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,11 @@ export function CaseDetail({
       document.removeEventListener("keydown", escape);
     };
   }, [caseMenuOpen]);
+  const today = useToday();
   const m = caseMetrics(catalogState, workspaceState, currentCase);
+  const eligiblePending = m.periods.filter(
+    (period) => !period.timeValidated && timeValidationUnavailable(period, today) === null,
+  );
   const sortKey = `${currentCase.id}:${tab}`;
   const sorting = sorts[sortKey];
   const changeSort = (column: number, numeric: boolean, label: string) => {
@@ -226,34 +232,34 @@ export function CaseDetail({
           items={[
             [
               "Time recorded",
-              `${formatRoundedMinutes(m.time)}${m.complete ? "" : " · partial"}`,
+              `${formatRoundedMinutes(m.recordedMinutes)}${m.complete ? "" : " · partial"}`,
               `${m.periods.length} periods`,
             ],
             [
               "To bill",
               currentCase.mode === CaseBillingMode.FlatFee
                 ? caseBillingModeLabels[CaseBillingMode.FlatFee]
-                : money(m.toBill),
+                : money(m.toBillCents),
               "Before expenses",
             ],
             [
               "Not billable",
-              formatRoundedMinutes(m.nonBillable),
-              `Value ${money(Math.round((m.nonBillable * m.rate.rateCents) / 60))}`,
+              formatRoundedMinutes(m.nonBillableMinutes),
+              `Value ${money(Math.round((m.nonBillableMinutes * m.rate.rateCents) / 60))}`,
             ],
             [
               currentCase.mode === CaseBillingMode.FlatFee
                 ? "Estimated work / flat fee"
                 : "Budget used",
               m.budgetPercent === null
-                ? m.budget !== null && !m.budgetComplete
+                ? m.budgetCents !== null && !m.budgetComplete
                   ? "Unavailable"
                   : "—"
                 : budgetPercent(m.budgetPercent),
-              m.budget !== null
-                ? m.spent === null
+              m.budgetCents !== null
+                ? m.spentCents === null
                   ? "Comparison unavailable · incomplete work value"
-                  : `${money(m.spent)} of ${money(m.budget)}${currentCase.mode === CaseBillingMode.FlatFee ? " · estimated hourly work value" : ""}`
+                  : `${money(m.spentCents)} of ${money(m.budgetCents)}${currentCase.mode === CaseBillingMode.FlatFee ? " · estimated hourly work value" : ""}`
                 : "No budget set",
             ],
           ]}
@@ -301,8 +307,8 @@ export function CaseDetail({
                   : "Budget used"}
               </span>
               <span>
-                {m.spent === null ? "Unknown" : money(m.spent)}{" "}
-                <span className="case-budget-muted">of {money(m.budget ?? 0)}</span> ·{" "}
+                {m.spentCents === null ? "Unknown" : money(m.spentCents)}{" "}
+                <span className="case-budget-muted">of {money(m.budgetCents ?? 0)}</span> ·{" "}
                 {budgetPercent(m.budgetPercent)}
               </span>
             </div>
@@ -332,14 +338,15 @@ export function CaseDetail({
             {tab === "time" && m.pending > 0 && (
               <button
                 className="btn sm attn"
-                disabled={validating}
-                onClick={() =>
-                  void validatePeriods(
-                    m.periods.filter((period) => !period.timeValidated).map((period) => period.id),
-                  )
+                disabled={validating || !eligiblePending.length}
+                title={
+                  !eligiblePending.length
+                    ? "Only finished periods from past local calendar days can be validated."
+                    : undefined
                 }
+                onClick={() => void validatePeriods(eligiblePending.map((period) => period.id))}
               >
-                {validatingIds.length === m.pending ? "Validating…" : `Validate all (${m.pending})`}
+                {validating ? "Validating…" : `Validate eligible (${eligiblePending.length})`}
               </button>
             )}
             {tab === "markers" && (

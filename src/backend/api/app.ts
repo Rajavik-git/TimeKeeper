@@ -1,3 +1,13 @@
+import { historyRoutes } from "./history-routes.js";
+import type { HistoryRunner } from "../ports/history.js";
+import { ScreenpipeIntegrationCoordinator } from "../application/screenpipe-integration.js";
+import type { ScreenpipeIntegration } from "../ports/screenpipe-integration.js";
+import { screenpipeRoutes } from "./screenpipe-routes.js";
+import { createApplicationServices, type ApplicationServices } from "../bootstrap.js";
+import { emptyCommandInbox, type CommandInbox } from "../ports/command-inbox.js";
+import { listFailedCommands, dismissFailedCommand } from "../application/inbox.js";
+import type { Clock } from "../ports/index.js";
+import { AppError } from "../application/errors.js";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
@@ -10,7 +20,26 @@ import { catalogRoutes } from "./catalog-routes.js";
 import { sourceExportRoutes } from "./source-export-routes.js";
 import { pillRoutes } from "./pill-routes.js";
 
-export function createApp(db: DatabaseSync) {
+/** Compatibility factory for callers that already own a SQLite connection. */
+export function createApp(
+  db: DatabaseSync,
+  options: {
+    inbox?: CommandInbox;
+    clock?: Clock;
+    screenpipe?: ScreenpipeIntegration;
+    historyRunner?: HistoryRunner;
+  } = {},
+) {
+  return createHttpApp(
+    createApplicationServices(db, options.clock, options.historyRunner),
+    options,
+  );
+}
+
+export function createHttpApp(
+  services: ApplicationServices,
+  options: { inbox?: CommandInbox; screenpipe?: ScreenpipeIntegration } = {},
+) {
   const app = new Hono();
   const allowedOrigins = new Set([
     "tauri://localhost",
@@ -29,7 +58,8 @@ export function createApp(db: DatabaseSync) {
   ]);
   app.use("/api/*", async (c, next) => {
     const origin = c.req.header("Origin");
-    if (origin && !allowedOrigins.has(origin)) return c.json({ error: "Origin not allowed" }, 403);
+    if (origin && !allowedOrigins.has(origin))
+      throw new AppError("forbidden-origin", "Origin not allowed");
     return cors({
       origin: origin ?? "",
       allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
@@ -45,12 +75,24 @@ export function createApp(db: DatabaseSync) {
   );
   app.use("/api/*", validateRequest);
   app.onError(apiError);
+  app.get("/api/health", (c) => c.json({ status: "ok" }));
+  app.get("/api/inbox/failed", async (c) =>
+    c.json(await listFailedCommands(options.inbox ?? emptyCommandInbox)),
+  );
+  app.post("/api/inbox/failed/:file/dismiss", async (c) => {
+    return c.json(dismissFailedCommand(options.inbox ?? emptyCommandInbox, c.req.param("file")));
+  });
   app.get("/health", (c) => c.json({ status: "ok" }));
 
-  app.route("/api", sourceExportRoutes(db));
-  app.route("/api", catalogRoutes(db));
-  app.route("/api", coreRoutes(db));
-  app.route("/api", pillRoutes(db));
-  app.route("/api", compatibilityRoutes(db));
+  app.route(
+    "/api",
+    screenpipeRoutes(options.screenpipe ?? new ScreenpipeIntegrationCoordinator("missing-api-key")),
+  );
+  app.route("/api", historyRoutes(services.history));
+  app.route("/api", sourceExportRoutes(services.sourceExports));
+  app.route("/api", catalogRoutes(services.catalog));
+  app.route("/api", coreRoutes(services));
+  app.route("/api", pillRoutes(services.pill, services.catalog));
+  app.route("/api", compatibilityRoutes(services.compatibility));
   return app;
 }

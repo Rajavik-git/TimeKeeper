@@ -1,3 +1,4 @@
+import { resolveHourlyRate } from "../../shared/rate-policy";
 import {
   BillingStatus,
   CaseBillingMode,
@@ -27,7 +28,13 @@ export function caseBudget(state: State, workspace: CoreState, item: Case) {
   const client = state.clients.find((candidate) => String(candidate.id) === String(item.clientId));
   if (flatFee) {
     // This is a work-value estimate, not the fraction of the agreed fee invoiced.
-    addPeriods(periods, client?.hourlyRateCents ?? state.settings.globalHourlyRateCents);
+    addPeriods(
+      periods,
+      resolveHourlyRate({
+        clientRateCents: client?.hourlyRateCents,
+        globalRateCents: state.settings.globalHourlyRateCents,
+      }).rateCents,
+    );
   } else {
     const invoices = workspace.billing.invoices.filter(
       (invoice) => invoice.caseId === String(item.id),
@@ -62,7 +69,11 @@ export function caseBudget(state: State, workspace: CoreState, item: Case) {
       } else {
         addPeriods(
           [period],
-          item.hourlyRateCents ?? client?.hourlyRateCents ?? state.settings.globalHourlyRateCents,
+          resolveHourlyRate({
+            caseRateCents: item.hourlyRateCents,
+            clientRateCents: client?.hourlyRateCents,
+            globalRateCents: state.settings.globalHourlyRateCents,
+          }).rateCents,
         );
       }
     }

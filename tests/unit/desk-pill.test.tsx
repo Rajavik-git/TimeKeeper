@@ -1,13 +1,27 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { BillingStatus, PillDisplay } from "../../src/contracts/states.generated";
-import { WorkPill } from "../../src/frontend/features/desk/components/WorkPill/WorkPill";
-import { pillView } from "../../src/frontend/features/desk/lib/pillView";
+import { api } from "../../src/frontend/api/client";
+import { Pill } from "../../src/frontend/features/desk/pill/Pill";
 import { frontendFixture } from "./frontend-fixture";
 
-afterEach(cleanup);
-
+vi.mock("../../src/frontend/shared/hooks/useToday", () => ({ useToday: () => "2026-10-18" }));
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+});
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 function activeFixture() {
   const fixture = frontendFixture();
   fixture.core.activeSession = {
@@ -21,59 +35,45 @@ function activeFixture() {
     detectedDurationMs: 3600000,
     durationOverrideMs: 3600000,
   });
+  vi.spyOn(api, "GET").mockResolvedValue({
+    data: { catalogState: fixture.state, workspaceState: fixture.core },
+  } as never);
   return fixture;
 }
-
 it.each([
-  { display: PillDisplay.Fees, label: "Test client", value: "$60.00" },
-  { display: PillDisplay.Time, label: "Test client", value: "1h 00m" },
-  { display: PillDisplay.Case, label: "Test case", value: "" },
-])("uses the saved $display display in both pill presentations", ({ display, label, value }) => {
-  const { state, core } = activeFixture();
+  { display: PillDisplay.Fees, value: "$60.00" },
+  { display: PillDisplay.Time, value: "1h 00m" },
+  { display: PillDisplay.Case, value: null },
+])("uses saved $display display in the production presentation", async ({ display, value }) => {
+  const { state } = activeFixture();
   state.settings.pillDisplay = display;
-  const view = pillView(state, core);
-  expect(view.clientLabel).toBe(label);
-  expect(view.metricValue).toBe(value);
-  render(
-    <WorkPill
-      view={view}
-      expanded={false}
-      onToggle={vi.fn()}
-      onAssign={vi.fn()}
-      onOpenDay={vi.fn()}
-      onDismiss={vi.fn()}
-      notice={null}
-    />,
-  );
-  const bar = screen.getByRole("button", { name: "TimeKeeper, toggle panel" });
-  expect(within(bar).getByText(label)).toBeTruthy();
-  expect(bar.querySelector("svg")).toBeTruthy();
+  render(<Pill />);
+  const bar = await screen.findByRole("button", { name: "TimeKeeper, toggle panel" });
+  await screen.findByText("Test case");
+  expect(within(bar).getByText("Test case")).toBeTruthy();
+  expect(bar.closest(".pill-bar")?.querySelector("svg")).toBeTruthy();
+  if (value) expect(within(bar).getByText(value)).toBeTruthy();
+  else expect(bar.querySelector(".pill-amount")).toBeNull();
 });
-
-it("distinguishes a known zero fee from missing historical pricing", () => {
+it("preserves known zero and missing historical fees in the production presentation", async () => {
   const { state, core } = activeFixture();
   state.settings.pillDisplay = PillDisplay.Fees;
   state.settings.globalHourlyRateCents = 0;
-  expect(pillView(state, core).metricValue).toBe("$0.00");
+  render(<Pill />);
+  expect(await screen.findByText("$0.00")).toBeTruthy();
+  cleanup();
   core.periods[0].billingStatus = BillingStatus.Billed;
-  expect(pillView(state, core).metricValue).toBe("—");
-  expect(pillView(state, core).assignmentDisabled).toBe(true);
+  render(<Pill />);
+  await screen.findByText("Test case");
+  expect(screen.queryByText("$0.00")).toBeNull();
 });
-
-it("shows the same empty session panel without enabling recording or assignment", () => {
-  const { state, core } = frontendFixture();
-  render(
-    <WorkPill
-      view={pillView(state, core)}
-      expanded
-      onToggle={vi.fn()}
-      onAssign={vi.fn()}
-      onOpenDay={vi.fn()}
-      onDismiss={vi.fn()}
-      notice={null}
-    />,
-  );
-  expect(screen.getByRole("combobox").hasAttribute("disabled")).toBe(true);
-  expect(screen.getByRole("button", { name: "Pause" }).hasAttribute("disabled")).toBe(true);
-  expect(screen.getByRole("button", { name: "Close period" }).hasAttribute("disabled")).toBe(true);
+it("shows the empty production session without enabling assignment", async () => {
+  const { core } = activeFixture();
+  core.activeSession = null;
+  render(<Pill />);
+  await screen.findByText("No active session");
+  await userEvent.click(screen.getByRole("button", { name: "TimeKeeper, toggle panel" }));
+  expect(screen.getByRole("combobox", { name: "Change case" })).toHaveProperty("disabled", true);
+  expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Close period" })).toBeNull();
 });

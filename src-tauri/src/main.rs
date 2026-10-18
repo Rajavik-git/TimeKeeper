@@ -3,10 +3,7 @@
 use std::{
     fs::OpenOptions,
     io::Write,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex,
-    },
+    sync::{mpsc, Mutex},
     time::Duration,
 };
 use tauri::{
@@ -27,16 +24,6 @@ mod window_filter;
 mod window_watch;
 
 struct ApiSidecar(Mutex<Option<CommandChild>>);
-struct WatchState {
-    enabled: Arc<AtomicBool>,
-    stop: Arc<AtomicBool>,
-}
-
-#[tauri::command]
-fn set_watch_enabled(state: tauri::State<WatchState>, enabled: bool) {
-    state.enabled.store(enabled, Ordering::Relaxed);
-}
-
 const PILL_WIDTH: u32 = 340;
 const PILL_HEIGHT: u32 = 38;
 const NOTICE_HEIGHT: u32 = 270;
@@ -168,8 +155,7 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             set_pill_expanded,
-            open_my_day,
-            set_watch_enabled
+            open_my_day
         ])
         .on_window_event(|window, event| {
             if window.label() == "main" {
@@ -303,26 +289,13 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
-            let watch = WatchState {
-                enabled: Arc::new(AtomicBool::new(true)),
-                stop: Arc::new(AtomicBool::new(false)),
-            };
-            #[cfg(windows)]
-            window_watch::start(
-                app.handle().clone(),
-                watch.enabled.clone(),
-                watch.stop.clone(),
-            );
-            app.manage(watch);
+            // JEV owns automatic transitions. Native recognition is backed up and inactive.
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("TimeKeeper failed to build");
     app.run(|app, event| {
         if let tauri::RunEvent::Exit = event {
-            if let Some(state) = app.try_state::<WatchState>() {
-                state.stop.store(true, Ordering::Relaxed);
-            }
             if let Some(state) = app.try_state::<ApiSidecar>() {
                 if let Ok(mut child) = state.0.lock() {
                     if let Some(child) = child.take() {

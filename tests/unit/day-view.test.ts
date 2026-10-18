@@ -39,8 +39,8 @@ const ids = (periods: readonly Period[]) => periods.map((item) => item.id);
 it("groups review and validation without counting excluded work or hiding unresolved assignments", () => {
   const periods = [
     period("validated"),
-    period("recognized", { timeValidated: false, demoApp: "Editor" }),
-    period("unresolved", { caseId: null, timeValidated: true, demoApp: "Editor" }),
+    period("recognized", { timeValidated: false, observedAppName: "Editor" }),
+    period("unresolved", { caseId: null, timeValidated: true, observedAppName: "Editor" }),
     period("excluded", { excluded: true, timeValidated: false }),
   ];
   const view = buildDayView({ ...defaults, periods, filter: "review", caseFilter: "case" });
@@ -174,7 +174,7 @@ it("includes assigned periods without application metadata in bulk time validati
   const view = buildDayView({
     ...defaults,
     periods: [
-      period("no-app", { timeValidated: false, demoApp: undefined }),
+      period("no-app", { timeValidated: false, observedAppName: undefined }),
       period("already-validated"),
       period("unassigned", { caseId: null, timeValidated: false }),
       period("excluded", { excluded: true, timeValidated: false }),

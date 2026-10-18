@@ -242,7 +242,7 @@ it("redacts case-insensitive literal client names in text while preserving every
     "UPDATE work_periods SET demo_app='PERIOD app',demo_window_title='Period Partners document' WHERE id='period-opaque'",
   ).run();
   db.prepare(
-    "UPDATE sources SET excerpt='PERIOD PARTNERS and PERIOD',detected_marker='A+B (CLIENT)' WHERE id='screen-opaque'",
+    "UPDATE sources SET app_name='PERIOD app',window_name='A+B (CLIENT) document',excerpt='PERIOD PARTNERS and PERIOD',detected_marker='A+B (CLIENT)' WHERE id='screen-opaque'",
   ).run();
   db.prepare(
     "INSERT INTO audit_events(work_period_id,timestamp,actor,action,before,after) VALUES (?,?,?,?,?,?)",
@@ -270,6 +270,8 @@ it("redacts case-insensitive literal client names in text while preserving every
     startedAt: "2026-03-30T22:30:00Z",
     billingStatus: "unbilled",
     label: "[client redacted] and [client redacted] and [client redacted]",
+    observedAppName: "[client redacted] app",
+    observedWindowTitle: "[client redacted] document",
     demoApp: "[client redacted] app",
     demoWindowTitle: "[client redacted] document",
   });
@@ -279,6 +281,8 @@ it("redacts case-insensitive literal client names in text while preserving every
     workPeriodId: "period-opaque",
     contentType: "screen",
     excerpt: "[client redacted] and [client redacted]",
+    appName: "[client redacted] app",
+    windowName: "[client redacted] document",
     detectedMarker: "[client redacted]",
   });
   expect(

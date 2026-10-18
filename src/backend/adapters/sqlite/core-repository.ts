@@ -267,9 +267,9 @@ export class SqliteRepository implements Repository {
         billable: p.billable === false ? 0 : 1,
         nonbillable_reason: p.nonbillableReason ?? null,
         excluded: p.excluded ? 1 : 0,
-        demo_app: p.demoApp ?? null,
-        demo_window_title: p.demoWindowTitle ?? null,
-        demo_confidence: p.demoConfidence ?? null,
+        demo_app: p.observedAppName ?? null,
+        demo_window_title: p.observedWindowTitle ?? null,
+        demo_confidence: p.recognitionConfidence ?? null,
         invoice_id: p.invoiceId ?? null,
       })
       .run();
@@ -567,6 +567,9 @@ export class SqliteRepository implements Repository {
         external_id: s.externalId,
         recorded_at: s.recordedAt,
         ingested_at: s.ingestedAt,
+        excerpt: s.excerpt,
+        app_name: s.appName,
+        window_name: s.windowName,
         validation_status: s.validationStatus,
         availability_status: s.availabilityStatus,
       })
@@ -577,6 +580,9 @@ export class SqliteRepository implements Repository {
       .update(tables.sources)
       .set({
         work_period_id: s.workPeriodId,
+        excerpt: s.excerpt,
+        app_name: s.appName,
+        window_name: s.windowName,
         validation_status: s.validationStatus,
         validated_at: s.validatedAt,
         availability_status: s.availabilityStatus,
@@ -609,6 +615,14 @@ export class SqliteRepository implements Repository {
         status: member(row.status, reconstructionStatuses),
       }));
   }
+  reconstructionFingerprint(id: string): string | null | undefined {
+    const row = orm(this.db)
+      .select({ fingerprint: tables.reconstruction_conflicts.transition_fingerprint })
+      .from(tables.reconstruction_conflicts)
+      .where(eq(tables.reconstruction_conflicts.id, id))
+      .get();
+    return row?.fingerprint;
+  }
   insertConflict(
     id: string,
     periodId: string,
@@ -616,6 +630,7 @@ export class SqliteRepository implements Repository {
     startedAt: string,
     endedAt: string | null,
     sourceReferencesJson: string,
+    transitionFingerprint?: string,
   ): void {
     orm(this.db)
       .insert(tables.reconstruction_conflicts)
@@ -626,6 +641,7 @@ export class SqliteRepository implements Repository {
         proposed_started_at: startedAt,
         proposed_ended_at: endedAt,
         source_references_json: sourceReferencesJson,
+        transition_fingerprint: transitionFingerprint ?? null,
         status: ReconstructionStatus.Pending,
       })
       .onConflictDoNothing()

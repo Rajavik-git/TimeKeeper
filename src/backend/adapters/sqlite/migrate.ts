@@ -564,4 +564,54 @@ export function migrate(db: DatabaseSync): void {
       throw error;
     }
   }
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 11").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      // Legacy proposals retain a null fingerprint. Their original case and origin are unknown.
+      db.exec(
+        "ALTER TABLE reconstruction_conflicts ADD COLUMN transition_fingerprint TEXT CHECK(transition_fingerprint IS NULL OR (length(transition_fingerprint)=64 AND transition_fingerprint NOT GLOB '*[^0-9a-f]*'))",
+      );
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (11)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 12").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(
+        "ALTER TABLE retrieval_progress ADD COLUMN content_version INTEGER NOT NULL DEFAULT 0 CHECK(content_version >= 0)",
+      );
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (12)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  if (!db.prepare("SELECT 1 FROM schema_migrations WHERE version = 13").get()) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(`
+        CREATE TABLE history_jobs (
+          id TEXT PRIMARY KEY,
+          created_at TEXT NOT NULL,
+          payload TEXT NOT NULL CHECK(json_valid(payload))
+        );
+        CREATE TABLE history_proposals (
+          id TEXT PRIMARY KEY,
+          job_id TEXT NOT NULL REFERENCES history_jobs(id),
+          payload TEXT NOT NULL CHECK(json_valid(payload))
+        );
+        CREATE INDEX history_proposals_job ON history_proposals(job_id);
+      `);
+      db.prepare("INSERT INTO schema_migrations(version) VALUES (13)").run();
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
 }

@@ -43,7 +43,7 @@ const action: ScreenProps["action"] = async (promise) => (await promise).data;
 
 it("preserves fractional cents in hourly rates and Settings amounts", () => {
   const { state } = frontendFixture();
-  expect(rate(12550)).toBe("$125.50/h");
+  expect(rate(12550, "USD")).toBe("$125.50/h");
   expect(currencyAmount(state, 12550)).toBe("$125.50");
 });
 it.each(["Firm [France]", "[Building A] 4 Main Street", "N/A", "[CASE-42]"])(

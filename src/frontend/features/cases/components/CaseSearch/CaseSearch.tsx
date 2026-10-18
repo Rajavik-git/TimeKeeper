@@ -34,7 +34,7 @@ export function CaseSearch({
   onSelectClient,
   onSelectCase,
 }: Props) {
-  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency ?? "USD");
+  const money = (cents: number) => formatMoney(cents, catalogState.settings.currency);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchClients, setSearchClients] = useState<Client[]>([]);
@@ -110,7 +110,7 @@ export function CaseSearch({
     .map((client) => ({
       kind: "client" as const,
       client,
-      amount: clientMetrics(catalogState, workspaceState, client.id).toBill,
+      amount: clientMetrics(catalogState, workspaceState, client.id).toBillCents,
     }))
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 3)

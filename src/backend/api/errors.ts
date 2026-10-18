@@ -16,7 +16,8 @@ function sqliteError(error: Error): Error | undefined {
 const applicationStatuses = {
   "not-found": 404,
   "no-active-session": 404,
-  pending: 202,
+  "rule-not-decided": 409,
+  "forbidden-origin": 403,
   conflict: 409,
   "invalid-request": 400,
 } as const;

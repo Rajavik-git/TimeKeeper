@@ -10,17 +10,23 @@ The main navigation contains My day, Cases, Billing, Activity, and Settings. The
 
 ## Screen behavior
 
-| View     | Main tasks and current limits                                                                                                                                   |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| My day   | Calendar, coverage, questions, period review, filters, and CSV. Manual entry remains disabled.                                                                  |
-| Cases    | Client and case editors, figures, markers, and budgets. Balances, counts, attention figures, billing bars, and the recorded-time comparison are workspace-wide. |
-| Billing  | Draft invoices, expenses, VAT, validation blockers, and issued snapshots. Payments and invoice delivery are unavailable.                                        |
-| Activity | Stored timeline, keyboard-readable period list, sources, audit, review, and source packs. No live media retrieval or recording control.                         |
-| Settings | Clients, rates, work categories, rules, invoices, and pill preferences. Capture exclusions and retention controls remain disabled.                              |
+| View     | Main tasks and current limits                                                                                                                                                       |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| My day   | Calendar, coverage, questions, period review, filters, and CSV. Manual entry remains disabled.                                                                                      |
+| Cases    | Client and case editors, figures, markers, and budgets. Balances, counts, attention figures, billing bars, and the recorded-time comparison are workspace-wide.                     |
+| Billing  | Draft invoices, expenses, VAT, validation blockers, and issued snapshots. Payments and invoice delivery are unavailable.                                                            |
+| Activity | All saved imported sources with filters and pagination; work-period timeline, sources, audit, review, and source packs. No live media retrieval or recording control.               |
+| Settings | Clients, rates, work categories, rules, invoices, pill preferences, and Screenpipe connection testing and source import. Capture exclusions and retention controls remain disabled. |
 
 My day retains date, month, filters, and sort across navigation. Cases retains client, case, and tab. Source review restores its originating screen and period-action focus. Settings drafts survive section switches only, not leaving Settings or reloading.
 
+Activity opens **Imported sources** for normal navigation. It includes saved references without a work period and keeps source availability and source validation separate. Filters and pagination change only the displayed list. Opening sources from a specific period selects **Work periods** and preserves the existing return path. Source references never add duration or billing amounts merely by appearing in the list.
+
+Settings' Screenpipe section distinguishes connection-test results from source-import results. It shows configuration readiness, automatic-import state, the last successful batch timestamp, and recent batch counts. Missing configuration, no sessions, partial results, and errors stay visible. Pending actions block repeats. Status is scoped to the current backend run. A successful import never implies complete history or a new work period.
+
 New case uses the initiating client from client detail; overview creation requires explicit selection. The shared client form includes type, name, optional code, billing mode and rate, address, VAT, and active status. Blank rates inherit; explicit zero stays zero. Question controls reset for a new period and retain tentative answers on same-period retries.
+
+Activity also has **History proposals** in the current source. The lawyer selects an existing session and a range of at most one hour, requests generation, then reviews draft cases, labels, observation bounds, and source support. Generation creates no counted time. Acceptance requires an explicit positive worked duration and creates a finished, unvalidated period. Existing periods and assignments remain protected. Dispatch, running, ready, failed, and expired states remain distinct; a configuration indicator does not prove provider readiness. This new workflow needs runtime acceptance. [API D14](docs/API.md#d14-history-proposals-and-explicit-acceptance) owns its contract.
 
 ## Colour and themes
 
@@ -89,9 +95,9 @@ Generated states map to labels in `src/frontend/shared/presentation/`; preserve 
 
 ## Pill
 
-The native document and Settings' Desk preview share `WorkPill` and `pillView`, with a 50 px bar and expanded panel. Display choices are Estimated fees, Time, and Case. Themes synchronize between documents; the native background remains transparent. Case changes use canonical assignment or guarded question-answer commands. Pause and Close period remain disabled.
+The native document and Settings' Desk preview render the same production `Pill` page and `WorkPill` presentation. `nativePillView` derives values, `usePillCommands` owns writes, and `usePillPosition` owns positioning. The bar and expanded panel retain their existing geometry. Display choices are Estimated fees, Time, and Case. Themes synchronize between documents; the native background remains transparent. Case changes use canonical assignment or guarded question-answer commands. Pause and Close period remain disabled. Past-day periods remain available for validation across sessions. Missing duration or case pricing keeps fees unavailable, with known subtotals shown where supported. Undo uses the server expiration and response delays do not extend it.
 
-Open My day focuses the main window and emits `timekeeper:open-my-day`; its listener selects My day without reloading and cleans up on unmount. Native execution remains unverified. Notice suppression matches period-label words and does not prove call detection. The pill reads the TimeKeeper API; the setup-only Screenpipe origin does not configure it. [Setup](docs/SETUP.md#prepare-desktop-development) covers window lifecycle and packaging.
+Open My day focuses the main window and emits `timekeeper:open-my-day`; its listener selects My day without reloading and cleans up on unmount. Native execution remains unverified. Notice suppression matches period-label words and does not prove call detection. The pill reads the TimeKeeper API. Screenpipe addresses and credentials belong to the backend and workflow configuration. [Setup](docs/SETUP.md#prepare-desktop-development) covers window lifecycle and packaging.
 
 ## Implementation
 

@@ -310,3 +310,61 @@ it("upgrades extension invariants without rewriting historical data and enforces
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+it("migrates legacy reconstruction proposals without inventing a transition identity", () => {
+  const db = openDb(":memory:");
+  try {
+    const repo = new SqliteRepository(db);
+    const service = new TimeKeeperService(repo);
+    service.start({
+      producerId: "fixture",
+      commandId: "start",
+      sessionId: "s",
+      occurredAt: "2026-10-17T08:00:00Z",
+    });
+    service.openPeriod({
+      id: "p",
+      sessionId: "s",
+      caseId: null,
+      startedAt: "2026-10-17T08:00:00Z",
+      origin: "unresolved",
+      mode: "current",
+    });
+    // Reconstruct the immediately preceding schema to exercise the additive migration.
+    db.exec(
+      "ALTER TABLE reconstruction_conflicts DROP COLUMN transition_fingerprint; DELETE FROM schema_migrations WHERE version=11",
+    );
+    db.prepare(
+      "INSERT INTO reconstruction_conflicts(id,protected_period_id,expected_revision,proposed_started_at,source_references_json) VALUES (?,?,?,?,?)",
+    ).run("legacy", "p", 0, "2026-10-17T08:30:00Z", "[]");
+    migrate(db);
+    migrate(db);
+    expect(repo.reconstructionFingerprint("legacy")).toBeNull();
+    expect(repo.reconstructionFingerprint("absent")).toBeUndefined();
+    expect(service.reconstructionConflicts()).toMatchObject([{ id: "legacy", periodId: "p" }]);
+    expect(() =>
+      service.recordCaseTransition({
+        id: "legacy",
+        sessionId: "s",
+        caseId: null,
+        startedAt: "2026-10-17T08:30:00Z",
+        origin: "unresolved",
+        mode: "current",
+        expectedActivePeriodId: "p",
+        expectedAssignmentRevision: 0,
+      }),
+    ).toThrow("legacy proposal identity is unknown");
+    expect(() =>
+      db
+        .prepare(
+          "UPDATE reconstruction_conflicts SET transition_fingerprint='bad' WHERE id='legacy'",
+        )
+        .run(),
+    ).toThrow();
+    repo.insertConflict("new", "p", 0, "2026-10-17T08:45:00Z", null, "[]", "a".repeat(64));
+    expect(repo.reconstructionFingerprint("new")).toBe("a".repeat(64));
+    expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  } finally {
+    db.close();
+  }
+});

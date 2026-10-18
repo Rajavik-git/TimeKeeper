@@ -11,8 +11,8 @@ import { type SectionProps } from "../../types";
 export function RatesSection({ catalogState, action, saved, notify }: SectionProps) {
   const { fieldError, setFieldError, commitAmount } = useAmountFields();
   const { head, sorted } = useSettingsSort("caseRates", notify);
-  const currency = catalogState.settings.currency ?? "USD";
-  const dollars = (cents: number) => currencyAmount(catalogState, cents);
+  const currency = catalogState.settings.currency;
+  const formatMoney = (cents: number) => currencyAmount(catalogState, cents);
   const patchCase = (id: EntityId, body: components["schemas"]["PatchCatalogCaseRequest"]) =>
     saved(
       action(api.PATCH("/api/catalog/cases/{id}", { params: { path: { id: String(id) } }, body })),
@@ -42,8 +42,8 @@ export function RatesSection({ catalogState, action, saved, notify }: SectionPro
                 <td className="muted">3</td>
                 <td>{rateOriginLabels[RateOrigin.Base]}</td>
                 <td className="muted">
-                  {dollars(catalogState.settings.globalHourlyRateCents)}/h, when neither the case
-                  nor the client has a rate.
+                  {formatMoney(catalogState.settings.globalHourlyRateCents)}/h, when neither the
+                  case nor the client has a rate.
                 </td>
               </tr>
             </tbody>

@@ -1,7 +1,7 @@
 import type { CoreState, State } from "../../../../api/client";
 import { calendarDay, calendarTime, systemTimeZone } from "../../../../../shared/dates";
 import { shortDate } from "../../../../api/client";
-import { effectiveMs, formatPreciseDuration } from "../../../../calculations/billing";
+import { effectiveMs, formatNearestMinuteDuration } from "../../../../calculations/billing";
 
 type Entry = { id: string; period: CoreState["periods"][number] };
 export function ActivityPeriodList({
@@ -33,7 +33,7 @@ export function ActivityPeriodList({
           const duration =
             durationMs !== null && durationMs > 0 && durationMs < 60000
               ? "Less than 1m"
-              : formatPreciseDuration(durationMs);
+              : formatNearestMinuteDuration(durationMs);
           const day = calendarDay(period.startedAt);
           const start = calendarTime(period.startedAt, systemTimeZone(), true);
           const end = period.endedAt

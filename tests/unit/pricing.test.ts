@@ -83,6 +83,7 @@ describe("React billing calculations and frozen invoice application", () => {
     const f = fixture();
     try {
       const core = f.core();
+      // The unresolved 12-minute period has no case rate. Do not price it at the base rate.
       expect(
         summarizeWork(
           core.periods.filter((p) => p.startedAt.startsWith("2026-10-16")),
@@ -92,10 +93,9 @@ describe("React billing calculations and frozen invoice application", () => {
       expect(
         dayFees(
           f.catalog,
-          core,
           core.periods.filter((p) => p.startedAt.startsWith("2026-10-16")),
         ),
-      ).toMatchObject({ cents: 91250, complete: true, currency: "USD" });
+      ).toMatchObject({ cents: null, knownCents: 88250, complete: false, currency: "USD" });
       expect(core.periods.find((p) => p.id === "14")).toMatchObject({
         detectedDurationMs: 152 * 60000,
         durationOverrideMs: 108 * 60000,
@@ -121,8 +121,8 @@ describe("React billing calculations and frozen invoice application", () => {
           item.id === "5" ? { ...item, hourlyRateCents: 100000 } : item,
         ),
       };
-      expect(dayFees(f.catalog, f.core(), [period])).toMatchObject({ cents: 21250 });
-      expect(dayFees(changed, f.core(), [period])).toMatchObject({ cents: 21250 });
+      expect(dayFees(f.catalog, [period])).toMatchObject({ cents: 21250 });
+      expect(dayFees(changed, [period])).toMatchObject({ cents: 21250 });
     } finally {
       f.db.close();
     }

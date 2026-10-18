@@ -1,0 +1,23 @@
+[
+  {
+    "id": "case-A",
+    "client_id": "client-1",
+    "reference": "DUP-2026-014",
+    "title": "Dupont v. Martin - commercial lease dispute",
+    "client_name": "Dupont SARL"
+  },
+  {
+    "id": "case-B",
+    "client_id": "client-1",
+    "reference": "DUP-2026-021",
+    "title": "Dupont SARL - acquisition of Verger SAS shares",
+    "client_name": "Dupont SARL"
+  },
+  {
+    "id": "case-C",
+    "client_id": "client-2",
+    "reference": "LEF-2026-003",
+    "title": "Lefevre estate - succession and inventory",
+    "client_name": "Famille Lefevre"
+  }
+]

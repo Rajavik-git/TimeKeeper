@@ -9,6 +9,9 @@
   "scripts": {
     "setup": "node install.mjs",
     "setup:check": "node install.mjs --check",
+    "setup:auth": "node install.mjs --auth-only",
+    "screenpipe:install": "node --env-file-if-exists=.env scripts/install-screenpipe.mjs",
+    "screenpipe:check": "node --env-file-if-exists=.env scripts/install-screenpipe.mjs --check",
     "contract:gen": "node --import tsx scripts/sync-state-contract.ts && openapi-typescript src/contracts/openapi.yaml -o src/contracts/generated.ts && node scripts/generate-request-contract.mjs",
     "db:reset": "node --env-file-if-exists=.env --import tsx scripts/reset-db.ts",
     "db:samples": "node --import tsx scripts/load-comparison-samples.ts",
@@ -26,7 +29,10 @@
     "api:bundle": "node scripts/build-sidecar.mjs",
     "api:sidecar": "node scripts/build-sidecar.mjs --sidecar",
     "desktop:dev": "npm run api:sidecar && tauri dev",
-    "desktop:build": "npm run api:sidecar && tauri build"
+    "desktop:build": "npm run api:sidecar && tauri build",
+    "mcp:serve": "node --env-file-if-exists=.env --import tsx src/mcp/server.ts",
+    "mcp:http": "node --env-file-if-exists=.env --import tsx src/mcp/server.ts --http",
+    "jev:watch": "node --env-file-if-exists=.env --import tsx integrations/screenpipe/jev-check/jev-check.ts --watch --session-bound"
   },
   "dependencies": {
     "@date-fns/tz": "1.4.1",

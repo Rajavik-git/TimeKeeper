@@ -39,7 +39,11 @@ async function smoke(page) {
         await page.getByRole("combobox", { name: "Year", exact: true }).selectOption("2026");
         await page.getByRole("combobox", { name: "Month", exact: true }).selectOption("9");
         await page.locator('[data-calendar-day="2026-10-16"]').click();
-        await page.getByText("$912.50", { exact: true }).waitFor();
+        await page
+          .getByText("Incomplete estimate · $882.50 known; some pricing is unavailable", {
+            exact: true,
+          })
+          .waitFor();
       }
     };
     for (const viewport of viewports) {
@@ -258,7 +262,11 @@ async function smoke(page) {
       .getByRole("button", { name: "Auto", exact: true })
       .click();
     await openView("My day");
-    await page.getByText("$912.50", { exact: true }).waitFor();
+    await page
+      .getByText("Incomplete estimate · $882.50 known; some pricing is unavailable", {
+        exact: true,
+      })
+      .waitFor();
     check(
       (await page.locator(".datebadge").innerText()) === "1",
       "Expected one other day to validate",
@@ -373,6 +381,7 @@ async function smoke(page) {
     await page.locator(".billing-card").first().click();
     await page.getByRole("heading", { name: "What will be on the invoice", exact: true }).waitFor();
     await openView("Activity");
+    await page.getByRole("button", { name: "Work periods", exact: true }).click();
     await page.getByRole("heading", { name: "Timeline", exact: true }).waitFor();
     const periodList = page.getByRole("region", { name: "Work periods", exact: true });
     await periodList.waitFor();

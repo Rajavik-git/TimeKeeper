@@ -69,6 +69,8 @@ async function setupCalendarPeriod() {
         startedAt: "2026-03-30T22:30:00Z",
         origin: "automatic",
         mode: "current",
+        expectedActivePeriodId: null,
+        expectedAssignmentRevision: null,
       },
     ],
     [
@@ -80,6 +82,8 @@ async function setupCalendarPeriod() {
         startedAt: "2026-03-30T22:40:00Z",
         origin: "unresolved",
         mode: "current",
+        expectedActivePeriodId: "period",
+        expectedAssignmentRevision: 0,
       },
     ],
     [

@@ -1,3 +1,4 @@
+import { timeValidationUnavailable } from "../../../shared/lib/timeValidation";
 import { useState } from "react";
 import { AssignmentOrigin, QuestionStatus } from "../../../../contracts/states.generated";
 import { api, type CoreState, type EntityId, type ScreenProps } from "../../../api/client";
@@ -47,6 +48,11 @@ export function useDayCommands({ data, action, refresh, onValidatedQuestion }: P
   };
   const validate = async (target: Period[], focusQuestion = false) => {
     if (validating || !target.length) return;
+    const unavailable = target.map((period) => timeValidationUnavailable(period)).find(Boolean);
+    if (unavailable) {
+      showToast(unavailable);
+      return;
+    }
     setValidating(true);
     showToast(`Validating ${target.length} period${target.length === 1 ? "" : "s"}…`);
     try {

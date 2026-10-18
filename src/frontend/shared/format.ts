@@ -27,11 +27,11 @@ const parseDate = (value: string) => {
   return new Date(`${value}T00:00:00Z`);
 };
 
-export const money = (cents: number, currency = "USD") =>
+export const money = (cents: number, currency: string) =>
   currencyFormatter(currency).format(cents / 100);
 export const recordedMoney = (cents: number, currency: string | null | undefined) =>
   currency ? money(cents, currency) : `${(cents / 100).toFixed(2)} · currency unavailable`;
-export const rate = (cents: number, currency = "USD") => `${money(cents, currency)}/h`;
+export const rate = (cents: number, currency: string) => `${money(cents, currency)}/h`;
 export const percent = (value: number) => `${whole.format(Math.round(value))}%`;
 export const shortDate = (value: string) => short.format(parseDate(value));
 export const longDate = (value: string) => long.format(parseDate(value)).replace(",", "");
@@ -43,6 +43,6 @@ export function minutes(value: number): string {
   const remainder = value % 60;
   return hours ? `${hours}h ${String(remainder).padStart(2, "0")}m` : `${remainder}m`;
 }
-export const duration = (ms: number | null) =>
+export const nearestMinuteDuration = (ms: number | null) =>
   ms === null ? "Unknown" : minutes(Math.round(ms / 60000));
 export const tenthsOfHour = (value: number) => minutes(Math.round(value * 6));

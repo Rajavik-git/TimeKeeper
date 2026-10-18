@@ -238,7 +238,7 @@ it("does not interpret a canonical string period ID as a numeric compatibility a
 
 it("upgrades an existing v4 database once while preserving preferences and historical currency", () => {
   const { db } = fixture();
-  // Remove migration 9 objects as well as its version marker to simulate a real v4 schema.
+  // Remove post-v4 schema objects and columns as well as their migration markers.
   const laterObjects = db
     .prepare(
       "SELECT type,name FROM sqlite_master WHERE (type='trigger' AND (name GLOB '*_extension_*' OR (name GLOB '*_value_*' OR name GLOB '*_receipt_*'))) OR (type='index' AND name GLOB '*_id_idx')",
@@ -247,6 +247,8 @@ it("upgrades an existing v4 database once while preserving preferences and histo
   for (const object of laterObjects)
     db.exec(`DROP ${object.type.toUpperCase()} "${object.name.replaceAll('"', '""')}"`);
   db.exec(`DROP TRIGGER cases_reference_immutable;
+    DROP TABLE history_proposals;
+    DROP TABLE history_jobs;
     DROP TABLE source_relocations;
     DROP TABLE demo_period_entries;
     ALTER TABLE settings DROP COLUMN pill_always_on_top;
@@ -254,6 +256,8 @@ it("upgrades an existing v4 database once while preserving preferences and histo
     ALTER TABLE settings DROP COLUMN pill_withhold_calls;
     ALTER TABLE invoices DROP COLUMN currency;
     ALTER TABLE source_exports DROP COLUMN format_version;
+    ALTER TABLE reconstruction_conflicts DROP COLUMN transition_fingerprint;
+    ALTER TABLE retrieval_progress DROP COLUMN content_version;
     DELETE FROM schema_migrations WHERE version>=5;
     UPDATE setting SET pill_always_on_top=0,pill_display='time',pill_withhold_calls=0 WHERE id=1;`);
   migrate(db);
@@ -266,7 +270,7 @@ it("upgrades an existing v4 database once while preserving preferences and histo
       .get(),
   ).toMatchObject({ pill_always_on_top: 0, pill_display: "time", pill_withhold_calls: 0 });
   expect(db.prepare("SELECT currency FROM invoices WHERE id=1").get()?.currency).toBe("USD");
-  expect(db.prepare("SELECT count(*) AS count FROM schema_migrations").get()?.count).toBe(10);
+  expect(db.prepare("SELECT count(*) AS count FROM schema_migrations").get()?.count).toBe(13);
   expect(db.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
 });
 

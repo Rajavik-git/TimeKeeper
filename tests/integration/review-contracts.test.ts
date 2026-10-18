@@ -19,7 +19,7 @@ import { configuredRate } from "../../src/frontend/calculations/billing.js";
 
 function setup() {
   const db = openDb(":memory:");
-  const app = createApp(db);
+  const app = createApp(db, { clock: { now: () => "2026-10-18T12:00:00Z" } });
   const post = (path: string, body: unknown) =>
     app.request(`/api${path}`, {
       method: "POST",
@@ -144,11 +144,23 @@ it("returns taskless canonical periods within the compatibility response contrac
           startedAt: "2026-10-17T09:00:00Z",
           origin: "automatic",
           mode: "current",
+          expectedActivePeriodId: null,
+          expectedAssignmentRevision: null,
         })
       ).status,
     ).toBe(200);
     expect(
       (await post("/work-periods/period/detected-duration", { durationMs: 60000 })).status,
+    ).toBe(200);
+    expect(
+      (
+        await post("/commands/end", {
+          producerId: "test",
+          commandId: "end",
+          sessionId: "session",
+          occurredAt: "2026-10-17T10:00:00Z",
+        })
+      ).status,
     ).toBe(200);
     const state = await (await app.request("/api/state")).json();
     expect(state.time_entry[0].task_id).toBeNull();

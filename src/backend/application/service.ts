@@ -1,12 +1,4 @@
-import {
-  AssignmentOrigin,
-  BillingStatus,
-  QuestionStatus,
-  ReconstructionStatus,
-  PeriodOpenMode,
-} from "../domain/states.js";
-import { randomUUID } from "node:crypto";
-import { assertId, assertTime } from "./assertions.js";
+import type { BillingStatus } from "../domain/states.js";
 import { SessionCommandService } from "./session-commands.js";
 import { PeriodAssignmentService } from "./period-assignment.js";
 import { EvidenceService } from "./evidence.js";
@@ -17,23 +9,28 @@ import type {
   QuestionAnswer,
   StartCommand,
 } from "../../contracts/index.js";
-import { timeIsValidated, resolveRate } from "../domain/rules.js";
 import type { Clock } from "../ports/index.js";
-import type { PeriodRecord, PeriodQuery, Repository, SessionRecord } from "../ports/repository.js";
+import type { PeriodQuery, Repository, SessionRecord } from "../ports/repository.js";
 
 import { AppError } from "./errors.js";
 export { AppError } from "./errors.js";
 import { PeriodReviewService, type PeriodDetails } from "./period-review.js";
 import { periodView as view } from "./period-view.js";
+import { PeriodLifecycleService } from "./period-lifecycle.js";
+import { CatalogProvisioningService } from "./catalog-provisioning.js";
 export class TimeKeeperService {
+  private readonly provisioning: CatalogProvisioningService;
+  private readonly lifecycle: PeriodLifecycleService;
   private readonly periodReview: PeriodReviewService;
   private readonly sessionCommands: SessionCommandService;
   private readonly evidence: EvidenceService;
   private readonly assignment: PeriodAssignmentService;
   constructor(
     private readonly repo: Repository,
-    private readonly clock: Clock = { now: () => new Date().toISOString() },
+    clock: Clock = { now: () => new Date().toISOString() },
   ) {
+    this.provisioning = new CatalogProvisioningService(repo, clock);
+    this.lifecycle = new PeriodLifecycleService(repo, clock);
     this.assignment = new PeriodAssignmentService(repo, clock);
     this.sessionCommands = new SessionCommandService(repo, clock);
     this.evidence = new EvidenceService(repo, clock);
@@ -45,48 +42,17 @@ export class TimeKeeperService {
   end(command: EndCommand): CommandOutcome {
     return this.sessionCommands.end(command);
   }
-  createClient(id: string, name: string): void {
-    assertId(id);
-    if (!name.trim()) throw new AppError("invalid-request", "client name required");
-    this.repo.transaction(() => this.repo.createClient(id, name, this.clock.now()));
+  createClient(...args: Parameters<CatalogProvisioningService["createClient"]>): void {
+    this.provisioning.createClient(...args);
   }
-  createCase(
-    id: string,
-    clientId: string,
-    reference: string,
-    title: string,
-    hourlyRateCents: number | null,
-  ): void {
-    assertId(id);
-    assertId(clientId);
-    if (
-      !reference.trim() ||
-      !title.trim() ||
-      (hourlyRateCents !== null && (!Number.isSafeInteger(hourlyRateCents) || hourlyRateCents < 0))
-    )
-      throw new AppError("invalid-request", "invalid case");
-    this.repo.transaction(() =>
-      this.repo.createCase(id, clientId, reference, title, hourlyRateCents, this.clock.now()),
-    );
+  createCase(...args: Parameters<CatalogProvisioningService["createCase"]>): void {
+    this.provisioning.createCase(...args);
   }
-  setGlobalRate(rateCents: number, currency: string, workspaceId: string): void {
-    if (!Number.isSafeInteger(rateCents) || rateCents < 0 || !/^[A-Z]{3}$/.test(currency))
-      throw new AppError("invalid-request", "invalid rate or currency");
-    assertId(workspaceId);
-    this.repo.transaction(() =>
-      this.repo.setGlobalRate(rateCents, currency, workspaceId, this.clock.now()),
-    );
+  setGlobalRate(...args: Parameters<CatalogProvisioningService["setGlobalRate"]>): void {
+    this.provisioning.setGlobalRate(...args);
   }
   currentRateForCase(id: string): number {
-    const rates = this.repo.rateForCase(id);
-    if (!rates) throw new AppError("not-found", "case or global rate not found");
-    const rate = resolveRate(
-      rates.caseRateCents,
-      rates.globalRateCents,
-      rates.clientRateCents ?? null,
-    );
-    if (rate === null) throw new AppError("pending", "global hourly rate is not configured");
-    return rate;
+    return this.provisioning.currentRateForCase(id);
   }
   getSession(id: string): SessionRecord {
     const s = this.repo.session(id);
@@ -127,109 +93,24 @@ export class TimeKeeperService {
     this.getPeriod(periodId);
     return this.repo.listSources(periodId);
   }
-  // The caller supplies an explicit established transition. Folder recognition and duration derivation remain open: docs/REQUIREMENTS.md.
-  openPeriod(input: {
-    id: string;
-    sessionId: string;
-    caseId: string | null;
-    startedAt: string;
-    origin: AssignmentOrigin;
-    mode: PeriodOpenMode;
-    /** Observed window that triggered the transition, shown in My day and Activity. */
-    window?: { appName: string; title: string };
-  }): PeriodView | { status: typeof ReconstructionStatus.Pending; conflictId: string } {
-    return this.repo.transaction(() => {
-      assertId(input.id);
-      assertTime(input.startedAt);
-      const existing = this.repo.period(input.id);
-      if (existing) {
-        if (
-          existing.sessionId !== input.sessionId ||
-          existing.initialCaseId !== input.caseId ||
-          existing.startedAt !== input.startedAt ||
-          existing.initialOrigin !== input.origin
-        )
-          throw new AppError("conflict", "period ID reused with different transition");
-        return view(existing);
-      }
-      const s = this.getSession(input.sessionId);
-      if (
-        Date.parse(input.startedAt) < Date.parse(s.startedAt) ||
-        (s.endedAt !== null && Date.parse(input.startedAt) > Date.parse(s.endedAt))
-      )
-        throw new AppError("conflict", "period outside session");
-      if (input.caseId !== null && !this.repo.caseExists(input.caseId))
-        throw new AppError("not-found", "case not found");
-      const active = this.repo.periodAt(s.id, input.startedAt);
-      if (active) {
-        if (Date.parse(input.startedAt) <= Date.parse(active.startedAt))
-          throw new AppError("conflict", "transition at existing period start");
-        if (
-          ((input.mode === PeriodOpenMode.Recovery ||
-            active.endedAt !== null ||
-            s.endedAt !== null) &&
-            (active.assignmentOrigin === AssignmentOrigin.Lawyer ||
-              active.detectedDurationMs !== null ||
-              active.durationOverrideMs !== null ||
-              timeIsValidated(active))) ||
-          !this.repo.canSplitSources(active.id, input.startedAt)
-        ) {
-          this.repo.insertConflict(
-            input.id,
-            active.id,
-            active.revision,
-            input.startedAt,
-            active.endedAt ?? s.endedAt,
-            "[]",
-          );
-          return { status: ReconstructionStatus.Pending, conflictId: input.id };
-        }
-        this.repo.savePeriod(
-          { ...active, endedAt: input.startedAt, revision: active.revision + 1 },
-          this.clock.now(),
-        );
-      }
-      const nextPeriod = this.repo.nextPeriodAfter(s.id, input.startedAt);
-      const p: PeriodRecord = {
-        id: input.id,
-        sessionId: s.id,
-        caseId: input.caseId,
-        initialCaseId: input.caseId,
-        initialOrigin: input.origin,
-        startedAt: input.startedAt,
-        endedAt: active?.endedAt ?? nextPeriod?.startedAt ?? s.endedAt,
-        detectedDurationMs: null,
-        durationOverrideMs: null,
-        assignmentOrigin: input.origin,
-        assignmentRevision: 0,
-        effectiveRevision: 0,
-        validatedEffectiveRevision: null,
-        timeValidatedAt: null,
-        billingStatus: BillingStatus.Unbilled,
-        billedAt: null,
-        revision: 0,
-        ...(input.window
-          ? {
-              label: input.window.title,
-              demoApp: input.window.appName,
-              demoWindowTitle: input.window.title,
-            }
-          : {}),
-      };
-      this.repo.insertPeriod(p, this.clock.now());
-      if (active) this.repo.moveSplitSources(active.id, p.id, input.startedAt);
-      if (p.caseId === null)
-        this.repo.saveQuestion({
-          questionId: `period:${p.id}`,
-          sessionId: p.sessionId,
-          periodId: p.id,
-          expectedAssignmentRevision: p.assignmentRevision,
-          status: QuestionStatus.Pending,
-          responseCommandId: null,
-          responseResultJson: null,
-        });
-      return view(p);
-    });
+  openPeriod(
+    ...args: Parameters<PeriodLifecycleService["openPeriod"]>
+  ): ReturnType<PeriodLifecycleService["openPeriod"]> {
+    return this.lifecycle.openPeriod(...args);
+  }
+  recordCaseTransition(
+    input: Parameters<PeriodLifecycleService["recordCaseTransition"]>[0],
+  ): ReturnType<PeriodLifecycleService["recordCaseTransition"]> {
+    return this.lifecycle.recordCaseTransition(input);
+  }
+  undoPeriodSwitch(...args: Parameters<PeriodLifecycleService["undoSwitch"]>): void {
+    this.lifecycle.undoSwitch(...args);
+  }
+  restorePeriodAssignment(...args: Parameters<PeriodAssignmentService["restoreAssignment"]>): void {
+    this.assignment.restoreAssignment(...args);
+  }
+  restorePeriodValidation(...args: Parameters<PeriodReviewService["restoreValidation"]>): void {
+    this.periodReview.restoreValidation(...args);
   }
   assignPeriod(...args: Parameters<PeriodAssignmentService["assignPeriod"]>): PeriodView {
     return this.assignment.assignPeriod(...args);
@@ -253,59 +134,10 @@ export class TimeKeeperService {
   ): PeriodView {
     return this.periodReview.setDurationOverride(id, durationMs, expectedRevision);
   }
-  createManualPeriod(input: {
-    sessionId: string;
-    caseId: string;
-    startedAt: string;
-    durationMs: number;
-    taskTypeId: number;
-    label: string;
-  }): PeriodView {
-    return this.repo.transaction(() => {
-      assertTime(input.startedAt);
-      if (
-        !Number.isSafeInteger(input.durationMs) ||
-        input.durationMs < 0 ||
-        !Number.isSafeInteger(input.taskTypeId) ||
-        input.taskTypeId < 1 ||
-        !input.label.trim()
-      )
-        throw new AppError("invalid-request", "invalid manual period");
-      const session = this.getSession(input.sessionId);
-      if (!this.repo.caseExists(input.caseId)) throw new AppError("not-found", "case not found");
-      const end = new Date(Date.parse(input.startedAt) + input.durationMs).toISOString();
-      if (
-        Date.parse(input.startedAt) < Date.parse(session.startedAt) ||
-        (session.endedAt !== null && Date.parse(end) > Date.parse(session.endedAt))
-      )
-        throw new AppError("conflict", "manual period outside session");
-      const id = randomUUID();
-      const period: PeriodRecord = {
-        id,
-        sessionId: session.id,
-        caseId: input.caseId,
-        initialCaseId: input.caseId,
-        initialOrigin: AssignmentOrigin.Lawyer,
-        startedAt: input.startedAt,
-        endedAt: end,
-        detectedDurationMs: null,
-        durationOverrideMs: input.durationMs,
-        assignmentOrigin: AssignmentOrigin.Lawyer,
-        assignmentRevision: 0,
-        effectiveRevision: 0,
-        validatedEffectiveRevision: null,
-        timeValidatedAt: null,
-        billingStatus: BillingStatus.Unbilled,
-        billedAt: null,
-        revision: 0,
-        taskTypeId: input.taskTypeId,
-        label: input.label,
-        billable: true,
-        excluded: false,
-      };
-      this.repo.insertPeriod(period, this.clock.now());
-      return view(period);
-    });
+  createManualPeriod(
+    input: Parameters<PeriodLifecycleService["createManualPeriod"]>[0],
+  ): PeriodView {
+    return this.lifecycle.createManualPeriod(input);
   }
   updatePeriodDetails(id: string, changes: PeriodDetails, expectedRevision?: number): PeriodView {
     return this.periodReview.updatePeriodDetails(id, changes, expectedRevision);
@@ -313,17 +145,31 @@ export class TimeKeeperService {
   validatePeriod(id: string, expectedEffectiveRevision?: number): PeriodView {
     return this.periodReview.validatePeriod(id, expectedEffectiveRevision);
   }
-  clearTimeValidation(id: string): PeriodView {
-    return this.periodReview.clearTimeValidation(id);
+  validatePeriods(inputs: Parameters<PeriodReviewService["validatePeriods"]>[0]): PeriodView[] {
+    return this.periodReview.validatePeriods(inputs);
+  }
+  clearTimeValidation(id: string, expectedEffectiveRevision?: number): PeriodView {
+    return this.periodReview.clearTimeValidation(id, expectedEffectiveRevision);
   }
   setBillingStatus(id: string, status: BillingStatus, expectedRevision?: number): PeriodView {
     return this.periodReview.setBillingStatus(id, status, expectedRevision);
   }
-  importSource(input: Parameters<EvidenceService["importSource"]>[0]): void {
-    this.evidence.importSource(input);
+  importSource(input: Parameters<EvidenceService["importSource"]>[0]) {
+    return this.evidence.importSource(input);
   }
-  validateSource(instanceId: string, contentType: string, externalId: string): void {
-    this.evidence.validateSource(instanceId, contentType, externalId);
+  importRetrievedSource(input: Parameters<EvidenceService["importRetrievedSource"]>[0]) {
+    return this.evidence.importRetrievedSource(input);
+  }
+  importSources(inputs: Parameters<EvidenceService["importSources"]>[0]) {
+    return this.evidence.importSources(inputs);
+  }
+  validateSource(
+    instanceId: string,
+    contentType: string,
+    externalId: string,
+    validated = true,
+  ): void {
+    this.evidence.validateSource(instanceId, contentType, externalId, validated);
   }
   setSourceAvailability(...args: Parameters<EvidenceService["setSourceAvailability"]>): void {
     this.evidence.setSourceAvailability(...args);

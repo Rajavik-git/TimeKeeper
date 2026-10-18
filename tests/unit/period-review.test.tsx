@@ -266,3 +266,31 @@ it("normalizes successful duration saves while retaining a pending case correcti
   );
   expect(screen.getByRole("button", { name: "Mark billed" })).toHaveProperty("disabled", true);
 });
+
+it.each([
+  {
+    endedAt: null,
+    startedAt: "2026-10-17T09:00:00",
+    explanation: "Finish this period before validating time.",
+  },
+  {
+    endedAt: "2099-10-17T10:00:00",
+    startedAt: "2099-10-17T09:00:00",
+    explanation: "Time can be validated from the next local calendar day.",
+  },
+])(
+  "disables validation of running or future periods despite a corrected duration",
+  ({ endedAt, startedAt, explanation }) => {
+    const input = props();
+    input.period = {
+      ...input.period,
+      endedAt,
+      startedAt,
+      timeValidated: false,
+      durationOverrideMs: 1000,
+    };
+    render(<PeriodReviewDialog {...input} />);
+    expect(screen.getByRole("button", { name: "Validate time" })).toHaveProperty("disabled", true);
+    expect(screen.getByText(explanation)).toBeTruthy();
+  },
+);

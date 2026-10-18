@@ -1,24 +1,32 @@
 import type { DatabaseSync } from "node:sqlite";
 import { eq } from "drizzle-orm";
 import type { SourceExportPort } from "../../ports/source-export.js";
-import { TimeKeeperService } from "../../application/service.js";
+import { periodView } from "../../application/period-view.js";
 import { SqliteRepository } from "./core-repository.js";
-import { catalogRepository, readCatalog } from "./catalog-repository.js";
+import { catalogRepository } from "./catalog-repository.js";
 import { orm } from "./orm.js";
 import * as t from "./tables.js";
 import { transaction } from "./transaction.js";
 
 export function sourceExportPort(db: DatabaseSync): SourceExportPort {
   const query = orm(db);
-  const core = new TimeKeeperService(new SqliteRepository(db));
+  const core = new SqliteRepository(db);
+  const catalog = catalogRepository(db);
   return {
     transaction: (work) => transaction(db, work),
-    snapshot: () => ({
-      catalog: readCatalog(db),
-      periods: core.allPeriods(),
-      sources: core.allSources(),
-      auditEvents: catalogRepository(db).auditEvents(),
-    }),
+    snapshot: (caseId, includeAudit) => {
+      const periods = core.queryPeriods({ caseId }).map(periodView);
+      return {
+        catalog: {
+          settings: catalog.getSettings(),
+          clients: catalog.listClients(),
+          cases: [catalog.case(caseId)].filter((item) => item !== undefined),
+        },
+        periods,
+        sources: periods.flatMap((period) => core.listSources(period.id)),
+        auditEvents: includeAudit ? catalog.auditEvents() : [],
+      };
+    },
     invoiceCaseId(id) {
       return query
         .select({ caseId: t.invoices.case_id })

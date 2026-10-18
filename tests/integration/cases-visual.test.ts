@@ -39,14 +39,14 @@ it("excludes flat fees from Cases to-bill totals while retaining their pricing m
         state.clients.find((client) => client.name === "Telavrone Studio Inc.")?.id,
     )!;
     expect(flatFee.mode).toBe("flat_fee");
-    expect(caseMetrics(state, core, flatFee).toBill).toBe(0);
+    expect(caseMetrics(state, core, flatFee).toBillCents).toBe(0);
     const telavrone = clientMetrics(state, core, flatFee.clientId);
-    expect(telavrone.toBill).toBe(0);
-    expect(telavrone.hourlyTime).toBe(0);
+    expect(telavrone.toBillCents).toBe(0);
+    expect(telavrone.hourlyMinutes).toBe(0);
     const sarah = state.clients.find((client) => client.name === "Sarah Bennett")!;
-    expect(clientMetrics(state, core, sarah.id).toBill).toBe(163750);
+    expect(clientMetrics(state, core, sarah.id).toBillCents).toBe(163750);
     const total = state.clients.reduce(
-      (sum, client) => sum + clientMetrics(state, core, client.id).toBill,
+      (sum, client) => sum + clientMetrics(state, core, client.id).toBillCents,
       0,
     );
     expect(total).toBe(933950);
@@ -98,14 +98,14 @@ it("combines precise client durations across cases and exposes incomplete totals
     };
     state.cases.push(second);
     expect(clientMetrics(state, core, first.clientId)).toMatchObject({
-      time: 1,
+      recordedMinutes: 1,
       complete: true,
       unbilledSummary: { preciseDurationMs: 40000, roundedMinutes: 1, complete: true },
     });
     core.periods[1].durationOverrideMs = null;
     core.periods[1].detectedDurationMs = null;
     expect(clientMetrics(state, core, first.clientId)).toMatchObject({
-      time: 1,
+      recordedMinutes: 1,
       complete: false,
     });
     expect(caseMetrics(state, core, second).complete).toBe(false);
@@ -132,17 +132,7 @@ it("calculates Activity fees from corrected canonical duration and applied rates
       billable: true,
       billingStatus: "unbilled" as const,
     };
-    const core: CoreState = {
-      periods: [period],
-      sources: [],
-      sessions: [],
-      activeSession: null,
-      questions: [],
-      coverageGaps: [],
-      auditEvents: [],
-      billing: { invoices: [], lines: [], expenses: [] },
-    };
-    expect(dayFees(state, core, [period])).toMatchObject({
+    expect(dayFees(state, [period])).toMatchObject({
       cents: 500,
       complete: true,
       currency: state.settings.currency,
@@ -150,13 +140,13 @@ it("calculates Activity fees from corrected canonical duration and applied rates
     period.billingStatus = "billed";
     period.appliedHourlyRateCents = 24000;
     period.appliedCurrency = state.settings.currency;
-    expect(dayFees(state, core, [period])).toMatchObject({
+    expect(dayFees(state, [period])).toMatchObject({
       cents: 400,
       complete: true,
       currency: state.settings.currency,
     });
     period.appliedCurrency = null;
-    expect(dayFees(state, core, [period])).toMatchObject({ cents: null, complete: false });
+    expect(dayFees(state, [period])).toMatchObject({ cents: null, complete: false });
   } finally {
     db.close();
   }
@@ -232,8 +222,11 @@ it("keeps opaque catalog IDs through summaries, rates, and Activity filters", as
       auditEvents: [],
       billing: { invoices: [], lines: [], expenses: [] },
     };
-    expect(clientMetrics(state, core, owner.id)).toMatchObject({ time: 1, toBill: 500 });
-    expect(dayFees(state, core, [period])).toMatchObject({
+    expect(clientMetrics(state, core, owner.id)).toMatchObject({
+      recordedMinutes: 1,
+      toBillCents: 500,
+    });
+    expect(dayFees(state, [period])).toMatchObject({
       cents: 500,
       complete: true,
       currency: state.settings.currency,

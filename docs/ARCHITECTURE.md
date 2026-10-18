@@ -2,13 +2,13 @@
 
 ## Scope and ownership
 
-TimeKeeper implements React, a local Hono API, application services, and SQLite persistence for the [requirements](REQUIREMENTS.md). Tauri hosts the desktop windows. Node runs separately. Process management and bundling its runtime remain release requirements. Node uses [`.nvmrc`](../.nvmrc). Package and Cargo lockfiles record dependency versions.
+TimeKeeper implements React, a local Hono API, application services, and SQLite persistence for the [requirements](REQUIREMENTS.md). Tauri hosts the desktop windows. In Windows release builds it launches the Node API sidecar with readiness checks, diagnostics, and parent-process cleanup. Development runs the API separately; macOS packaging and native acceptance remain open. Node uses [`.nvmrc`](../.nvmrc). Package and Cargo lockfiles record dependency versions.
 
 Screenpipe owns recording and triggered workflows. Node validates commands and writes records. React calculates summaries. The [setup guide](SETUP.md) owns environment preparation. Its public-health check does not wire integrations. The Screenpipe release and native release acceptance remain open.
 
 ## Components and flows
 
-The diagram includes planned connections. The launcher, MCP, trigger bridge, provider reads, tag adapter, and JEV workflow are unimplemented. The pending-command box is an unresolved contract. See [implemented modules](#implemented-modules) for the current call path and [AGENTS.md](../AGENTS.md) for dependency rules.
+The diagram includes planned connections. MCP, the JEV watcher, provider reads, and inbox consumption exist in source. Trigger transport, tag delivery, installed workflow packaging, and stopped-app command production still require implementation or provider acceptance. See [implemented modules](#implemented-modules) for the current call path and [AGENTS.md](../AGENTS.md) for dependency rules.
 
 ```mermaid
 flowchart LR
@@ -33,15 +33,15 @@ flowchart LR
         API[Node API and application services]
         DB[(SQLite)]
         Adapter[Source-tag adapter]
-        Host -.->|Process management pending| API
+        Host -->|Release sidecar lifecycle| API
         UI <--> API
         MCP --> API
         API <--> DB
         API --> Adapter
     end
     Launcher --> Host
-    Workflow -->|When available: scoped commands| MCP
-    Chat <-->|When available: read tools| MCP
+    Workflow -->|Scoped commands| MCP
+    Chat <-->|Read tools| MCP
     API -->|Retrieve review sources| Memory
     Adapter -.->|Reconcile and verify tags| Tags
     Workflow -.->|When app is stopped| Pending[Durable command handling: design open]
@@ -65,26 +65,31 @@ flowchart LR
 
 ## Implemented modules
 
-The current request path is `React -> typed API client -> Hono -> application services -> repository ports -> SQLite`. `src/contracts/openapi.yaml` owns HTTP payloads. `npm run contract:gen` generates domain-state values, API types, and request schemas. Hono uses Ajv 2020 and `ajv-formats`, limits request size, and returns sanitized errors. `application/errors.ts` owns stable error codes. ESLint checks dependency direction.
+The current request path is `React -> typed API client -> Hono -> application services -> repository ports -> SQLite`. `src/contracts/openapi.yaml` owns HTTP payloads. `npm run contract:gen` generates domain-state values, API types, and request schemas. Hono uses Ajv 2020 and `ajv-formats`, limits request size, and returns sanitized errors. `application/errors.ts` owns stable error codes. ESLint checks dependency direction. `bootstrap.ts` constructs one service graph and clock on the same transaction connection. HTTP routers receive those services. `createApp(db)` remains a compatibility factory; runtime uses `createHttpApp(services)`.
 
-| Owner                     | Responsibility                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `CatalogService`          | Catalogue reads and writes.                                                                                      |
-| `SessionCommandService`   | Command replay, prerequisites, and session boundaries.                                                           |
-| `PeriodAssignmentService` | Assignments and revision-bound questions.                                                                        |
-| `PeriodReviewService`     | Details, duration, time validation, and billing transitions.                                                     |
-| `EvidenceService`         | Evidence import, source review, and reconstruction notices.                                                      |
-| Invoice service           | Check ownership, validation, billing, revisions, pricing, expenses, tax, and amounts before freezing an invoice. |
-| `SourceExportService`     | Source packs and issued invoice CSV reads.                                                                       |
-| `core-row-mappers.ts`     | Decode rows and reject invalid stored states. Repositories own queries and writes on the transaction connection. |
+| Owner                        | Responsibility                                                                                                   |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `CatalogService`             | Scoped catalogue reads and writes.                                                                               |
+| `CatalogProvisioningService` | Basic compatibility provisioning and rate queries.                                                               |
+| `PeriodLifecycleService`     | Period boundaries, guarded transitions, reconstruction safeguards, manual periods, and switch undo.              |
+| `WorkspaceService`           | Consistent workspace snapshots and calendar query boundaries.                                                    |
+| `SessionCommandService`      | Command replay, prerequisites, and session boundaries.                                                           |
+| `PeriodAssignmentService`    | Assignments and revision-bound questions.                                                                        |
+| `PeriodReviewService`        | Details, duration, time validation, and billing transitions.                                                     |
+| `RetrievalService`           | Bounded evidence reads, checkpoints, final overlap replay, and complete-range gap closure.                       |
+| `EvidenceService`            | Evidence import, source review, and reconstruction notices.                                                      |
+| `HistoryService`             | Explicit history jobs, workflow claims, draft review, and guarded acceptance.                                    |
+| Invoice service              | Check ownership, validation, billing, revisions, pricing, expenses, tax, and amounts before freezing an invoice. |
+| `SourceExportService`        | Source packs and issued invoice CSV reads.                                                                       |
+| `core-row-mappers.ts`        | Decode rows and reject invalid stored states. Repositories own queries and writes on the transaction connection. |
 
-`service.ts` delegates to focused services with narrow repository ports. Deprecated compatibility routes translate explicit fields into the same commands and transactions. The legacy manual-entry route returns HTTP 501 because its payload lacks session and time boundaries. The canonical route accepts explicit boundaries, but its UI remains disabled pending product rules. Pause routes store annotations without controlling recording.
+`service.ts` is a compatibility facade over focused services with narrow repository ports. Lifecycle, assignment, and review services own compensating undo writes. `PillService` coordinates decisions and stores short-lived undo tokens; its responses include the server deadline `undoExpiresAt`. Scoped catalogue reads do not decode unrelated marker or client-rule collections. Source exports read the requested case and optional audit history. Deprecated compatibility routes translate explicit fields into the same commands and transactions. The legacy manual-entry route returns HTTP 501 because its payload lacks session and time boundaries. The canonical route accepts explicit boundaries, but its UI remains disabled pending product rules. Pause routes store annotations without controlling recording.
 
 ### Frontend ownership
 
 Feature roots contain screen entries and screen-wide styles. Named folders under `components/` contain child components and their styles. Hooks use `hooks/`; helpers use `lib/`. Imports name implementation files directly. `shared/styles.css` preserves cascade order. Shared styles own controls, shell, and tokens; feature styles own feature selectors. Feature helpers can prepare commands and are not necessarily pure.
 
-`App.tsx` owns navigation, resource selection, review lifetime, and source-return context. `Cases.tsx` coordinates commands and child views. `MyDay.tsx` presents the day; `useDayResources` owns scoped reads and `useDayCommands` owns assignment and validation. Settings sections own forms and errors. Cases and Settings share `ClientEditorDialog` and its dirty-dismissal and pending-submit guards. `CaseSearch` owns search requests, stale responses, and keyboard selection. `dayView` owns grouping, filters, gaps, sorting, and CSV order.
+`App.tsx` owns navigation, resource selection, review lifetime, and source-return context. `Cases.tsx` coordinates commands and child views. `MyDay.tsx` presents the day; `useDayResources` owns scoped reads and `useDayCommands` owns assignment and validation. `PeriodActivity` switches between the complete saved-source list and `WorkPeriodActivity` review. `ImportedSources` reads the unscoped workspace snapshot, including references with no period, and owns source filters and pagination without writes or provider calls. Settings sections own forms and errors. Cases and Settings share `ClientEditorDialog` and its dirty-dismissal and pending-submit guards. `CaseSearch` owns search requests, stale responses, and keyboard selection. `dayView` owns grouping, filters, gaps, sorting, and CSV order.
 
 Shared fetch hooks use `openapi-fetch` and own cancellation, stale-response guards, and refresh state. Visible resources poll every five seconds and refresh on focus or resume. Polls skip in-flight requests; explicit refresh can replace them. A refresh failure does not undo a committed mutation. Batch validation refreshes committed successes after a later failure. Read errors remain distinct from write errors.
 
@@ -96,7 +101,7 @@ React calculation modules own summaries, comparison eligibility, budgets, and in
 
 `calculations/case-budget.ts` owns the 85% warning threshold, precise comparison, and warning text for Cases and Billing. Shared money and rate formatters preserve cents across views. Catalogue presentation hides blank text only; brackets and `N/A` can be legitimate user values.
 
-Main and pill share `WorkPill` and `src/frontend/shared/design-system/tokens.css`. `features/desk/lib/pillView.ts` maps state and preferences; native commands stay in the native entry point. Rust emits `timekeeper:open-my-day` to the main window. Its WebView listener changes the view and unregisters on unmount. That native path remains unverified. [Design](../design.md) owns interface guidance.
+The native page and Settings preview render the same production `Pill` and `WorkPill` path with shared design tokens. `usePillController` coordinates the screen, `nativePillView` derives display state, `usePillCommands` owns API writes and authoritative undo deadlines, and `usePillPosition` owns native geometry and browser positioning. Review selection includes past-day periods across sessions. Unknown work duration stays unknown in fee calculations. Rust emits `timekeeper:open-my-day` to the main window. Its WebView listener changes the view and unregisters on unmount. That native path remains unverified. [Design](../design.md) owns interface guidance.
 
 ### Remaining structural debt
 
@@ -108,18 +113,21 @@ Main and pill share `WorkPill` and `src/frontend/shared/design-system/tokens.css
 | `core-repository.ts`, `catalog-repository.ts` | Preserve the transaction connection when moving queries.                                                                   |
 | `shared/theme.css`, `legacy.css`              | Imported layout rules remain in lower cascade layers. Changes require checking affected selectors.                         |
 
-Generated contracts, declarative mappings, and ordered migrations have distinct maintenance needs. File size alone does not justify splitting them. Historical migrations remain frozen. Domain state modules own named values; generated frontend members preserve transport values such as `RateOrigin.Case = "matter"`. [Database state ownership](DATABASE.md#why-fixed-states-are-text) defines the change requirements.
+Generated contracts, declarative mappings, and ordered migrations have distinct maintenance needs. File size alone does not justify splitting them. Historical migrations remain frozen. Domain state modules own named values and re-export the portable rate vocabulary from `src/shared/rate-policy.ts`. That module owns case/client/global precedence, explicit zero rates, and rate origins for both backend and frontend. Generated frontend members preserve transport values such as `RateOrigin.Case = "matter"`. [Database state ownership](DATABASE.md#why-fixed-states-are-text) defines the change requirements.
+
+The watcher uses a separate operational `.watch.pid.sqlite` file to serialize ownership. Short SQLite transactions release their file locks if a process exits, and later starts replace dead owners. PID diagnostics remain separate. This coordinator never opens the TimeKeeper business database or Screenpipe storage; business reads and writes still use the HTTP API.
 
 ## Session lifecycle and application lifecycle
 
-Session state is independent of process state. The current Rust host hides the main window on close. Tray **Quit** exits Tauri. Neither action stops the separately launched API. Stopping the API closes SQLite without ending the stored session. Coordinated lifecycle remains unimplemented.
+Session state is independent of process state. The Rust host hides the main window on close. Tray **Quit** exits Tauri and stops its owned release API sidecar. Development API processes run separately. The backend parent watchdog handles an orphaned owned sidecar. Process exit closes SQLite without ending the stored session. Native lifecycle acceptance remains separate from source checks.
 
 | Action                             | Required effect                                                                                                          |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Start command in Screenpipe        | Launch or activate TimeKeeper, wait for readiness, and create a session or return the existing active session unchanged. |
-| Close TimeKeeper                   | Exit Tauri and Node while preserving the open session and period.                                                        |
+| Close the main window              | Hide the shell while preserving the API, open session, and period.                                                       |
+| Quit from the tray                 | Exit Tauri and its owned release API while preserving the open session and period.                                       |
 | Reopen TimeKeeper                  | Resume and reconcile history without duplicate periods or lost corrections.                                              |
-| End command in Screenpipe          | End the targeted session and its active period. Repeated ends retain the original boundary. Screenpipe keeps recording.  |
+| End command in Screenpipe          | End the target session and period. Repeated ends retain the original boundary. Explicit End keeps Screenpipe recording.  |
 | Receive evidence after session end | Reconcile observations within the session boundaries without reopening or extending it.                                  |
 
 Commands need stable IDs, the authoritative session ID returned by start, effective timestamps, and revision guards. Receipt time cannot replace effective time. Retries have no additional effect.
@@ -140,7 +148,7 @@ Folder detection and effective boundaries remain undefined. Ordinary application
 6. One transaction saves the assignment and pending tag-delivery intent.
 7. The adapter reconciles tags and records verification or retryable failure.
 
-This provider flow is planned. Delayed answers resolve only their original period. Closure and evidence imports preserve the assignment guard. A newer assignment, superseded question, or replaced period causes a conflict. Answers do not teach reusable folder rules.
+The JEV watcher and scoped MCP transition path implement the observation-to-command portion of this flow. Automatic tag-delivery intent and provider tag reconciliation remain planned. Delayed answers resolve only their original period. Closure and evidence imports preserve the assignment guard. A newer assignment, superseded question, or replaced period causes a conflict. Answers do not teach reusable folder rules.
 
 Recovery rereads overlapping windows, deduplicates source identities, and advances retrieval progress only with committed records. A signal may precede searchable evidence. An empty query does not prove inactivity. [Screenpipe research](SCREENPIPE_INTEGRATION.md) covers transport and producer verification.
 
@@ -177,7 +185,7 @@ Aliases must agree on ownership and desired case. Conflicting aliases block sync
 
 ## MCP and JEV boundaries
 
-Chat reads follow `Screenpipe chat -> MCP -> application API -> SQLite`. Workflow writes use separate scoped commands. Desktop controls own corrections and validation. Tool schemas, transport compatibility, and local access controls remain unimplemented.
+Chat reads follow `Screenpipe chat -> MCP -> application API -> SQLite`. Workflow writes use separate scoped commands. Desktop controls own corrections and validation. MCP tool schemas and Node stdio/HTTP transport exist. Current local access relies on loopback and origin checks; selected Screenpipe release transport acceptance remains required.
 
 Screenpipe workflows own JEV calls and candidate selection. Node validates their chosen existing case without repeating inference. [Integration research](SCREENPIPE_INTEGRATION.md) records HTTP MCP, skill import, and JEV evidence. Skills are instructions. They neither register MCP connections nor listen for events. Hosted inference requires a decision about permitted source data.
 
@@ -189,7 +197,7 @@ Chat reports application details unavailable when the API is stopped. Read-only 
 
 `src/backend/adapters/sqlite/migrate.ts` alone owns schema upgrades, constraints, indexes, and triggers. Drizzle mappings do not generate migrations. Do not run schema push against existing workspaces.
 
-`tag_targets` and `assignment_deliveries` exist, but assignments do not yet create delivery intent. No provider worker runs. The Screenpipe adapter contains types only. Atomic delivery persistence, provider reconciliation, and verification remain required.
+`tag_targets` and `assignment_deliveries` exist, but assignments do not yet create delivery intent. The Screenpipe HTTP reader and catch-up worker run only when configured. Source-tag delivery remains unimplemented. Atomic delivery persistence, provider reconciliation, and verification remain required.
 
 [Requirements](REQUIREMENTS.md) tracks dependent decisions and acceptance examples. Native acceptance must run separately on macOS and Windows.
 
@@ -218,3 +226,39 @@ score = min(0.99, 1 - product(1 - cue_weight) + continuity)
 Continuity adds 0.1 when the previous block has the same matter, app, and title. `decision(candidates, threshold)` assigns at `max(threshold, 0.5)`. Scores from 0.5 up to that threshold propose a matter with `to_check`. Lower scores and tied shared-client-only matches propose none. The compatibility caller uses `confidence_threshold`, 0.8 in the historical fixture.
 
 Only explicit fixture setup refreshes confidence, marker `hits`, and `last_seen_at`. A hit counts one explicit cue per block and candidate, including proposals. Historical assignments stay unchanged, even below the threshold. `GET /api/blocks/{id}/recognition` neither changes counts nor learns cues. Reusable learning remains deferred in [requirements](REQUIREMENTS.md).
+
+## Start and end buttons and tab detection
+
+[API D7](API.md#d7-the-lawyer-starts-and-ends-a-session-with-a-button-in-screenpipe) owns the button and recording-link contracts. The link runs only when explicitly started. Its persisted observations and stable retry identities preserve known boundaries. Login startup and stopped-app command production remain open.
+
+JEV is the only active automatic detector. The native watcher no longer starts, and the pill no longer runs local recognition or countdown writes. The original source is recoverable from [the native recognition backup](../backups/native-recognition-d575502/README.md). The pill polls accepted periods and questions and preserves manual answers, validation, undo, and navigation. A local pause control was removed because it could not pause the separate JEV workflow.
+
+The watcher captures period identity and assignment revision before inference. Its retry controller separates new inference from uncertain command delivery. Delivery retries preserve the original payload; newer focus invalidates pending work. Application and window title identify the observed context together. The application checks the captured guards atomically, preserves identical replay, rejects stale answers, and records protected reconstructions without splitting corrected or validated records. [API D10](API.md#d10-jev-confirmed-tab-changes-become-work-period-transitions) owns the payload and retry outcomes.
+
+The launcher and watcher share `jev-check/environment.ts`. Inherited variables override the parsed watcher-local configuration. `tab-detection.ts` validates permitted fields and numeric settings, and `watcher-launch.ts` owns child-process and Windows WMI creation. WMI receives configuration over stdin and sets the child environment explicitly. Startup waits for the ownership record written after dependency handshakes; failed launches stop their process. Native launch acceptance remains separate.
+
+The current JEV request gates case selection on a detected tab, window, or document switch. Changed content within the same tab does not pass that gate. The required same-tab case-change scenario remains an acceptance gap.
+
+Node runs both source and built MCP/JEV entries. Bun is unnecessary. The API sidecar does not package the workflow's configuration or separate Screenpipe MCP dependency. See [setup](SETUP.md#configure-mcp-and-jev).
+
+## History proposal workflow
+
+Newly connected source adds `HistoryService`, its SQLite storage, `history-runner.ts`, history routes, MCP `generate_history_proposals`, and Activity's `HistoryProposals` feature. Explicit generation creates a persisted job. The backend dispatches Screenpipe's `generate-work-periods` pipe; the MCP workflow claims the job and sends permitted evidence to JEV. Drafts remain outside counted periods until explicit lawyer acceptance with a reviewed duration. This does not define automatic duration derivation or resolve protected-period reconstruction conflicts.
+
+Private snapshots and claims stay in job storage, and public projections expose sanitized status. Backend shutdown aborts dispatch work. The Screenpipe installer copies the manual history pipe together with the MCP registration and skill. Installed files do not establish workflow readiness or start services. [API D14](API.md#d14-history-proposals-and-explicit-acceptance) owns the current contract and configuration differences. This source addition still requires runtime and provider acceptance.
+
+## Inbox and evidence recovery
+
+The inbox adapter consumes files already delivered to its folder; the missing external producer remains a limitation. Local consumption precedes readiness. Known prerequisites take priority over timestamp order, and unexpected storage or move errors leave commands retryable.
+
+`RetrievalService`, the SQLite retrieval adapter, and the catch-up worker share existing transaction and evidence services. One backend coordinator owns automatic and manual import runs, their status, and connection tests. Overlapping imports share one run. Authentication failure pauses scheduled retries; successful explicit testing or import can resume them. Changed environment configuration requires a restart. Truncation cannot advance complete coverage. Final overlap scans can find late-indexed references inside that overlap; they do not establish provider completeness or duration. [API D11](API.md#d11-screenpipe-controls-in-settings) owns the Settings diagnostic contract and its runtime-status limits.
+
+Session boundaries are rechecked around asynchronous reads. Closing the backend aborts reads before closing SQLite. The API retains its existing desktop parent watchdog. [API D8](API.md#d8-synchronization-at-startup-through-a-local-inbox-folder) defines timing, limits, and failure outcomes.
+
+The search adapter normalizes bounded literal source text and observed app/window context. The internal evidence use case fills missing fields and permits guarded attachment of previously unlinked sources. Retrieval rechecks saved references against unique session and period bounds before provider reads. It preserves existing ownership and period state. Content-versioned checkpoints trigger one bounded replay of identity-only history. [API D13](API.md#d13-source-content-and-late-attachment) owns this contract; [requirements](REQUIREMENTS.md#screenpipe-interaction) own the attachment and retention rules.
+
+## History proposals
+
+Activity requests a bounded generation job through `HistoryService`. SQLite stores its evidence snapshot and review drafts separately from work periods. The backend runner checks the MCP capability and dispatches the named manual Screenpipe pipe. Screenpipe calls the MCP history command, whose integration helper runs permitted-field JEV judgments and submits the complete draft batch. The backend performs no model inference. Jobs expire when their workflow cannot claim or complete them; dispatch acknowledgement never marks them ready.
+
+Explicit acceptance validates the snapshot and creates an additive, finished period in one transaction. It stores the lawyer's duration override and attaches eligible unlinked sources. It refuses existing-period overlap and preserves the live active period. Drafts remain outside workspace summaries. [API D14](API.md#d14-history-generation-and-proposal-review) owns endpoints, bounds and lifecycle details.

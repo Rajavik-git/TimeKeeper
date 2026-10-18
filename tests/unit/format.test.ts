@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  duration,
+  nearestMinuteDuration,
   longDate,
   minutes,
   money,
@@ -12,15 +12,15 @@ import {
 
 describe("English display formats", () => {
   it("uses two decimal places for money and hourly rates", () => {
-    expect(money(139000)).toBe("$1,390.00");
-    expect(rate(30000)).toBe("$300.00/h");
+    expect(money(139000, "USD")).toBe("$1,390.00");
+    expect(rate(30000, "USD")).toBe("$300.00/h");
     expect(percent(91)).toBe("91%");
   });
   it("shows durations as hours and minutes without decimal hours", () => {
     expect(minutes(108)).toBe("1h 48m");
     expect(minutes(12)).toBe("12m");
     expect(minutes(0)).toBe("0m");
-    expect(duration(108000)).toBe("2m");
+    expect(nearestMinuteDuration(108000)).toBe("2m");
     expect(tenthsOfHour(18)).toBe("1h 48m");
   });
   it("shows dates in English without a weekday comma", () => {
