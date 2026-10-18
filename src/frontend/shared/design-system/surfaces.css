@@ -67,6 +67,19 @@ button.card:hover:not(:disabled) {
 :is(.stat, .kpi):not(:last-child) {
   border-right: 1px solid color-mix(in srgb, currentColor 28%, transparent);
 }
+/* Summary tiles are separate cards with breathing room instead of divider lines. */
+.stats,
+.page > .grid4 {
+  gap: var(--space-12);
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+:is(.stats, .page > .grid4) > :is(.stat, .kpi) {
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--sum-bg);
+}
 :is(.stat, .kpi) :is(.l, .small) {
   color: inherit;
   font-size: var(--fs-md);

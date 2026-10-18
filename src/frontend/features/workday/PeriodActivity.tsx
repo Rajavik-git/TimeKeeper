@@ -151,6 +151,16 @@ export function PeriodActivity({
   const timeValidated = Boolean(period?.timeValidated ?? selectedEntry?.timeValidated);
   const status =
     timeValidationLabels[timeValidated ? ValidationStatus.Validated : ValidationStatus.Unvalidated];
+  // Show 8h–20h on opening; other hours stay reachable by horizontal scroll.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const openedOnWorkday = useRef(false);
+  useEffect(() => {
+    const track = gridRef.current?.querySelector<HTMLElement>(".activity-track");
+    if (!gridRef.current || !track || openedOnWorkday.current) return;
+    // Leave room so the "8h" axis label is not hidden under the sticky date column.
+    gridRef.current.scrollLeft = (track.offsetWidth * 8 * 3600000) / timeline.spanMs - 14;
+    openedOnWorkday.current = true;
+  });
   return (
     <>
       {selected && !selectedEntry && (
@@ -282,8 +292,10 @@ export function PeriodActivity({
             ) : (
               <div
                 className="activity-grid"
+                ref={gridRef}
                 style={{
-                  gridTemplateRows: `16px repeat(${days}, minmax(22px,1fr))`,
+                  gridTemplateRows: `16px repeat(${days}, minmax(32px,1fr))`,
+                  gridTemplateColumns: `64px calc((100% - 92px) * ${timeline.spanMs / (12 * 3600000)})`,
                 }}
                 onMouseLeave={() => {
                   setCursor(null);
@@ -375,9 +387,9 @@ export function PeriodActivity({
                         const full = caseItem?.title.toLowerCase().includes(short.toLowerCase())
                           ? caseItem.title
                           : `${short} · ${caseItem?.title ?? ""}`;
-                        const pixels = width * 12.4;
+                        const pixels = width * 12.4 * (timeline.spanMs / (12 * 3600000));
                         const label =
-                          !caseItem || days > 14
+                          !caseItem
                             ? ""
                             : pixels >= full.length * 7.2 + 14
                               ? full
@@ -483,17 +495,6 @@ export function PeriodActivity({
             )}
           </div>
         </section>
-        {entries.length > 0 && (
-          <ActivityPeriodList
-            entries={entries}
-            state={activity}
-            selectedId={selectedEntry?.id}
-            onSelect={(id) => {
-              setPicked({ id, requestedId: selected });
-              setPreview(null);
-            }}
-          />
-        )}
       </div>
       {preview && peekPeriod && (
         <ActivityPeek
@@ -506,6 +507,15 @@ export function PeriodActivity({
       )}
       {selectedEntry && (
         <div className="activity-lower">
+          <ActivityPeriodList
+            entries={entries}
+            state={activity}
+            selectedId={selectedEntry?.id}
+            onSelect={(id) => {
+              setPicked({ id, requestedId: selected });
+              setPreview(null);
+            }}
+          />
           <section className={`card activity-detail ${flash ? "flash" : ""}`} ref={detailRef}>
             <div className="card-h">
               <div className="t">

@@ -167,11 +167,32 @@
   row-gap: 4px;
   align-items: center;
   min-height: 0;
+  padding-right: 12px;
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line-2) transparent;
 }
+.activity-grid > :nth-child(1),
 .activity-date {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  align-self: stretch;
+  background: var(--surface);
+}
+.activity-grid > :nth-child(1),
+.activity-grid > .activity-axis {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--surface);
+}
+.activity-grid > :nth-child(1) {
+  z-index: 7;
+}
+.activity-date {
+  display: flex;
+  align-items: center;
   font-size: 13.5px;
   color: var(--muted);
   white-space: nowrap;
@@ -180,6 +201,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
   line-height: 13px;
   color: var(--ink);
 }
@@ -541,11 +563,15 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
   }
 }
 .page > .activity-lower {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
+}
+.page > .activity-lower > .activity-period-list {
+  grid-row: 1 / span 2;
 }
 .activity-detail,
 .activity-audit {
@@ -557,10 +583,11 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
 .activity-detail .card-h .t {
   min-width: 0;
 }
+.activity-detail .card-h .activity-summary {
+  flex: 1 1 100%;
+}
 .activity-detail .card-h h2 {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .activity-summary {
   display: flex;
@@ -711,7 +738,6 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
     align-items: flex-start;
   }
   .page > .activity-lower {
-    grid-template-columns: minmax(0, 1fr) 300px;
     gap: 12px;
   }
 }
@@ -834,9 +860,13 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
 }
 @media (max-width: 900px) {
   .page > .activity-lower {
+    grid-template-rows: none;
     grid-template-columns: minmax(0, 1fr);
     flex: none;
     overflow: visible;
+  }
+  .page > .activity-lower > .activity-period-list {
+    grid-row: auto;
   }
   .activity-detail,
   .activity-audit {
@@ -858,6 +888,9 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
   .activity-timeline .card-h {
     flex-direction: column;
     align-items: stretch;
+  }
+  .activity-timeline .card-h > * {
+    align-self: stretch;
   }
   .activity-timeline .activity-legend {
     margin-left: 0;
@@ -939,7 +972,7 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 .activity-overview-empty {
@@ -951,9 +984,7 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
 }
 .activity-overview .activity-timeline > .card-h {
   flex: none;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+  gap: 8px 24px;
 }
 .activity-overview .activity-legend {
   margin-left: 0;
@@ -963,7 +994,7 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
 .activity-overview .activity-timeline .card-h p {
   font-size: 12.5px;
 }
-.activity-overview .activity-period-list button {
+.activity-lower .activity-period-list button {
   flex-direction: column;
   gap: 6px;
 }
@@ -975,7 +1006,7 @@ html[data-theme="dark"] .activity-track .activity-segment:hover {
   .activity-overview .activity-timeline {
     height: 280px;
   }
-  .activity-overview .activity-period-list {
+  .activity-lower .activity-period-list {
     max-height: 300px;
   }
 }

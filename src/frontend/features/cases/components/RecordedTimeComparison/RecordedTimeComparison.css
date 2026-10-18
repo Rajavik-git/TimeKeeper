@@ -32,6 +32,12 @@
 .recorded-time-comparison p span {
   overflow-wrap: anywhere;
 }
+.recorded-time-comparison .comparison-to-check {
+  color: var(--warn);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
 @media (max-width: 1000px) {
   .recorded-time-comparison {
     align-items: flex-start;

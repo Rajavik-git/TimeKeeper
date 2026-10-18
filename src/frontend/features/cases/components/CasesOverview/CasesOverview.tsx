@@ -155,6 +155,7 @@ export function CasesOverview({
       <RecordedTimeComparison
         clients={catalogState.clients}
         comparison={timeComparison}
+        workspace={workspaceState}
         onChange={setComparisonClientId}
       />
       {

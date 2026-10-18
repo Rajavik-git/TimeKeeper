@@ -55,7 +55,7 @@ export function activityTimeline(periods: CoreState["periods"], timeZone = syste
     Math.ceil(Math.max(0, ...[...positions.values()].map((value) => value.endMs)) / 3600000),
   );
   const spanMs = endHour * 3600000;
-  const tickStep = Math.max(1, Math.ceil(endHour / 6));
+  const tickStep = Math.max(1, Math.ceil(endHour / 12));
   const ticks = Array.from(
     { length: Math.floor(endHour / tickStep) + 1 },
     (_, index) => index * tickStep,
