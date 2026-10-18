@@ -25,6 +25,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { api, shortDate, type ScreenProps } from "../../api/client";
 import { ActivitySourcePackDialog } from "./components/ActivitySourcePackDialog/ActivitySourcePackDialog";
 import { ActivityPeek } from "./components/ActivityPeek/ActivityPeek";
+import { useScreenpipeFrames } from "./hooks/useScreenpipeFrames";
 import { ActivityPeriodList } from "./components/ActivityPeriodList/ActivityPeriodList";
 import {
   effectiveMs,
@@ -138,6 +139,7 @@ export function PeriodActivity({
     ) : null;
   const days = Math.max(1, byDate.length);
   const peekPeriod = workspaceState.periods.find((item) => item.id === preview?.periodId);
+  const peekFrames = useScreenpipeFrames(peekPeriod);
   const activitySummary = summarizeWork(
     workspaceState.periods.filter((item) => entries.some((entry) => String(entry.id) === item.id)),
     workspaceState.sources,
@@ -239,8 +241,8 @@ export function PeriodActivity({
             <div className="t">
               <h2>Timeline</h2>
               <p>
-                Elapsed hours since local midnight. Click a period to inspect its observations.
-                Screenpipe media previews are not available yet.
+                Elapsed hours since local midnight. Hover a period to see the nearest Screenpipe
+                capture; click it to inspect its observations.
               </p>
             </div>
             <div className="activity-legend">
@@ -388,18 +390,17 @@ export function PeriodActivity({
                           ? caseItem.title
                           : `${short} · ${caseItem?.title ?? ""}`;
                         const pixels = width * 12.4 * (timeline.spanMs / (12 * 3600000));
-                        const label =
-                          !caseItem
-                            ? ""
-                            : pixels >= full.length * 7.2 + 14
-                              ? full
-                              : pixels >= caseItem.title.length * 7.2 + 14
-                                ? caseItem.title
-                                : pixels >= short.length * 7.2 + 14
-                                  ? short
-                                  : pixels >= 60
-                                    ? caseItem.reference.slice(0, 8)
-                                    : "";
+                        const label = !caseItem
+                          ? ""
+                          : pixels >= full.length * 7.2 + 14
+                            ? full
+                            : pixels >= caseItem.title.length * 7.2 + 14
+                              ? caseItem.title
+                              : pixels >= short.length * 7.2 + 14
+                                ? short
+                                : pixels >= 60
+                                  ? caseItem.reference.slice(0, 8)
+                                  : "";
                         const canonical = workspaceState.periods.find(
                           (item) => item.id === String(entry.id),
                         );
@@ -500,6 +501,7 @@ export function PeriodActivity({
         <ActivityPeek
           period={peekPeriod}
           sources={workspaceState.sources.filter((item) => item.workPeriodId === peekPeriod.id)}
+          frames={peekFrames}
           fraction={preview.fraction}
           x={preview.x}
           y={preview.y}

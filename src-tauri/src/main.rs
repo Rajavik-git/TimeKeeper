@@ -1,12 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use serde::Serialize;
 use std::{
     fs::OpenOptions,
     io::Write,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc, Mutex,
-    },
+    sync::{mpsc, Mutex},
     time::Duration,
 };
 use tauri::{
@@ -20,23 +18,11 @@ use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
     ShellExt,
 };
-use serde::Serialize;
 
-mod window_filter;
 #[cfg(windows)]
-mod window_watch;
+mod window_frame;
 
 struct ApiSidecar(Mutex<Option<CommandChild>>);
-struct WatchState {
-    enabled: Arc<AtomicBool>,
-    stop: Arc<AtomicBool>,
-}
-
-#[tauri::command]
-fn set_watch_enabled(state: tauri::State<WatchState>, enabled: bool) {
-    state.enabled.store(enabled, Ordering::Relaxed);
-}
-
 const PILL_WIDTH: u32 = 340;
 const PILL_HEIGHT: u32 = 38;
 const NOTICE_HEIGHT: u32 = 270;
@@ -91,21 +77,27 @@ fn set_pill_expanded(
     let width = content_width.unwrap_or(PILL_WIDTH).max(1);
     let height = content_height.unwrap_or(fallback_height).max(PILL_HEIGHT);
     let anchor_monitor = if let (Some(x), Some(y)) = (anchor_x, anchor_y) {
-        window.monitor_from_point(x as f64, y as f64)
+        window
+            .monitor_from_point(x as f64, y as f64)
             .map_err(|error| error.to_string())?
     } else {
         None
     };
     let current_monitor = if anchor_monitor.is_none() {
-        window.current_monitor().map_err(|error| error.to_string())?
+        window
+            .current_monitor()
+            .map_err(|error| error.to_string())?
     } else {
         None
     };
     let monitor = if anchor_monitor.is_none() && current_monitor.is_none() {
-        window.primary_monitor().map_err(|error| error.to_string())?
+        window
+            .primary_monitor()
+            .map_err(|error| error.to_string())?
     } else {
         anchor_monitor.or(current_monitor)
-    }.ok_or("No monitor available")?;
+    }
+    .ok_or("No monitor available")?;
     let bounds = monitor.size();
     let origin = monitor.position();
     let scale = monitor.scale_factor();
@@ -120,14 +112,27 @@ fn set_pill_expanded(
     let above_space = bar_y + bar_px - origin.y;
     let above = height_px > bar_px && below < height_px && above_space >= below;
     let raw_x = center_x - width_px / 2;
-    let raw_y = if above { bar_y - (height_px - bar_px) } else { bar_y };
+    let raw_y = if above {
+        bar_y - (height_px - bar_px)
+    } else {
+        bar_y
+    };
     let x = raw_x.clamp(origin.x, (right - width_px).max(origin.x));
     let y = raw_y.clamp(origin.y, (bottom - height_px).max(origin.y));
-    window.set_size(LogicalSize::new(width, height)).map_err(|error| error.to_string())?;
-    window.set_position(PhysicalPosition::new(x, y)).map_err(|error| error.to_string())?;
-    Ok(PillPlacement { anchor_x: x + width_px / 2,
+    window
+        .set_size(LogicalSize::new(width, height))
+        .map_err(|error| error.to_string())?;
+    window
+        .set_position(PhysicalPosition::new(x, y))
+        .map_err(|error| error.to_string())?;
+    Ok(PillPlacement {
+        anchor_x: x + width_px / 2,
         anchor_y: if above { y + height_px - bar_px } else { y },
-        above, width: width_px, height: height_px, bar_height: bar_px })
+        above,
+        width: width_px,
+        height: height_px,
+        bar_height: bar_px,
+    })
 }
 
 #[tauri::command]
@@ -166,11 +171,7 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![
-            set_pill_expanded,
-            open_my_day,
-            set_watch_enabled
-        ])
+        .invoke_handler(tauri::generate_handler![set_pill_expanded, open_my_day])
         .on_window_event(|window, event| {
             if window.label() == "main" {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -194,6 +195,11 @@ fn main() {
                     .env("TIMEKEEPER_DB", data_dir.join("timekeeper.db"))
                     .env("TIMEKEEPER_PORT", "8787")
                     .env("TIMEKEEPER_PARENT_PID", std::process::id().to_string())
+                    // Optional Screenpipe API token, read by the API when SCREENPIPE_API_KEY is unset.
+                    .env(
+                        "SCREENPIPE_API_KEY_FILE",
+                        data_dir.join("screenpipe-api-key"),
+                    )
                     .spawn()
                     .map_err(|error| {
                         service_error(&app.handle());
@@ -272,7 +278,7 @@ fn main() {
                 .expect("pill window configured");
             let _ = pill.set_shadow(false);
             #[cfg(windows)]
-            window_watch::disable_native_frame(&pill);
+            window_frame::disable_native_frame(&pill);
             position_pill(&pill, PILL_WIDTH, PILL_HEIGHT)?;
             pill.show()?;
             let open = MenuItem::with_id(app, "open", "Open TimeKeeper", true, None::<&str>)?;
@@ -303,26 +309,12 @@ fn main() {
                     _ => {}
                 })
                 .build(app)?;
-            let watch = WatchState {
-                enabled: Arc::new(AtomicBool::new(true)),
-                stop: Arc::new(AtomicBool::new(false)),
-            };
-            #[cfg(windows)]
-            window_watch::start(
-                app.handle().clone(),
-                watch.enabled.clone(),
-                watch.stop.clone(),
-            );
-            app.manage(watch);
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("TimeKeeper failed to build");
     app.run(|app, event| {
         if let tauri::RunEvent::Exit = event {
-            if let Some(state) = app.try_state::<WatchState>() {
-                state.stop.store(true, Ordering::Relaxed);
-            }
             if let Some(state) = app.try_state::<ApiSidecar>() {
                 if let Ok(mut child) = state.0.lock() {
                     if let Some(child) = child.take() {

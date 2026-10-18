@@ -3,6 +3,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { readFileSync } from "node:fs";
 import { memoryDb } from "../fixtures/database.js";
 import { createApp } from "../../src/backend/api/app";
+import type { ScreenpipeReader } from "../../src/backend/ports/index";
 
 const spec = JSON.parse(readFileSync("src/contracts/openapi.yaml", "utf8")) as {
   paths: Record<
@@ -308,7 +309,21 @@ Object.assign(cases, {
     body: { kind: "assign", periodId: "13", caseId: "5", expectedAssignmentRevision: 0 },
   },
   "POST /api/pill/undo": { status: 409, body: { undoToken: "expired-token" } },
+  "GET /api/screenpipe/focus": {},
+  "GET /api/screenpipe/frames": {
+    path: "/api/screenpipe/frames?start=2026-10-16T09:00:00Z&end=2026-10-16T10:00:00Z",
+  },
+  "GET /api/screenpipe/frames/{frameId}/image": {
+    path: "/api/screenpipe/frames/42/image",
+    status: 404,
+  },
 });
+/** Never reach a real Screenpipe from the contract test: no focus, no frames, no images. */
+const offlineScreenpipe: ScreenpipeReader = {
+  latestFocus: async () => null,
+  frames: async () => [],
+  frameImage: async () => null,
+};
 const ajv = new Ajv2020({ strict: false });
 
 describe("OpenAPI response contract", () => {
@@ -319,7 +334,7 @@ describe("OpenAPI response contract", () => {
         expect(cases[key]).toBeDefined();
         const db = memoryDb();
         try {
-          const app = createApp(db),
+          const app = createApp(db, { screenpipe: offlineScreenpipe }),
             fixture = cases[key];
           if (key === "POST /api/day/approve" || key === "POST /api/matters/{id}/approve") {
             (fixture.body as Record<string, unknown>).expected_effective_revisions =

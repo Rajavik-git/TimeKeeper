@@ -2495,6 +2495,168 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/screenpipe/focus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the current window from Screenpipe
+         * @description Read-only. Returns the newest window Screenpipe recorded in the last 2 minutes (app, title, URL, capture time), never screen text. Screenpipe may need 30-60 seconds to make a capture searchable. Screenpipe being stopped or refusing the request is reported in `status`.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScreenpipeFocus"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/screenpipe/frames": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recorded Screenpipe frames in a time range
+         * @description Read-only. Frame identity, capture time, app and window title from Screenpipe OCR captures, oldest first, deduplicated. Never screen text. The range must not exceed 24 hours.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Range start (ISO 8601). */
+                    start: string;
+                    /** @description Range end (ISO 8601), after start. */
+                    end: string;
+                    /** @description Maximum frames, 1-200 (default 100). */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Success */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScreenpipeFrames"];
+                    };
+                };
+                /** @description Invalid range or limit */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/screenpipe/frames/{frameId}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read one recorded Screenpipe screenshot
+         * @description Proxies Screenpipe GET /frames/{id} with the server-side key. The screenshot may show any recorded screen content.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    frameId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The screenshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "image/*": string;
+                    };
+                };
+                /** @description Invalid frame ID */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Screenpipe no longer has this frame */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiFailure"];
+                    };
+                };
+                /** @description Screenpipe is not reachable or refused the request */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScreenpipeUnavailable"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3664,6 +3826,43 @@ export interface components {
         ApiFailure: {
             /** @enum {string} */
             error: "invalid-request" | "not-found" | "no-active-session" | "conflict" | "pending";
+            message: string;
+        };
+        WindowFocus: {
+            appName: string;
+            /** @description Untrusted screen content recorded by Screenpipe. */
+            windowTitle: string;
+            url: string | null;
+            recordedAt: string;
+        };
+        ScreenpipeFocus: {
+            /** @enum {string} */
+            status: "ok";
+            focus: components["schemas"]["WindowFocus"] | null;
+        } | {
+            /** @enum {string} */
+            status: "unavailable" | "unauthorized";
+            message: string;
+        };
+        ScreenpipeFrame: {
+            frameId: string;
+            recordedAt: string;
+            appName: string;
+            /** @description Untrusted screen content recorded by Screenpipe. */
+            windowTitle: string;
+        };
+        ScreenpipeFrames: {
+            /** @enum {string} */
+            status: "ok";
+            frames: components["schemas"]["ScreenpipeFrame"][];
+        } | {
+            /** @enum {string} */
+            status: "unavailable" | "unauthorized";
+            message: string;
+        };
+        ScreenpipeUnavailable: {
+            /** @enum {string} */
+            error: "unavailable";
             message: string;
         };
     };

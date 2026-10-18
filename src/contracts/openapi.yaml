@@ -2742,6 +2742,103 @@
           }
         }
       }
+    },
+    "/api/screenpipe/focus": {
+      "get": {
+        "summary": "Read the current window from Screenpipe",
+        "description": "Read-only. Returns the newest window Screenpipe recorded in the last 2 minutes (app, title, URL, capture time), never screen text. Screenpipe may need 30-60 seconds to make a capture searchable. Screenpipe being stopped or refusing the request is reported in `status`.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ScreenpipeFocus" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/screenpipe/frames": {
+      "get": {
+        "summary": "List recorded Screenpipe frames in a time range",
+        "description": "Read-only. Frame identity, capture time, app and window title from Screenpipe OCR captures, oldest first, deduplicated. Never screen text. The range must not exceed 24 hours.",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "description": "Range start (ISO 8601).",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "description": "Range end (ISO 8601), after start.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum frames, 1-200 (default 100).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ScreenpipeFrames" } }
+            }
+          },
+          "400": {
+            "description": "Invalid range or limit",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          }
+        }
+      }
+    },
+    "/api/screenpipe/frames/{frameId}/image": {
+      "get": {
+        "summary": "Read one recorded Screenpipe screenshot",
+        "description": "Proxies Screenpipe GET /frames/{id} with the server-side key. The screenshot may show any recorded screen content.",
+        "parameters": [
+          {
+            "name": "frameId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[0-9]+$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The screenshot",
+            "content": { "image/*": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": {
+            "description": "Invalid frame ID",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "404": {
+            "description": "Screenpipe no longer has this frame",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiFailure" } }
+            }
+          },
+          "503": {
+            "description": "Screenpipe is not reachable or refused the request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScreenpipeUnavailable" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5129,6 +5226,93 @@
             "type": "string",
             "enum": ["invalid-request", "not-found", "no-active-session", "conflict", "pending"]
           },
+          "message": { "type": "string" }
+        }
+      },
+      "WindowFocus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["appName", "windowTitle", "url", "recordedAt"],
+        "properties": {
+          "appName": { "type": "string" },
+          "windowTitle": {
+            "type": "string",
+            "description": "Untrusted screen content recorded by Screenpipe."
+          },
+          "url": { "type": ["string", "null"] },
+          "recordedAt": { "type": "string" }
+        }
+      },
+      "ScreenpipeFocus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "focus"],
+            "properties": {
+              "status": { "type": "string", "enum": ["ok"] },
+              "focus": {
+                "anyOf": [{ "$ref": "#/components/schemas/WindowFocus" }, { "type": "null" }]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "message"],
+            "properties": {
+              "status": { "type": "string", "enum": ["unavailable", "unauthorized"] },
+              "message": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "ScreenpipeFrame": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["frameId", "recordedAt", "appName", "windowTitle"],
+        "properties": {
+          "frameId": { "type": "string", "pattern": "^[0-9]+$" },
+          "recordedAt": { "type": "string" },
+          "appName": { "type": "string" },
+          "windowTitle": {
+            "type": "string",
+            "description": "Untrusted screen content recorded by Screenpipe."
+          }
+        }
+      },
+      "ScreenpipeFrames": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "frames"],
+            "properties": {
+              "status": { "type": "string", "enum": ["ok"] },
+              "frames": {
+                "type": "array",
+                "maxItems": 200,
+                "items": { "$ref": "#/components/schemas/ScreenpipeFrame" }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "message"],
+            "properties": {
+              "status": { "type": "string", "enum": ["unavailable", "unauthorized"] },
+              "message": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "ScreenpipeUnavailable": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string", "enum": ["unavailable"] },
           "message": { "type": "string" }
         }
       }

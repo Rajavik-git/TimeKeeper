@@ -9,8 +9,12 @@ import { compatibilityRoutes } from "./compatibility-routes.js";
 import { catalogRoutes } from "./catalog-routes.js";
 import { sourceExportRoutes } from "./source-export-routes.js";
 import { pillRoutes } from "./pill-routes.js";
+import { screenpipeRoutes } from "./screenpipe-routes.js";
+import { httpScreenpipe, screenpipeConfigFromEnv } from "../adapters/screenpipe/http.js";
+import type { ScreenpipeReader } from "../ports/index.js";
 
-export function createApp(db: DatabaseSync) {
+export function createApp(db: DatabaseSync, options: { screenpipe?: ScreenpipeReader } = {}) {
+  const screenpipe = options.screenpipe ?? httpScreenpipe(screenpipeConfigFromEnv());
   const app = new Hono();
   const allowedOrigins = new Set([
     "tauri://localhost",
@@ -51,6 +55,7 @@ export function createApp(db: DatabaseSync) {
   app.route("/api", catalogRoutes(db));
   app.route("/api", coreRoutes(db));
   app.route("/api", pillRoutes(db));
+  app.route("/api", screenpipeRoutes(screenpipe));
   app.route("/api", compatibilityRoutes(db));
   return app;
 }

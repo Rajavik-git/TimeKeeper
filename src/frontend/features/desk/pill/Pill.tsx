@@ -10,7 +10,6 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "../../../api/client";
 import { loadApplication, refreshApplication, useResource } from "../../../api/queries";
@@ -25,6 +24,7 @@ import { money, rate } from "../../../shared/format";
 import { Logo } from "../../../shared/components/Logo/Logo";
 import { rateOriginLabels } from "../../../shared/presentation/billing";
 import { useToday } from "../../../shared/hooks/useToday";
+import { screenpipeIssue, useScreenpipeFocus } from "./useScreenpipeFocus";
 
 const tauri = "__TAURI_INTERNALS__" in window;
 
@@ -93,7 +93,7 @@ function savedPosition(): BrowserPosition {
     return { x: 0, y: 0 };
   }
 }
-/** The pause is local to the pill: it only stops file-switch detection and freezes the clock. */
+/** The pause is local to the pill: it stops reading Screenpipe and freezes the clock. */
 function storedPause(sessionId: string | undefined): number | null {
   if (!sessionId) return null;
   const value = Number(readStorage(pauseKey(sessionId)));
@@ -141,7 +141,6 @@ export function Pill() {
   const nativePlacement = useRef<PillPlacement | null>(null);
   const ignoreNativeMoveUntil = useRef(0);
   const dragStart = useRef<{ x: number; y: number; origin: BrowserPosition } | null>(null);
-  const debounce = useRef<number | undefined>(undefined);
   const switching = useRef(false);
   const previous = useRef("");
   const dismissedSwitch = useRef(new Set<string>());
@@ -281,13 +280,6 @@ export function Pill() {
         .setAlwaysOnTop(alwaysOnTop)
         .catch(() => setError("Unable to set pill position."));
   }, [alwaysOnTop]);
-  const loaded = !!catalogState;
-  useEffect(() => {
-    if (tauri && loaded)
-      void invoke("set_watch_enabled", { enabled: !paused }).catch(() =>
-        setError("Unable to apply file-switch pause."),
-      );
-  }, [loaded, paused, activeId]);
   useEffect(() => {
     if (!tauri) return;
     let cancelled = false;
@@ -436,26 +428,13 @@ export function Pill() {
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
   }, [notice, recent, showQuestionNotice, expanded, dismiss]);
-  useEffect(() => {
-    if (!tauri) return;
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    void listen<{ windowTitle: string; appName: string }>("active-window-changed", (event) => {
-      window.clearTimeout(debounce.current);
-      debounce.current = window.setTimeout(
-        () => void showSwitch(event.payload.windowTitle, event.payload.appName),
-        3000,
-      );
-    }).then((stop) => {
-      if (cancelled) stop();
-      else unlisten = stop;
-    });
-    return () => {
-      cancelled = true;
-      unlisten?.();
-      window.clearTimeout(debounce.current);
-    };
-  }, [showSwitch]);
+  // Screenpipe owns window detection; the pill only reads what it recorded.
+  const screenpipeProblem = screenpipeIssue(
+    useScreenpipeFocus(
+      !!catalogState && !offline && !!active && !paused,
+      (focus) => void showSwitch(focus.windowTitle, focus.appName),
+    ),
+  );
 
   const switchTo = useCallback(
     async (target: Notice, caseId: string | null, automatic = false) => {
@@ -808,7 +787,13 @@ export function Pill() {
             </>
           ) : (
             <>
-              <span className={"pill-rec" + (paused || !active ? " paused" : "")} />
+              <span
+                className={
+                  "pill-rec" +
+                  (paused || !active ? " paused" : screenpipeProblem ? " unlinked" : "")
+                }
+                title={screenpipeProblem ? "Screenpipe not connected" : undefined}
+              />
               <span
                 className={"pill-who" + (feedback?.showText ? " confirming" : "")}
                 title={
@@ -895,6 +880,11 @@ export function Pill() {
               {current ? calendarTime(current.startedAt) : "—"}
             </small>
           </header>
+          {screenpipeProblem && (
+            <p className="pill-hint" role="status">
+              Screenpipe not connected · {screenpipeProblem.message}
+            </p>
+          )}
           <div className="pill-kpis">
             <div>
               <small>This period</small>
