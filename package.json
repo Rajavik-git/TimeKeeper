@@ -26,7 +26,8 @@
     "api:bundle": "node scripts/build-sidecar.mjs",
     "api:sidecar": "node scripts/build-sidecar.mjs --sidecar",
     "desktop:dev": "npm run api:sidecar && tauri dev",
-    "desktop:build": "npm run api:sidecar && tauri build"
+    "desktop:build": "npm run api:sidecar && tauri build",
+    "mcp:serve": "node --env-file-if-exists=.env --import tsx src/mcp/server.ts --http 3032 --screenpipe-link"
   },
   "dependencies": {
     "@date-fns/tz": "1.4.1",
