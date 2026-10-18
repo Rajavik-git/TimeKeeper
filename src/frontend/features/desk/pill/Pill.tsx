@@ -347,8 +347,9 @@ export function Pill() {
             notification,
             contentWidth,
             contentHeight,
-            anchorX: anchor?.anchorX ?? null,
-            anchorY: anchor?.anchorY ?? null,
+            // Rust expects whole pixels; an odd pill width makes the dragged centre fractional.
+            anchorX: anchor ? Math.round(anchor.anchorX) : null,
+            anchorY: anchor ? Math.round(anchor.anchorY) : null,
           })
             .then((position) => {
               nativePlacement.current = position;
